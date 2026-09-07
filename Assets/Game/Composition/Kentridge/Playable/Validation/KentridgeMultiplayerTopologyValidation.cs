@@ -124,7 +124,8 @@ namespace Game.Composition.Kentridge.Playable.Validation
                     sessionAdmissionConsumer: admission),
                 () => NetworkEndpoint.LoopbackIpv4.WithPort(_port),
                 server => server.LocalEndpoint,
-                TickAuthority);
+                TickAuthority,
+                new KentridgeMultiplayerCharacterRoster(_actors.Characters));
 
             Require(_authority.Application.CompleteBoot(), "authority boot");
             var configuration = new SessionStartupConfiguration(3, Protocol, Content, true);
