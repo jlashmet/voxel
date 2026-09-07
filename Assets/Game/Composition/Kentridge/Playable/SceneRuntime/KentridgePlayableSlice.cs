@@ -26,9 +26,9 @@ using VoxelEngine.Tiering.Api;
 namespace Game.Kentridge.PlayableSlice
 {
     /// <summary>
-    /// First player-facing integration of the generated Kentridge world and authored opening campaign.
+    /// Player-facing integration of the generated Kentridge world and authored full campaign.
     /// The pub and town are one continuous voxel world: once the opening cutscene releases control,
-    /// the player walks through the generated pub doorway directly into generated Kentridge.
+    /// the player walks through the generated pub doorway into the hierarchy-backed campaign world.
     /// </summary>
     [AddComponentMenu("Game/Kentridge Playable Slice")]
     public sealed class KentridgePlayableSlice : MonoBehaviour, IShowcaseMeasurementDriver
@@ -113,6 +113,7 @@ namespace Game.Kentridge.PlayableSlice
         public bool OpeningCutsceneCameraActive => _openingCutsceneCameraActive;
         public Vector3 OpeningCutsceneCameraFocus => _openingCameraFocus;
         public float InteractionRangeMetres => m_InteractionRangeMetres;
+        public bool AuthoredFullRunSession => _session != null && _session.IsFullRun;
         internal IProgressionQuery ProgressionQuery => _session?.Runtime.Progression;
         internal string TravelObjectiveId => _travelObjective.ToString();
         public bool TravelObjectiveActive =>
@@ -137,21 +138,28 @@ namespace Game.Kentridge.PlayableSlice
             try
             {
                 var destinationSpeaker = new CutsceneActorId("destination-npc");
-                KnownOpeningCampaignContent content = KnownOpeningCampaignContent.Build(
-                    DialogueOnly("destination-conversation", destinationSpeaker),
-                    (scene, roles) => scene.Bind(destinationSpeaker, roles.DestinationNpc));
-                _travelObjective = content.TravelObjective;
-                _destinationNpc = content.DestinationNpc;
-                _introCutscene = content.IntroCutscene;
-                _destinationCutscene = content.DestinationCutscene;
+                CutsceneDefinition destinationCutscene = DialogueOnly(
+                    "destination-conversation",
+                    destinationSpeaker);
 
                 SettlementPlan settlement = KentridgeDefinition.Build(m_Seed);
                 SettlementPlan hightown = HightownDefinition.Build(m_Seed);
                 _kentridgePlan = settlement;
                 _hightownPlan = hightown;
-                KentridgeCampaignGenerationPlan generation = KentridgeCampaignSessionBootstrap.Plan(
-                    content.Blueprint,
-                    settlement);
+
+                KentridgePlayableFullRunBootstrap campaign =
+                    KentridgePlayableFullRunBootstrap.Compose(
+                        destinationCutscene,
+                        destinationSpeaker,
+                        m_Seed,
+                        settlement,
+                        voxelsPerDecimetre: 1);
+                AuthoredFullRunCampaignContent content = campaign.Content;
+                KentridgeCampaignGenerationPlan openingGeometry = campaign.OpeningGeometry;
+                _travelObjective = content.TravelObjective;
+                _destinationNpc = content.DestinationNpc;
+                _introCutscene = content.IntroCutscene;
+                _destinationCutscene = content.DestinationCutscene;
 
                 if (!KentridgeGameplaySiteAccessResolver.TryResolve(
                         settlement,
@@ -170,7 +178,7 @@ namespace Game.Kentridge.PlayableSlice
                 FeatureCatalogue kentridgeCatalogue = KentridgeCombinedVoxelCatalogue.Build(
                     settlement,
                     BuildSettings(kentridge: true),
-                    generation.HiddenSpaces,
+                    openingGeometry.HiddenSpaces,
                     Allocator.Temp);
                 FeatureCatalogue hightownCatalogue = m_RealizeHightownBuildings
                     ? HightownVoxelCatalogue.Build(
@@ -227,19 +235,16 @@ namespace Game.Kentridge.PlayableSlice
                     ?? gameObject.AddComponent<KentridgeForestBanditEncounter>();
                 if (GetComponent<KentridgeGameplayHudInstaller>() == null)
                     gameObject.AddComponent<KentridgeGameplayHudInstaller>();
-                var sessionFactory = new KentridgeSessionRuntimeGraphFactory(
-                    content.Blueprint,
-                    generation,
-                    new KentridgeCampaignRealizationFacts(
-                        new KentridgeVoxelSiteRealizationFacts(settlement, 1)),
-                    _actors,
-                    _presentation,
-                    extensionFactory: forestSessionExtension);
+                KentridgeSessionRuntimeGraphFactory sessionFactory =
+                    campaign.Composition.CreateSessionFactory(
+                        _actors,
+                        _presentation,
+                        forestSessionExtension);
                 _sessionOrchestration = new GameSessionOrchestrator(sessionFactory);
                 GameSessionOperationResult prepared = _sessionOrchestration.Prepare(
                     GameSessionStartRequest.NewGame(
                         new GameSessionIdentity(
-                            "kentridge-opening-campaign",
+                            "kentridge-authored-full-run-campaign",
                             KentridgeDefinition.Id,
                             "local-player-session",
                             "kentridge-generated-world")));
@@ -249,6 +254,13 @@ namespace Game.Kentridge.PlayableSlice
                 _sessionGraph = sessionFactory.Current
                     ?? throw new InvalidOperationException("Kentridge session composition returned no graph.");
                 _session = _sessionGraph.Session;
+                if (!_session.IsFullRun)
+                    throw new InvalidOperationException(
+                        "Kentridge production player composed an opening-only session instead of the authored full run.");
+                Debug.Log(
+                    "KENTRIDGE_AUTHORED_FULL_RUN_READY settlements="
+                    + campaign.Composition.PhysicalWorld.Graph.HierarchyPlan.Settlements.Count
+                    + " npcs=" + _session.FullRunWorld.Npcs.Count);
 
                 RenderingComposition.ResetSurfacePassDiagnostics("kentridge-playable-slice-enabled");
                 RenderingComposition.SetSurfaceBuildEnabled(false);
@@ -1032,9 +1044,9 @@ namespace Game.Kentridge.PlayableSlice
 
         private CutsceneStageBinding FindOpeningStage(CutsceneRef intro)
         {
-            for (int i = 0; i < _session.World.CutsceneStages.Count; i++)
+            for (int i = 0; i < _session.CutsceneStages.Count; i++)
             {
-                CutsceneStageRealization stage = _session.World.CutsceneStages[i];
+                CutsceneStageRealization stage = _session.CutsceneStages[i];
                 if (stage.Cutscene.Equals(intro)) return stage.Binding;
             }
             throw new InvalidOperationException("Kentridge opening cutscene has no realized stage.");
