@@ -25,7 +25,7 @@ namespace Game.Kentridge.PlayableSlice
         private const string ActivationArgument = "-voxel-system24-vertical-slice";
         private const float DestinationNetworkStopMetres = 1.25f;
         private const float DestinationEntranceStopMetres = 0.65f;
-        private const float DestinationStopMetres = 1.75f;
+        private const float DestinationStopMetres = 0.50f;
         private const float PostRestoreMovementMetres = 0.75f;
 
         private enum Stage
