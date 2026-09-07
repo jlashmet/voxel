@@ -4,6 +4,7 @@ using Game.Composition.WorldBuilderWorldGen.Runtime;
 using Game.Cutscenes.Api;
 using Game.Outcomes.Api;
 using Game.Outcomes.Runtime;
+using Game.WorldBuilder.Api;
 using MountingForce.WorldGen;
 
 namespace Game.Composition.Kentridge.Runtime
