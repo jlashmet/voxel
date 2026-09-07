@@ -172,6 +172,96 @@ namespace VoxelEngine.Tests.EditMode
             finally { entries.Clear(); entry.Dispose(); }
         }
 
+        [Test]
+        public void IncrementalGpuAccountingMatchesFullRefreshAcrossCameraAndPublicationChanges()
+        {
+            using var incremental = new GpuSolidChunkCache { GpuBuildDemandEnabled = true };
+            using var full = new GpuSolidChunkCache { GpuBuildDemandEnabled = true };
+            var random = new System.Random(391);
+            const int count = 24;
+            var previous = new uint[count];
+            foreach (var worker in new[] { incremental, full })
+                for (int i = 0; i < count; i++)
+                {
+                    var coordinate = new int3(i, 0, 0);
+                    Field<HashSet<int3>>(worker, "_known").Add(coordinate);
+                    Field<Dictionary<int3, ulong>>(worker, "_desiredVersions")[coordinate] = 1;
+                }
+            for (int frame = 0; frame < 80; frame++)
+            {
+                bool reset = frame % 7 == 0;
+                if (reset)
+                    foreach (var worker in new[] { incremental, full })
+                    {
+                        var empty = Field<Dictionary<int3, ulong>>(worker, "_emptyVersions");
+                        empty.Clear();
+                        if (frame % 2 == 0)
+                            for (int i = 0; i < count; i += 3) empty[new int3(i, 0, 0)] = 1;
+                    }
+                // Metadata collection may reset public diagnostics; demand retains its own
+                // accounting and restores it at the next feedback boundary.
+                incremental.BeginVisibilityCollection();
+                incremental.BeginGpuDemandFeedback(reset); full.BeginGpuDemandFeedback();
+                for (int i = 0; i < count; i++)
+                {
+                    var coordinate = new int3(i, 0, 0);
+                    uint classification = previous[i] & 3;
+                    if (random.Next(4) == 0 || frame == 0)
+                        classification = new uint[] { 0, 1, 3 }[random.Next(3)];
+                    uint geometry = classification | ((uint)random.Next(1, 1000) << 3);
+                    if (reset || (previous[i] & 3) != classification)
+                        incremental.ApplyGpuDemand(coordinate, geometry, frame);
+                    else incremental.UpdateGpuDemandRank(coordinate, geometry);
+                    full.ApplyGpuDemand(coordinate, geometry, frame);
+                    previous[i] = geometry;
+                }
+                Assert.AreEqual(full.MissingVisibleCount, incremental.MissingVisibleCount, $"missing frame {frame}");
+                Assert.AreEqual(full.LastVisibilityInBandCount, incremental.LastVisibilityInBandCount);
+                Assert.AreEqual(full.LastVisibilityFrustumCount, incremental.LastVisibilityFrustumCount);
+                CollectionAssert.AreEquivalent(Field<HashSet<int3>>(full, "_dirty"),
+                    Field<HashSet<int3>>(incremental, "_dirty"), $"demand frame {frame}");
+            }
+        }
+
+        [Test]
+        public void RankOnlyFeedbackCannotCreateDemandOrChangeClassification()
+        {
+            using var worker = new GpuSolidChunkCache { GpuBuildDemandEnabled = true };
+            var coordinate = int3.zero;
+            worker.UpdateGpuDemandRank(coordinate, 3);
+            Assert.AreEqual(0, worker.DirtyCount);
+            Field<HashSet<int3>>(worker, "_known").Add(coordinate);
+            worker.BeginGpuDemandFeedback(); worker.ApplyGpuDemand(coordinate, 0, 1);
+            worker.UpdateGpuDemandRank(coordinate, 3);
+            Assert.AreEqual(0, worker.MissingVisibleCount);
+            Assert.AreEqual(0, worker.DirtyCount);
+            worker.ApplyGpuDemand(coordinate, 3, 2);
+            Assert.AreEqual(1, worker.MissingVisibleCount);
+            var remove = typeof(GpuSolidChunkCache).GetMethod("TryRemoveChunk", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.True((bool)remove.Invoke(worker, new object[] { coordinate }));
+            Assert.AreEqual(0, worker.MissingVisibleCount);
+            worker.UpdateGpuDemandRank(coordinate, 3u | (10u << 3));
+            Assert.AreEqual(0, worker.DirtyCount);
+            Assert.AreEqual(0, worker.LastVisibilityInBandCount);
+        }
+
+        [Test]
+        public void DemandDiagnosticDistinguishesQueuedCurrentEmptyAndStrandedWork()
+        {
+            using var worker = new GpuSolidChunkCache { GpuBuildDemandEnabled = true };
+            Field<HashSet<int3>>(worker, "_known").Add(int3.zero);
+            worker.BeginGpuDemandFeedback(); worker.ApplyGpuDemand(int3.zero, 3, 1);
+            Assert.AreEqual(0, worker.CountUnqueuedGpuDemand());
+            Field<HashSet<int3>>(worker, "_queuedDirty").Clear();
+            Field<HashSet<int3>>(worker, "_queuedVisibleDirty").Clear();
+            Assert.AreEqual(1, worker.CountUnqueuedGpuDemand());
+            Field<Dictionary<int3, ulong>>(worker, "_emptyVersions")[int3.zero] = ulong.MaxValue;
+            Assert.AreEqual(0, worker.CountUnqueuedGpuDemand());
+            Field<Dictionary<int3, ulong>>(worker, "_emptyVersions").Clear();
+            worker.ApplyGpuDemand(int3.zero, 0, 2);
+            Assert.AreEqual(0, worker.CountUnqueuedGpuDemand());
+        }
+
         private static T Field<T>(object owner, string name) =>
             (T)owner.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic).GetValue(owner);
     }

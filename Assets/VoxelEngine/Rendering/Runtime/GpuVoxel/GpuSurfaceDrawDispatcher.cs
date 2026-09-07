@@ -43,13 +43,14 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private readonly Vector4[] _lodPlanes = new Vector4[6];
         private bool _useLodSelection;
 
-        // One bounded readback in flight. GPU buffers are reused; the staging arrays is
+        // One bounded readback in flight. GPU buffers are reused; the staging arrays are
         // limited by the existing candidate capacity, not world lifetime. Callback copies data
         // before Unity expires the native readback view. Only the main-thread consumer acts on it.
         private AsyncGPUReadbackRequest _demandRequest;
         private readonly Action<AsyncGPUReadbackRequest> _receiveDemand;
         private uint[] _demandGeometry;
-        private byte[] _previousDemandGeometry;
+        private uint[] _previousDemandGeometry;
+        private uint _previousDemandInputs, _previousDemandSettings;
         private uint _previousDemandTopology;
         private bool _requestQueryValid, _currentDemandFrustum, _requestDemandFrustum;
         private uint _requestInputVersion, _requestSettingsVersion;
@@ -65,25 +66,51 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         internal ulong DemandFeedbackDiscarded { get; private set; }
         internal ulong DemandFeedbackErrors { get; private set; }
 
-        internal bool TryConsumeDemand(Action begin, Action<SurfaceLodNodeKey, uint> consume)
+        internal ulong DemandFullRefreshes { get; private set; }
+        internal ulong DemandCoordinateRefreshes { get; private set; }
+        internal ulong DemandRankUpdates { get; private set; }
+
+        internal bool TryConsumeDemand(Action<bool> begin, Action<SurfaceLodNodeKey, uint, bool> consume)
         {
             if (!_demandReady || _disposed) return false;
             _demandReady = false;
             if (_activeLodSlot < 0 || _demandTopology != _lodInputs.TopologyBuildCount
                 || _demandSettings != _settingsVersion || _demandCount != _lodInputs.Count)
             { DemandFeedbackDiscarded++; _requestQueryValid = false; return false; }
-            begin();
             bool newTopology = _previousDemandTopology != _demandTopology;
+            // Only diff against an unchanged live metadata image. A readiness/handle change,
+            // including one newer than the readback, requires live generation checks again.
+            bool refreshAll = newTopology || _previousDemandInputs != _lodInputs.Version
+                || _requestInputVersion != _lodInputs.Version || _previousDemandSettings != _demandSettings;
+            begin(refreshAll);
+            if (refreshAll) DemandFullRefreshes++;
             for (int i = 0; i < _demandCount; i++)
             {
                 uint geometry = _demandGeometry[i];
-                byte classification = (byte)(geometry & 3u);
-                if ((geometry & 4u) != 0 && (newTopology || (geometry & 1u) != 0
-                    || classification != _previousDemandGeometry[i]))
-                    consume(_lodInputs.KeyAt(i), geometry & ~4u);
-                _previousDemandGeometry[i] = classification;
+                bool classificationChanged = (geometry & 3u) != (_previousDemandGeometry[i] & 3u);
+                if ((geometry & 4u) != 0)
+                {
+                    bool refresh = refreshAll ? newTopology || (geometry & 1u) != 0 || classificationChanged
+                        : classificationChanged;
+                    if (refresh)
+                    {
+                        consume(_lodInputs.KeyAt(i), geometry & ~4u, true);
+                        DemandCoordinateRefreshes++;
+                    }
+                    else if (!refreshAll && (geometry & 1u) != 0 && (_lodInputs.Nodes[i].Flags & 2u) == 0
+                        && geometry != _previousDemandGeometry[i])
+                    {
+                        // Completed chunks need no admission rank. Pending demand keeps fresh
+                        // GPU ranks without rerunning host publication/queue/accounting work.
+                        consume(_lodInputs.KeyAt(i), geometry & ~4u, false);
+                        DemandRankUpdates++;
+                    }
+                }
+                _previousDemandGeometry[i] = geometry;
             }
             _previousDemandTopology = _demandTopology;
+            _previousDemandInputs = _lodInputs.Version;
+            _previousDemandSettings = _demandSettings;
             DemandFeedbackAccepted++;
             return true;
         }
@@ -186,7 +213,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 // Four levels plus proof-only siblings, bounded independently of world lifetime.
                 _lodInputs = new GpuSurfaceLodInputs(_arena.HandleCapacity * 8);
                 _demandGeometry = new uint[_lodInputs.Nodes.Length];
-                _previousDemandGeometry = new byte[_lodInputs.Nodes.Length];
+                _previousDemandGeometry = new uint[_lodInputs.Nodes.Length];
                 for (int i = 0; i < BufferedFrames; i++)
                 {
                     _lodNodes[i] = new ComputeBuffer(_lodInputs.Nodes.Length, 64);

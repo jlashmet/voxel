@@ -21,7 +21,9 @@ namespace VoxelEngine.Tests.EditMode
             known.Add(first); known.Add(second);
             cache.BeginGpuDemandFeedback();
             cache.ApplyGpuDemand(first, 1u | (1000u << 3), 1);
-            cache.ApplyGpuDemand(second, 1u | (10u << 3), 1);
+            cache.ApplyGpuDemand(second, 1u | (2000u << 3), 1);
+            cache.BeginGpuDemandFeedback(false);
+            cache.UpdateGpuDemandRank(second, 1u | (10u << 3));
             Assert.True((bool)select.Invoke(cache, new object[] { null, 0.1f, double.MaxValue }));
             object build = typeof(GpuSolidChunkCache).GetField("_build", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(cache);
             Assert.That((int3)build.GetType().GetField("Coordinate").GetValue(build), Is.EqualTo(second));

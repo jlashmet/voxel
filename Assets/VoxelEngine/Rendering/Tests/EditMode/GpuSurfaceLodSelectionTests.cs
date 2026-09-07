@@ -73,18 +73,18 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             _dispatcher.RequestDemandFeedback();
             AsyncGPUReadback.WaitAllRequests();
             var results = new Dictionary<SurfaceLodNodeKey, uint>();
-            Assert.True(_dispatcher.TryConsumeDemand(results.Clear, (node, geometry) => results.Add(node, geometry)));
+            Assert.True(_dispatcher.TryConsumeDemand(reset => { if (reset) results.Clear(); }, (node, geometry, _) => results[node] = geometry));
             Assert.That(results.Count, Is.EqualTo(1), "Synthetic ancestors must not become host demand.");
             Assert.That(results[key] & 3, Is.EqualTo(1), "Off-frustum in-band demand must retain background prefetch.");
             planes[0] = new Plane(Vector3.right, 100000);
             Select(none, none, 1, owned, planes, bands: bands);
             _dispatcher.RequestDemandFeedback(); AsyncGPUReadback.WaitAllRequests();
-            Assert.True(_dispatcher.TryConsumeDemand(results.Clear, (node, geometry) => results.Add(node, geometry)));
+            Assert.True(_dispatcher.TryConsumeDemand(reset => { if (reset) results.Clear(); }, (node, geometry, _) => results[node] = geometry));
             Assert.That(results[key] & 3, Is.EqualTo(3));
             bands[step == 1 ? 0 : step == 2 ? 1 : step == 4 ? 2 : 3].z = 1;
             Select(none, none, 2, owned, planes, bands: bands);
             _dispatcher.RequestDemandFeedback(); AsyncGPUReadback.WaitAllRequests();
-            Assert.True(_dispatcher.TryConsumeDemand(results.Clear, (node, geometry) => results.Add(node, geometry)));
+            Assert.True(_dispatcher.TryConsumeDemand(reset => { if (reset) results.Clear(); }, (node, geometry, _) => results[node] = geometry));
             Assert.That(results[key] & 1, Is.Zero);
         }
 
@@ -97,15 +97,15 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             Select(none, none, 0, first);
             _dispatcher.RequestDemandFeedback(); AsyncGPUReadback.WaitAllRequests();
             Select(none, none, 1, second);
-            Assert.False(_dispatcher.TryConsumeDemand(() => Assert.Fail("Old membership accepted"), (_, _) => { }));
+            Assert.False(_dispatcher.TryConsumeDemand(_ => Assert.Fail("Old membership accepted"), (_, _, _) => { }));
             _dispatcher.RequestDemandFeedback(); AsyncGPUReadback.WaitAllRequests();
             Select(second, second, 2, second);
             var received = new List<SurfaceLodNodeKey>();
-            Assert.True(_dispatcher.TryConsumeDemand(received.Clear, (key, _) => received.Add(key)));
+            Assert.True(_dispatcher.TryConsumeDemand(reset => { if (reset) received.Clear(); }, (key, _, _) => received.Add(key)));
             CollectionAssert.AreEqual(second, received);
             _dispatcher.RequestDemandFeedback(); AsyncGPUReadback.WaitAllRequests();
             Select(second, second, 3, second, voxelSize: 0.1f);
-            Assert.False(_dispatcher.TryConsumeDemand(() => Assert.Fail("Old scale accepted"), (_, _) => { }));
+            Assert.False(_dispatcher.TryConsumeDemand(_ => Assert.Fail("Old scale accepted"), (_, _, _) => { }));
             Assert.That(_dispatcher.DemandFeedbackDiscarded, Is.EqualTo(2));
             Assert.That(_dispatcher.DemandFeedbackErrors, Is.Zero);
         }
@@ -121,7 +121,7 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             Select(none, none, 0, owned);
             _dispatcher.RequestDemandFeedback(); AsyncGPUReadback.WaitAllRequests();
             var results = new Dictionary<SurfaceLodNodeKey, uint>();
-            Assert.True(_dispatcher.TryConsumeDemand(results.Clear, (key, rank) => results.Add(key, rank)));
+            Assert.True(_dispatcher.TryConsumeDemand(reset => { if (reset) results.Clear(); }, (key, rank, _) => results[key] = rank));
             Assert.That(results.Count, Is.EqualTo(3));
             Assert.That(results[distant] >> 3, Is.EqualTo(33554430u), "Distance saturation must not wrap to nearest priority.");
             Assert.That(results[far] >> 3, Is.GreaterThan(results[near] >> 3));
@@ -135,16 +135,56 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             var none = new List<SurfaceLodNodeKey>();
             Select(none, none, 0, owned);
             _dispatcher.RequestDemandFeedback(); AsyncGPUReadback.WaitAllRequests();
-            Assert.True(_dispatcher.TryConsumeDemand(() => { }, (_, _) => { }));
+            Assert.True(_dispatcher.TryConsumeDemand(_ => { }, (_, _, _) => { }));
             Select(none, none, 1, owned);
             _dispatcher.RequestDemandFeedback(); AsyncGPUReadback.WaitAllRequests();
-            Assert.False(_dispatcher.TryConsumeDemand(() => { }, (_, _) => { }));
+            Assert.False(_dispatcher.TryConsumeDemand(_ => { }, (_, _, _) => { }));
             Select(owned, owned, 2, owned);
             _dispatcher.RequestDemandFeedback(); AsyncGPUReadback.WaitAllRequests();
-            Assert.True(_dispatcher.TryConsumeDemand(() => { }, (_, _) => { }));
+            Assert.True(_dispatcher.TryConsumeDemand(_ => { }, (_, _, _) => { }));
             Select(owned, owned, 3, owned, position: new Vector3(1, 0, 0));
             _dispatcher.RequestDemandFeedback(); AsyncGPUReadback.WaitAllRequests();
-            Assert.True(_dispatcher.TryConsumeDemand(() => { }, (_, _) => { }));
+            Assert.True(_dispatcher.TryConsumeDemand(_ => { }, (_, _, _) => { }));
+        }
+
+        [Test]
+        public void MovingFeedbackUpdatesOnlyChangedClassificationAndPendingRanks()
+        {
+            var ready = new SurfaceLodNodeKey(1, int3.zero);
+            var pending = new SurfaceLodNodeKey(1, new int3(2, 0, 0));
+            var owned = new List<SurfaceLodNodeKey> { ready, pending };
+            var complete = new List<SurfaceLodNodeKey> { ready };
+            var calls = new Dictionary<SurfaceLodNodeKey, bool>();
+            bool reset = false;
+            void Consume()
+            {
+                calls.Clear();
+                _dispatcher.RequestDemandFeedback(); AsyncGPUReadback.WaitAllRequests();
+                Assert.True(_dispatcher.TryConsumeDemand(value => reset = value,
+                    (key, _, refresh) => calls.Add(key, refresh)));
+            }
+            Select(complete, complete, 0, owned);
+            Consume(); Assert.True(reset); Assert.That(calls.Count, Is.EqualTo(2));
+            Select(complete, complete, 1, owned, position: new Vector3(1, 0, 0));
+            Consume(); Assert.False(reset);
+            Assert.That(calls.Count, Is.EqualTo(1));
+            Assert.False(calls[pending], "Camera distance changes require only pending admission ranks.");
+            var planes = new[] { new Plane(Vector3.right, -100000), new Plane(Vector3.left, 100000),
+                new Plane(Vector3.up, 100000), new Plane(Vector3.down, 100000),
+                new Plane(Vector3.forward, 100000), new Plane(Vector3.back, 100000) };
+            Select(complete, complete, 2, owned, planes, position: new Vector3(1, 0, 0));
+            Consume(); Assert.False(reset); Assert.That(calls.Count, Is.EqualTo(2));
+            Assert.True(calls[ready]); Assert.True(calls[pending]);
+            // A newer host readiness image must recheck actual generations, even when an
+            // older camera query has already completed. Metadata changes cannot take the rank path.
+            Select(complete, complete, 3, owned, planes, position: new Vector3(2, 0, 0));
+            _dispatcher.RequestDemandFeedback(); AsyncGPUReadback.WaitAllRequests();
+            Select(owned, owned, 4, owned, planes, position: new Vector3(2, 0, 0));
+            calls.Clear();
+            Assert.True(_dispatcher.TryConsumeDemand(value => reset = value,
+                (key, _, refresh) => calls.Add(key, refresh)));
+            Assert.True(reset); Assert.That(calls.Count, Is.EqualTo(2));
+            Assert.True(calls[ready]); Assert.True(calls[pending]);
         }
 
         [Test]
@@ -155,7 +195,7 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             _dispatcher.RequestDemandFeedback();
             _dispatcher.Dispose();
             AsyncGPUReadback.WaitAllRequests();
-            Assert.False(_dispatcher.TryConsumeDemand(() => Assert.Fail("Disposed feedback accepted"), (_, _) => { }));
+            Assert.False(_dispatcher.TryConsumeDemand(_ => Assert.Fail("Disposed feedback accepted"), (_, _, _) => { }));
             _dispatcher.Dispose();
         }
 

@@ -27,32 +27,40 @@ No budget or retirement-delay changes.
 
 ## Hypotheses and current experiment
 
-H1: repeated far transform construction, registration and matrix copying adds CPU overhead.
-H2: conservative coverage proof dominates instead. Migrate resident submission, then compare
-identical stationary60–90s/walking120–180s windows before moving coverage proof.
+Resident far-instance checkpoint `8b50ca1b8`: transforms persist on GPU, GPU compacts instances
+and writes indirect arguments. Removed CPU matrix submission. Empty draws initially regressed
+FPS; skipping fully replaced batches restored it.523tests/module pass; Showcase322/271FPS,
+CPU2.89/3.305ms,272missing,zero allocation failures/evictions. Exact captures reviewed. CPU
+replacement still supplies flags; oldest coarse build20.6s, source-service latency unresolved.
 
-Implemented persistent GPU object/inverse transforms, visibility compaction and indirect submesh
-counts. Unchanged source queries reuse batches. Configured65536-instance ceiling rejects overflow
-without hiding content. Shader retains production URP forward lighting. CPU replacement proof
-still supplies visibility flags; GPU owns compaction. Removed the old matrix submission route.
+H1: full host demand application repeats publication/queue/accounting work for unchanged GPU
+classifications (~.607ms walking). H2: readiness churn forces most feedback to refresh regardless,
+or dictionary/rank transport dominates. Compare same60–90s/120–180s Showcase windows and new
+full-refresh/coordinate-refresh/rank counters.
 
-Initial522tests and standalone landmark28s/seven captures pass. Initial Showcase275/245FPS
-regressed:106fully replaced batches still submitted empty indirect draws. Suppressed empty
-submissions;523tests now pass (22s), including compaction1/65/1025instances, submesh arguments,
-nonuniform transforms, repeated lifecycle/source updates, empty submission and capacity rejection.
-Production module48s/seven captures/exit0 passes all seven markers,262.6MB,framep95/p99 .829/.974ms.
-Corrected Showcase180s/12captures/exit0:322.26/271.36FPS,CPU2.89/3.305ms,272missing,
-zero allocation failures/evictions,3933publications/2454resident candidates. Source hashes match;
-74.9s/149.9s reviewed. Stationary did not improve versus332FPS; walking improved versus256FPS
-in this run. Transform work alone does not close the gap; coverage proof/feedback remain.
-Oldest active coarse build20.6s; startup/source-service latency still needs work.
+Implemented incremental GPU feedback: stable live metadata uses classification deltas, pending
+nodes receive rank-only updates, current complete nodes skip unchanged feedback. Topology,
+settings, readiness or a newer host image than the readback require full live checks. Worker
+accounting retains per-coordinate contributions; rank-only updates cannot create/change demand.
+Counters survive metadata collection, and removal subtracts contributions. Existing GPU age tags
+and current-generation admission/retry rules remain. No new GPU buffers or distance decisions.
+
+527Rendering tests pass (24s), including real GPU delayed-readiness/delta checks,80-cycle
+incremental/full parity, rank-driven admission and a queue-liveness diagnostic. Final production
+module48s/seven captures/exit0 passes all markers,262.6MB,framep95/p99 .889/.914ms.
+Two Showcases180s/12captures/exit0:332/282 and332/285FPS. Repeat CPU2.87/2.90ms; sampled nonzero
+feedback median.129ms,2338full resets/11894accepted. All164liveness samples unqueued=0.
+However350missing versus parent272,3380publications/2133residents and oldest21.62s(coarse) leave
+coverage/service latency unresolved. Zero allocation failures/evictions. Source hashes and exact
+74.9s/149.9s captures reviewed. Reduced CPU work is not400FPS or equivalent-coverage acceptance.
 
 ## Next steps and remaining gates
 
 Move conservative far replacement proof to GPU using current publication, discovery and region
 residency evidence; preserve unknown/stale/edit guards. Avoid replacing CPU proof with per-batch
-compute/empty-draw overhead. Reduce host feedback application (~.6ms on feedback frames).
-128solid draw buckets remain unprofiled; pressure eviction and helper cleanup remain.
+compute/empty-draw overhead. Retain the incremental feedback improvement.
+Next test128solid indirect submission overhead with fewer GPU size buckets, preserving every
+handle/index. Pressure eviction and helper cleanup remain.
 
 400FPS, startup pop-in, coverage/visual fidelity, long-session memory/pressure, canonical Kentridge
 integration and repeated workloads remain unproven. Castle silhouette persists; terrain gaps/seams,

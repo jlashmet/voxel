@@ -1117,6 +1117,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         public string DescribeRingResidency()
         {
+            int unqueuedGpuDemand = 0;
+            for (int i = 0; i < _allWorkers.Length; i++) unqueuedGpuDemand += _allWorkers[i].CountUnqueuedGpuDemand();
             var text = new System.Text.StringBuilder("RINGS");
             text.Append(" arena[cpu=retired]");
             text.Append($" missingVisible={_lastMissingVisibleCount}");
@@ -1139,6 +1141,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             text.Append($" gpuDemand[accepted={_gpuDrawDispatcher?.DemandFeedbackAccepted ?? 0}"
                         + $" discarded={_gpuDrawDispatcher?.DemandFeedbackDiscarded ?? 0}"
                         + $" errors={_gpuDrawDispatcher?.DemandFeedbackErrors ?? 0}"
+                        + $" resets={_gpuDrawDispatcher?.DemandFullRefreshes ?? 0}"
+                        + $" refresh={_gpuDrawDispatcher?.DemandCoordinateRefreshes ?? 0}"
+                        + $" rank={_gpuDrawDispatcher?.DemandRankUpdates ?? 0} unqueued={unqueuedGpuDemand}"
                         + $" applyMs={_gpuDemandApplyMs:0.000}]");
             text.Append($" mirrorCpu[sync={GpuSurfaceMirrorCoordinator.LastChangeSyncMs:0.000}"
                         + $" recovery={GpuSurfaceMirrorCoordinator.LastRecoveryMs:0.000}"
@@ -1743,24 +1748,25 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             return true;
         }
 
-        private Action _beginGpuDemand;
-        private Action<SurfaceLodNodeKey, uint> _applyGpuDemand;
+        private Action<bool> _beginGpuDemand;
+        private Action<SurfaceLodNodeKey, uint, bool> _applyGpuDemand;
         private int _gpuDemandFrame;
         private double _gpuDemandApplyMs;
 
-        private void BeginGpuDemandFeedback()
+        private void BeginGpuDemandFeedback(bool reset)
         {
-            for (int i = 0; i < _allWorkers.Length; i++) _allWorkers[i].BeginGpuDemandFeedback();
+            for (int i = 0; i < _allWorkers.Length; i++) _allWorkers[i].BeginGpuDemandFeedback(reset);
         }
 
-        private void ApplyGpuDemandFeedback(SurfaceLodNodeKey key, uint geometry)
+        private void ApplyGpuDemandFeedback(SurfaceLodNodeKey key, uint geometry, bool refresh)
         {
             for (int r = 0; r < _rings.Length; r++)
             {
                 var ring = _rings[r];
                 if (ring.SourceStep != key.SourceStep) continue;
                 int shard = GpuSolidChunkCache.ShardForChunk(key.Coordinate, ring.Workers.Length);
-                ring.Workers[shard].ApplyGpuDemand(key.Coordinate, geometry, _gpuDemandFrame);
+                if (refresh) ring.Workers[shard].ApplyGpuDemand(key.Coordinate, geometry, _gpuDemandFrame);
+                else ring.Workers[shard].UpdateGpuDemandRank(key.Coordinate, geometry);
                 return;
             }
         }

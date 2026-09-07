@@ -208,7 +208,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private readonly Dictionary<int3, double> _queuedAtSeconds = new();
         private ulong _versionCounter;
         private readonly List<Entry> _visible = new();
-        private readonly Dictionary<int3, uint> _gpuDemandGeometry = new();
+        private struct GpuDemandState
+        {
+            internal uint Geometry;
+            internal byte Accounting; // in-band=1, pending-frustum=2, missing-frustum=4
+        }
+        private readonly Dictionary<int3, GpuDemandState> _gpuDemandGeometry = new();
+        private int _gpuDemandInBand, _gpuDemandFrustum, _gpuDemandMissing;
         internal bool GpuBuildDemandEnabled { get; set; }
         private readonly Plane[] _frustumPlanes = new Plane[6];
 
@@ -808,12 +814,14 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     MinViewDistanceMetres, MaxViewDistanceMetres, RingSuspended);
         }
 
-        internal void BeginGpuDemandFeedback()
+        internal void BeginGpuDemandFeedback(bool reset = true)
         {
-            _gpuDemandGeometry.Clear();
-            MissingVisibleCount = 0;
-            LastVisibilityInBandCount = 0;
-            LastVisibilityFrustumCount = 0;
+            if (reset)
+            {
+                _gpuDemandGeometry.Clear();
+                _gpuDemandInBand = _gpuDemandFrustum = _gpuDemandMissing = 0;
+            }
+            PublishGpuDemandAccounting();
         }
 
         // The GPU supplies presentation urgency only. Always consult current host generation
@@ -823,27 +831,81 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         {
             if (!_known.Contains(coordinate)) return;
             if (RingSuspended) geometry = 0;
-            _gpuDemandGeometry[coordinate] = geometry;
             bool ready = _entries.TryGetValue(coordinate, out Entry entry) && entry.Ready;
             if (ready) entry.GpuDemandInBand = (geometry & 1) != 0;
             if ((geometry & 1) == 0)
             {
+                StoreGpuDemand(coordinate, geometry, 0);
                 if (_dirty.Contains(coordinate)) ParkDirty(coordinate);
                 return;
             }
-            LastVisibilityInBandCount++;
             if (ready) entry.LastUsedFrame = frame;
             bool hasDesired = _desiredVersions.TryGetValue(coordinate, out ulong desired);
             bool currentReady = ready && (!hasDesired || entry.SourceVersion >= desired);
             bool currentEmpty = _emptyVersions.TryGetValue(coordinate, out ulong empty)
                 && (!hasDesired || empty >= desired);
-            if (currentReady || currentEmpty) return;
+            bool pending = !currentReady && !currentEmpty;
+            byte accounting = 1;
+            if (pending && (geometry & 2) != 0) accounting |= (byte)(ready ? 2 : 6);
+            StoreGpuDemand(coordinate, geometry, accounting);
+            if (!pending) return;
             bool building = CurrentBuildCoversDesiredGeneration(coordinate, hasDesired, desired);
             if (!building) MarkDirty(coordinate);
-            if ((geometry & 2) == 0) return;
-            LastVisibilityFrustumCount++;
-            if (!building) PromoteVisibleDirty(coordinate);
-            if (!ready) MissingVisibleCount++;
+            if ((geometry & 2) != 0 && !building) PromoteVisibleDirty(coordinate);
+        }
+
+        internal void UpdateGpuDemandRank(int3 coordinate, uint geometry)
+        {
+            // A rank update cannot create demand, revive a removed coordinate, or change
+            // classification/accounting. The dispatcher sends it only for stable metadata.
+            if (!_gpuDemandGeometry.TryGetValue(coordinate, out var state)
+                || (state.Geometry & 3) != (geometry & 3)) return;
+            state.Geometry = geometry;
+            _gpuDemandGeometry[coordinate] = state;
+        }
+
+        private void StoreGpuDemand(int3 coordinate, uint geometry, byte accounting)
+        {
+            _gpuDemandGeometry.TryGetValue(coordinate, out var previous);
+            AddGpuDemandAccounting(previous.Accounting, -1);
+            AddGpuDemandAccounting(accounting, 1);
+            _gpuDemandGeometry[coordinate] = new GpuDemandState { Geometry = geometry, Accounting = accounting };
+        }
+
+        private void AddGpuDemandAccounting(byte accounting, int delta)
+        {
+            if ((accounting & 1) != 0) _gpuDemandInBand += delta;
+            if ((accounting & 2) != 0) _gpuDemandFrustum += delta;
+            if ((accounting & 4) != 0) _gpuDemandMissing += delta;
+            PublishGpuDemandAccounting();
+        }
+
+        private void PublishGpuDemandAccounting()
+        {
+            LastVisibilityInBandCount = _gpuDemandInBand;
+            LastVisibilityFrustumCount = _gpuDemandFrustum;
+            MissingVisibleCount = _gpuDemandMissing;
+        }
+
+        // Diagnostic only, sampled by the existing residency report. No GPU readback or
+        // camera bounds classification: detect demand accidentally relying on another refresh.
+        internal int CountUnqueuedGpuDemand()
+        {
+            if (!GpuBuildDemandEnabled || RingSuspended) return 0;
+            int count = 0;
+            foreach (var pair in _gpuDemandGeometry)
+            {
+                int3 coordinate = pair.Key;
+                if ((pair.Value.Geometry & 1) == 0 || !_known.Contains(coordinate)
+                    || !WithinClipmapWindow(coordinate)) continue;
+                if (HasCurrentReplacementNode(coordinate, out _)) continue;
+                bool hasDesired = _desiredVersions.TryGetValue(coordinate, out ulong desired);
+                if (CurrentBuildCoversDesiredGeneration(coordinate, hasDesired, desired)) continue;
+                if (_dirty.Contains(coordinate)
+                    && (_queuedDirty.Contains(coordinate) || _queuedVisibleDirty.Contains(coordinate))) continue;
+                count++;
+            }
+            return count;
         }
 
         internal void RefreshGpuResidentAges(int frame)
@@ -1115,9 +1177,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 int3 coordinate = queue.Dequeue();
                 queued.Remove(coordinate);
                 if (!_dirty.Contains(coordinate)) continue;
-                if (RingSuspended || !_gpuDemandGeometry.TryGetValue(coordinate, out uint geometry)
-                    || (geometry & 1) == 0)
+                if (RingSuspended || !_gpuDemandGeometry.TryGetValue(coordinate, out var demand)
+                    || (demand.Geometry & 1) == 0)
                 { ParkDirty(coordinate); continue; }
+                uint geometry = demand.Geometry;
                 if (visibleOnly)
                 {
                     if ((geometry & 2) == 0) continue;
@@ -1153,8 +1216,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             if (_dirty.Add(chunk))
                 _queuedAtSeconds[chunk] = Time.realtimeSinceStartupAsDouble;
             RequeueDirty(chunk);
-            if (GpuBuildDemandEnabled && _gpuDemandGeometry.TryGetValue(chunk, out uint geometry)
-                && (geometry & 3) == 3) RequeueVisibleDirty(chunk);
+            if (GpuBuildDemandEnabled && _gpuDemandGeometry.TryGetValue(chunk, out var demand)
+                && (demand.Geometry & 3) == 3) RequeueVisibleDirty(chunk);
         }
 
         private void RequeueDirty(int3 chunk)
@@ -1876,7 +1939,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private bool TryRemoveChunk(int3 chunk)
         {
             _known.Remove(chunk);
-            _gpuDemandGeometry.Remove(chunk);
+            if (_gpuDemandGeometry.Remove(chunk, out var previousDemand))
+                AddGpuDemandAccounting(previousDemand.Accounting, -1);
             RetireSlot(chunk);
             _queuedResidency.Remove(chunk);
             _dirty.Remove(chunk);

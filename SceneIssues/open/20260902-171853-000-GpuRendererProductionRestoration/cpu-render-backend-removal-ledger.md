@@ -1,3 +1,12 @@
+Incremental demand checkpoint: camera-only GPU feedback no longer rebuilds all host demand.
+Only classification deltas and pending ranks apply when live metadata is stable; topology,
+settings/readiness changes retain full generation checks.527tests/module pass. Two Showcases
+332/282 and332/285FPS; sampled nonzero feedback cost~.12–.13ms versus prior~.6ms. Final repeat
+reports zero unqueued demand in164samples and zero allocation failures/evictions, but350missing
+versus parent272 and fewer resident chunks remain a coverage/service-latency concern. Do not
+claim400FPS or a clean equivalent-workload gain. CPU far replacement, submission costs and
+helper retirement remain. Exact evidence is in tasks.md.
+
 Resident far-instance checkpoint: removed per-frame CPU matrix rebuilding and instanced matrix
 submission. Transforms/inverses persist on GPU; compute compacts source indices and writes
 indirect per-submesh counts. Source updates rebuild batches; unchanged producer queries reuse.
