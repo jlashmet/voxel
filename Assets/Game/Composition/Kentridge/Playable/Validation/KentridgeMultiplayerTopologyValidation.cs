@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
 using Game.Application.Api;
+using Game.Characters.Api;
 using Game.Composition.Campaign.Content;
 using Game.Composition.Kentridge.Api;
 using Game.Composition.Kentridge.Playable;
