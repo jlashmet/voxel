@@ -28,6 +28,7 @@
     "Game.Quests.Api",
     "Game.SessionPresentation.Api",
     "Game.Sessions.Api",
+    "Game.Vitality.Api",
     "Game.WorldBuilder.Api",
     "Game.WorldObjects.Api",
     "Game.WorldObjects.Runtime",
