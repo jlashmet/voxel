@@ -47,8 +47,8 @@ annotated traversal/return route, so that gate remains open.
 ## 2. Find the first broken geometry invariant
 
 - [x] Read `GpuSolidChunkCache`, `VoxelSurfaceScheduler`, `GpuSurfaceDiscovery.compute`,
-  GPU source readiness/extraction/page-arena code, far coverage/selection dispatchers and the current
-  far-feature composition successor. Identify what MissingVisibleCount actually counts, its readback
+  GPU source readiness/extraction/page-arena code, far coverage/selection dispatchers and
+  `ShowcaseFarFeatureRuntime`. Identify what MissingVisibleCount actually counts, its readback
   age and whether it includes empty or correctly far-covered candidates. Retain raw counters;
   independently establish visible occupied coverage instead of redefining missing to zero.
 - [ ] Choose a reproducible annotated gap. Obtain bounded diagnostic records keyed by world
@@ -77,13 +77,15 @@ annotated traversal/return route, so that gate remains open.
   to a causal production-path repro before another fix. Revisit hypotheses explicitly.
 
 Diagnosis note: current `MissingVisibleCount` counts frustum-visible pending chunks that have no ready
-drawable entry; known-air and stale-but-still-drawable entries are excluded. `ShowcaseFarFeatureRuntime`
-has been superseded by `Assets/Game/Composition/Showcase/ShowcaseWorld.FarFeatures.cs`; current far
-coverage/selection is `GpuFarCoverageDispatcher` + `GpuFarSelectionDispatcher`. Baseline evidence and
-experiments 003/004 support H1 source/admission starvation: the shared mixed mirror saturates while
-whole exact source footprints remain demanded, `NoSlot` climbs to 130,550 and visible work remains
-missing. H2 premature pressure retirement was falsified by the pressure-selection and generation/handle
-acknowledgment path; page allocation failures/evictions are zero in the failing baseline.
+drawable entry; known-air and stale-but-still-drawable entries are excluded. Canonical far-feature
+manifest/input is produced by `Assets/Game/Composition/Showcase/ShowcaseWorld.FarFeatures.cs`, while
+`Assets/Game/Composition/Showcase/SceneRuntime/ShowcaseFarFeatureRuntime.cs` remains the live Showcase
+presentation consumer. Current far coverage/selection is `GpuFarCoverageDispatcher` +
+`GpuFarSelectionDispatcher`. Baseline evidence and experiments 003/004 support H1 source/admission
+starvation: the shared mixed mirror saturates while whole exact source footprints remain demanded,
+`NoSlot` climbs to 130,550 and visible work remains missing. H2 premature pressure retirement was
+falsified by the pressure-selection and generation/handle acknowledgment path; page allocation
+failures/evictions are zero in the failing baseline.
 
 ## 3. Full-scene correctness gate — blocks optimization
 
