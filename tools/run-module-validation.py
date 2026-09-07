@@ -14,14 +14,20 @@ def run_test(unity: str, item: dict, root: Path, test_filter: str | None = None)
     module = item["module"]
     platform = item["platform"]
     assembly = item["assembly"]
-    safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in module + "-" + platform + "-" + assembly)
+    if not assembly and not test_filter:
+        raise SystemExit("ERROR: isolated test requires an assembly or explicit test filter")
+    identity = assembly or test_filter
+    safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in module + "-" + platform + "-" + identity)
     out = root / "Tests" / safe
     out.mkdir(parents=True, exist_ok=True)
     xml = out / "results.xml"
     log = out / "unity.log"
+    # A successful process must produce fresh evidence, not reuse an earlier run.
+    xml.unlink(missing_ok=True)
     args = ["tools/unity-run.sh", "-batchmode", "-job-worker-count", "1",
-            "-projectPath", str(Path.cwd()), "-runTests", "-testPlatform", platform,
-            "-assemblyNames", assembly]
+            "-projectPath", str(Path.cwd()), "-runTests", "-testPlatform", platform]
+    if assembly:
+        args.extend(["-assemblyNames", assembly])
     if test_filter:
         args.extend(["-testFilter", test_filter])
     args.extend(["-testResults", str(xml), "-logFile", str(log)])
@@ -32,13 +38,13 @@ def run_test(unity: str, item: dict, root: Path, test_filter: str | None = None)
     started = time.monotonic()
     subprocess.run(args, check=True, env=env)
     if not xml.is_file():
-        raise SystemExit(f"ERROR: required module test assembly produced no results: {module} {assembly}")
+        raise SystemExit(f"ERROR: required module test assembly produced no results: {module} {identity}")
     cases = ET.parse(xml).getroot().findall(".//test-case")
     if not cases:
-        raise SystemExit(f"ERROR: required module test assembly executed zero tests: {module} {assembly}")
+        raise SystemExit(f"ERROR: required module test assembly executed zero tests: {module} {identity}")
     failed = [c for c in cases if c.get("result") not in ("Passed", "Success")]
     if failed:
-        raise SystemExit(f"ERROR: required module test assembly failed: {module} {assembly} ({len(failed)} failures)")
+        raise SystemExit(f"ERROR: required module test assembly failed: {module} {identity} ({len(failed)} failures)")
     return time.monotonic() - started
 
 
@@ -55,65 +61,6 @@ def _parse_summary(path: Path) -> dict[str, str]:
 
 def _phase_assemblies(items: list[dict], platform: str) -> list[str]:
     return list(dict.fromkeys(item["assembly"] for item in items if item["platform"] == platform))
-
-
-def _nearest_asmdef_name(source: Path, project_root: Path) -> str | None:
-    project_root = project_root.resolve()
-    parent = source.parent.resolve()
-    while parent == project_root or project_root in parent.parents:
-        asmdefs = sorted(parent.glob("*.asmdef"))
-        if asmdefs:
-            if len(asmdefs) != 1:
-                return None
-            try:
-                value = json.loads(asmdefs[0].read_text(encoding="utf-8")).get("name")
-            except (OSError, json.JSONDecodeError):
-                return None
-            return value if isinstance(value, str) and value else None
-        if parent == project_root:
-            break
-        parent = parent.parent
-    return None
-
-
-def _requested_test_covered_by_selected_assembly(
-    test_name: str,
-    platform: str,
-    items: list[dict],
-    project_root: Path | None = None,
-) -> bool:
-    """Return true only when an exact requested leaf is owned by an already-selected assembly.
-
-    The exact test request still gates the run: its source must resolve unambiguously to a
-    selected assembly, and that assembly must pass every discovered test. This avoids
-    re-running stateful/expensive tests a second time in the same persistent Unity editor.
-    """
-    if not test_name or platform not in ("EditMode", "PlayMode"):
-        return False
-    parts = test_name.rsplit(".", 2)
-    if len(parts) < 3:
-        return False
-    class_name, method_name = parts[-2], parts[-1]
-    root = (project_root or Path.cwd()).resolve()
-    assets = root / "Assets"
-    if not assets.is_dir():
-        return False
-    selected = {item["assembly"] for item in items if item.get("platform") == platform}
-    if not selected:
-        return False
-
-    owners = set()
-    for source in assets.rglob("*.cs"):
-        try:
-            text = source.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
-            continue
-        if f"class {class_name}" not in text or method_name not in text:
-            continue
-        owner = _nearest_asmdef_name(source, root)
-        if owner:
-            owners.add(owner)
-    return len(owners) == 1 and next(iter(owners)) in selected
 
 
 def _validate_phase_summary(path: Path, expected: str) -> None:
@@ -212,18 +159,25 @@ def _requested_is_process_isolated(test_name: str) -> bool:
     return any(test_name == assembly or test_name.startswith(assembly + ".") for assembly in PROCESS_ISOLATED_ASSEMBLIES)
 
 
-def _player_output_path(root: Path, item: dict) -> Path:
-    """Preserve each scene/scenario's evidence, even within the same module.
+def _requires_process_isolation(item: dict) -> bool:
+    # RunFinished is emitted before PlayMode scene restoration/cleanup. Starting the
+    # next persistent phase on a delayCall can capture a soon-to-be-deleted InitTestScene
+    # (PropShowcase run 34000107687). A wrapper process per PlayMode phase guarantees
+    # teardown finishes before the next starts, without private Unity APIs or dropped tests.
+    return item["platform"] == "PlayMode" or item["assembly"] in PROCESS_ISOLATED_ASSEMBLIES
 
-    Include full identities in the digest: basenames, sanitized paths and plan positions
-    alone collide. The readable prefix is bounded for filesystem component limits.
-    """
-    identity = json.dumps([item["module"], item["scene"], item["scenario"]],
-                          ensure_ascii=True, separators=(",", ":"))
+
+def _safe_output_token(value: str) -> str:
+    return "".join(c if c.isalnum() or c in "-_" else "_" for c in value)
+
+
+def _player_output_root(root: Path, item: dict) -> Path:
+    # Preserve readable module/scene names and distinguish scenarios and paths that
+    # sanitize identically, so later players cannot overwrite earlier evidence.
+    identity = json.dumps([item["module"], item["scene"], item.get("scenario", "")], separators=(",", ":"))
     digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16]
-    module = "".join(c if c.isalnum() or c in "-_" else "_" for c in item["module"])[:120]
-    scene = "".join(c if c.isalnum() or c in "-_" else "_" for c in Path(item["scene"]).stem)[:80]
-    return root / "Players" / (module or "module") / f"{scene or 'scene'}-{digest}"
+    label = _safe_output_token(item["module"] + "-" + item["scene"])
+    return root / "Players" / f"{label}-{digest}"
 
 
 def main(argv=None) -> int:
@@ -241,18 +195,12 @@ def main(argv=None) -> int:
     started_all = time.monotonic()
 
     tests = plan.get("tests", [])
-    persistent = [item for item in tests if item["assembly"] not in PROCESS_ISOLATED_ASSEMBLIES]
-    isolated = [item for item in tests if item["assembly"] in PROCESS_ISOLATED_ASSEMBLIES]
-    requested_isolated = bool(ns.requested_test and _requested_is_process_isolated(ns.requested_test))
-    requested_covered = bool(
-        ns.requested_test
-        and not requested_isolated
-        and _requested_test_covered_by_selected_assembly(
-            ns.requested_test, ns.requested_platform, persistent
-        )
-    )
-    persistent_requested = "" if requested_isolated or requested_covered else ns.requested_test
-    persistent_requested_platform = "" if requested_isolated or requested_covered else ns.requested_platform
+    persistent = [item for item in tests if not _requires_process_isolation(item)]
+    isolated = [item for item in tests if _requires_process_isolation(item)]
+    requested_isolated = bool(ns.requested_test and (
+        ns.requested_platform == "PlayMode" or _requested_is_process_isolated(ns.requested_test)))
+    persistent_requested = "" if requested_isolated else ns.requested_test
+    persistent_requested_platform = "" if requested_isolated else ns.requested_platform
 
     if persistent or persistent_requested:
         seconds = run_persistent_tests(
@@ -267,7 +215,6 @@ def main(argv=None) -> int:
             "editModeAssemblies": _phase_assemblies(persistent, "EditMode"),
             "playModeAssemblies": _phase_assemblies(persistent, "PlayMode"),
             "requestedTest": persistent_requested,
-            "requestedTestCoveredByAssembly": ns.requested_test if requested_covered else "",
             "seconds": round(seconds, 2),
         })
         amortized = round(seconds / max(1, len(persistent) + (1 if persistent_requested else 0)), 2)
@@ -280,20 +227,15 @@ def main(argv=None) -> int:
                 "seconds": amortized,
                 "execution": "persistent-editor",
             }
-        elif requested_covered:
-            summary["requestedTest"] = {
-                "test": ns.requested_test,
-                "platform": ns.requested_platform,
-                "seconds": amortized,
-                "execution": "covered-by-module-assembly",
-            }
 
     for item in isolated:
         seconds = run_test(ns.unity, item, root)
         summary["tests"].append({**item, "seconds": round(seconds, 2), "execution": "isolated-editor"})
 
     if requested_isolated:
-        item = {"module": "requested", "platform": ns.requested_platform, "assembly": "VoxelEngine.Tests.PlayMode"}
+        # A fully-qualified test name is not an assembly name. Let Unity resolve the
+        # explicit filter; zero-match and non-passing results remain hard failures.
+        item = {"module": "requested", "platform": ns.requested_platform, "assembly": ""}
         seconds = run_test(ns.unity, item, root, test_filter=ns.requested_test)
         summary["requestedTest"] = {
             "test": ns.requested_test,
@@ -303,7 +245,7 @@ def main(argv=None) -> int:
         }
 
     for item in plan.get("playerValidations", []):
-        out = _player_output_path(root, item)
+        out = _player_output_root(root, item)
         player_env = os.environ.copy()
         player_env["VOXEL_DISABLE_GPU_CUTOVER"] = "1"
         started = time.monotonic()

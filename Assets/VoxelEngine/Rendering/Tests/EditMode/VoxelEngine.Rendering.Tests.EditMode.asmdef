@@ -55,7 +55,8 @@
         "VoxelEngine.Characters.Runtime",
         "Game.Structures.Api",
         "Game.Structures.Runtime",
-        "Game.Materials.Api"
+        "Game.Materials.Api",
+        "VoxelEngine.Rendering.Tests.RuntimeSupport"
     ],
     "includePlatforms": ["Editor"],
     "excludePlatforms": [],

@@ -59,14 +59,14 @@ def _module_roots(root: Path) -> list[Path]:
     return sorted(roots, key=lambda p: p.as_posix())
 
 
-def _module_for_path(path: str, modules: list[dict]) -> dict | None:
-    candidates = [m for m in modules if path == m["root"] or path.startswith(m["root"] + "/")]
-    return max(candidates, key=lambda m: len(m["root"]), default=None)
-
-
 def _nearest_module_root(path: Path, module_roots: list[Path]) -> Path | None:
     candidates = [module_root for module_root in module_roots if path == module_root or module_root in path.parents]
     return max(candidates, key=lambda p: len(p.parts), default=None)
+
+
+def _module_for_path(path: str, modules: list[dict]) -> dict | None:
+    candidates = [m for m in modules if path == m["root"] or path.startswith(m["root"] + "/")]
+    return max(candidates, key=lambda m: len(m["root"]), default=None)
 
 
 def _is_test_path(path: str) -> bool:
@@ -85,7 +85,13 @@ def _is_module_validation_path(path: str) -> bool:
 
 
 def _is_integration_only_path(path: str) -> bool:
-    return path.replace("\\", "/").startswith("Assets/Game/Composition/")
+    path = path.replace("\\", "/")
+    # Top-level application/showcase scenes are integration consumers, not module owners. Treating
+    # one as an unknown production path selects every discovered module and defeats targeted CI.
+    # Production changes still attach the canonical Kentridge gate once below.
+    if path.startswith("Assets/Scenes/") and path.endswith(".unity"):
+        return True
+    return path.startswith("Assets/Game/Composition/")
 
 
 def _is_dependency_contract_path(path: str) -> bool:
@@ -126,8 +132,8 @@ def discover(root: Path, allow_existing_obsolete: bool = False) -> dict:
     if top_level:
         raise ConventionError("repository-wide Assets/Tests/EditMode assembly is not allowed: " + _rel(top_level[0], root))
 
-    module_roots = _module_roots(root)
     modules = []
+    module_roots = _module_roots(root)
     for module_root in module_roots:
         module_name = _rel(module_root, root)
         tests = []
@@ -204,8 +210,6 @@ def discover(root: Path, allow_existing_obsolete: bool = False) -> dict:
 def is_production(path: str) -> bool:
     path = path.replace("\\", "/")
     if not path.startswith("Assets/") or path.endswith(".meta"):
-        return False
-    if path.startswith("Assets/Editor/CI/"):
         return False
     if _is_test_path(path):
         return False
