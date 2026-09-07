@@ -10,12 +10,12 @@ namespace VoxelEngine.Rendering.Tests.EditMode
 {
     public sealed class GpuPersistentSourceDemandOwnershipTests
     {
-        [TestCase(1, 2, 2)]
-        [TestCase(2, 2, 2)]
-        [TestCase(4, 1, 1)]
-        [TestCase(8, 1, 0)]
+        [TestCase(1, 10, 8, 8)]
+        [TestCase(2, 18, 6, 6)]
+        [TestCase(4, 34, 1, 1)]
+        [TestCase(8, 66, 1, 0)]
         public void SourceAdmissionBoundsImmutableOwnersAndWaitingDemand(
-            int step, int expectedOwners, int expectedDemandFootprints)
+            int step, int cacheEdge, int expectedOwners, int expectedDemandFootprints)
         {
             Assert.That(SystemInfo.supportsComputeShaders, Is.True);
             using var storage = VoxelEngineBootstrap.CreateStorage(1, 1);
@@ -33,23 +33,22 @@ namespace VoxelEngine.Rendering.Tests.EditMode
 
             GpuSurfacePageArena arena = null;
             ComputeShader arenaShader = null;
-            var contexts = new GpuSurfaceExtractionContext[3];
+            var contexts = new GpuSurfaceExtractionContext[expectedOwners + 1];
             try
             {
                 Runtime.VoxelRenderBridge.Source = () => world;
                 Runtime.VoxelRenderBridge.Changes = storage.Changes;
-                arenaShader = UnityEngine.Object.Instantiate(
-                    Resources.Load<ComputeShader>("GpuSurfacePageArena"));
+                arenaShader = Object.Instantiate(Resources.Load<ComputeShader>("GpuSurfacePageArena"));
                 Assert.That(arenaShader, Is.Not.Null);
-                arena = new GpuSurfacePageArena(arenaShader, 65536, 65536, 16);
+                arena = new GpuSurfacePageArena(arenaShader, 65536, 65536, 32);
                 GpuSurfaceMirrorCoordinator.ConfigurePageArena(arena);
 
                 for (int i = 0; i < contexts.Length; i++)
                 {
-                    contexts[i] = GpuSurfaceExtractionContext.TryCreate(8, 2, 1024);
+                    contexts[i] = GpuSurfaceExtractionContext.TryCreate(8, 2, 1024, cacheEdge);
                     Assert.That(contexts[i], Is.Not.Null);
-                    int3 chunkOrigin = new(i * 256 * step, 0, 0);
-                    int3 cacheOrigin = new(i * 32, 0, 0);
+                    int3 cacheOrigin = new(i * (cacheEdge + 4), 0, 0);
+                    int3 chunkOrigin = cacheOrigin * 8;
                     var request = new GpuChunkExtraction(
                         chunkOrigin, cacheOrigin, step, 0.1f);
                     Assert.That(
@@ -60,13 +59,20 @@ namespace VoxelEngine.Rendering.Tests.EditMode
 
                 Assert.That(GpuSurfaceSourceAdmission.ActiveStep, Is.EqualTo(step));
                 Assert.That(GpuSurfaceSourceAdmission.ActiveCount, Is.EqualTo(expectedOwners),
-                    "Only the bounded number of immutable requests may own source admission.");
+                    "Immutable source owners must be bounded by mirror capacity and chain count.");
                 Assert.That(GpuSurfaceMirrorCoordinator.ActiveExtractions, Is.EqualTo(expectedOwners),
                     "A request waiting on source admission must not consume a GPU extraction chain.");
                 Assert.That(GpuSurfaceMirrorCoordinator.DemandFootprintCount,
                     Is.EqualTo(expectedDemandFootprints),
                     "Waiting requests must not add whole-source demand. Exact steps retain only "
-                  + "their bounded immutable owners; step 8 owns copied HLOD slices instead.");
+                  + "their capacity-bounded immutable owners; step 8 owns copied HLOD slices instead.");
+                int expectedReservation = step == 8
+                    ? 0 : expectedOwners * cacheEdge * cacheEdge * cacheEdge;
+                Assert.That(GpuSurfaceSourceAdmission.ReservedMixedSlots,
+                    Is.EqualTo(expectedReservation));
+                Assert.That(GpuSurfaceSourceAdmission.ReservedMixedSlots,
+                    Is.LessThanOrEqualTo(contexts[0].Mirror.SlotCapacity));
+                Assert.That(GpuSurfaceSourceAdmission.WaitingCount, Is.EqualTo(1));
             }
             finally
             {
@@ -75,13 +81,14 @@ namespace VoxelEngine.Rendering.Tests.EditMode
                 if (arena != null)
                     GpuSurfaceMirrorCoordinator.DetachPageArena(arena, Time.frameCount);
                 arena?.Dispose();
-                if (arenaShader != null)
-                    UnityEngine.Object.DestroyImmediate(arenaShader);
+                if (arenaShader != null) Object.DestroyImmediate(arenaShader);
                 Runtime.VoxelRenderBridge.Source = previousSource;
                 Runtime.VoxelRenderBridge.Changes = previousChanges;
             }
 
             Assert.That(GpuSurfaceSourceAdmission.ActiveCount, Is.Zero);
+            Assert.That(GpuSurfaceSourceAdmission.ReservedMixedSlots, Is.Zero);
+            Assert.That(GpuSurfaceSourceAdmission.WaitingCount, Is.Zero);
             Assert.That(GpuSurfaceMirrorCoordinator.DemandFootprintCount, Is.Zero);
             Assert.That(GpuSurfaceMirrorCoordinator.ActiveExtractions, Is.Zero);
         }
@@ -110,18 +117,17 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             {
                 Runtime.VoxelRenderBridge.Source = () => world;
                 Runtime.VoxelRenderBridge.Changes = storage.Changes;
-                step4 = GpuSurfaceExtractionContext.TryCreate(8, 2, 1024);
-                step1 = GpuSurfaceExtractionContext.TryCreate(8, 2, 1024);
+                step4 = GpuSurfaceExtractionContext.TryCreate(8, 2, 1024, 34);
+                step1 = GpuSurfaceExtractionContext.TryCreate(8, 2, 1024, 10);
                 Assert.That(step4, Is.Not.Null);
                 Assert.That(step1, Is.Not.Null);
-                arenaShader = UnityEngine.Object.Instantiate(
-                    Resources.Load<ComputeShader>("GpuSurfacePageArena"));
+                arenaShader = Object.Instantiate(Resources.Load<ComputeShader>("GpuSurfacePageArena"));
                 Assert.That(arenaShader, Is.Not.Null);
                 arena = new GpuSurfacePageArena(arenaShader, 65536, 65536, 16);
                 GpuSurfaceMirrorCoordinator.ConfigurePageArena(arena);
 
                 var coarseExact = new GpuChunkExtraction(int3.zero, int3.zero, 4, 0.1f);
-                var fine = new GpuChunkExtraction(new int3(256, 0, 0), new int3(40, 0, 0), 1, 0.1f);
+                var fine = new GpuChunkExtraction(new int3(320, 0, 0), new int3(40, 0, 0), 1, 0.1f);
                 step4.TryBeginStage(default, default, default, default,
                                     coarseExact, storage.Reads.Version);
                 step1.TryBeginStage(default, default, default, default,
@@ -129,6 +135,8 @@ namespace VoxelEngine.Rendering.Tests.EditMode
 
                 Assert.That(GpuSurfaceSourceAdmission.ActiveStep, Is.EqualTo(4));
                 Assert.That(GpuSurfaceSourceAdmission.ActiveCount, Is.EqualTo(1));
+                Assert.That(GpuSurfaceSourceAdmission.ReservedMixedSlots, Is.EqualTo(34 * 34 * 34));
+                Assert.That(GpuSurfaceSourceAdmission.WaitingCount, Is.EqualTo(1));
                 Assert.That(GpuSurfaceMirrorCoordinator.DemandFootprintCount, Is.EqualTo(1));
 
                 step4.Release();
@@ -137,19 +145,16 @@ namespace VoxelEngine.Rendering.Tests.EditMode
                 Assert.That(GpuSurfaceSourceAdmission.ActiveStep, Is.EqualTo(1),
                     "A waiting different LOD must receive the bounded admission turn after release.");
                 Assert.That(GpuSurfaceSourceAdmission.ActiveCount, Is.EqualTo(1));
+                Assert.That(GpuSurfaceSourceAdmission.ReservedMixedSlots, Is.EqualTo(10 * 10 * 10));
                 Assert.That(GpuSurfaceMirrorCoordinator.DemandFootprintCount, Is.EqualTo(1));
             }
             finally
             {
-                step4?.Release();
-                step1?.Release();
-                step4?.Dispose();
-                step1?.Dispose();
-                if (arena != null)
-                    GpuSurfaceMirrorCoordinator.DetachPageArena(arena, Time.frameCount);
+                step4?.Release(); step1?.Release();
+                step4?.Dispose(); step1?.Dispose();
+                if (arena != null) GpuSurfaceMirrorCoordinator.DetachPageArena(arena, Time.frameCount);
                 arena?.Dispose();
-                if (arenaShader != null)
-                    UnityEngine.Object.DestroyImmediate(arenaShader);
+                if (arenaShader != null) Object.DestroyImmediate(arenaShader);
                 Runtime.VoxelRenderBridge.Source = previousSource;
                 Runtime.VoxelRenderBridge.Changes = previousChanges;
             }
