@@ -96,7 +96,11 @@ namespace Game.WorldBuilder.Voxel
                 materials: backendMaterials,
                 settlement: settlement);
 
-            return KentridgeCombinedVoxelCatalogue.Build(town.Seed, settings, allocator);
+            // This adapter is used by generic/temporary Showcase composition. It owns only the
+            // authored town carried by the request and must not consume the scene's one-shot macro
+            // selection; the concrete playable Kentridge catalogue owns that selection later in
+            // scene startup.
+            return KentridgeCombinedVoxelCatalogue.BuildLocalOnly(town.Seed, settings, allocator);
         }
     }
 }
