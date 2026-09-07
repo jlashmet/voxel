@@ -11,20 +11,24 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
     /// Waiting workers own no source residency. Exact steps retain their whole packed-entry
     /// footprint because mixed entries contain live mirror-slot indices until count/write finishes.
     /// Step 8 copies HLOD summaries, so it keeps only the request edit watch while bounded slices
-    /// are prepared. Different source steps do not overlap; fine steps 1/2 may batch two owners.
+    /// are prepared. Different source steps do not overlap; exact owners are capacity-bounded by
+    /// their worst-case mixed-brick footprint and the actual shared mirror slot count.
     /// </summary>
     internal static class GpuSurfaceSourceAdmission
     {
         private static readonly HashSet<GpuSurfaceExtractionContext> s_Owners = new();
+        private static readonly Dictionary<GpuSurfaceExtractionContext, int> s_OwnerReservations = new();
         private static readonly Dictionary<GpuSurfaceExtractionContext, int> s_Waiters = new();
         private static readonly List<GpuSurfaceExtractionContext> s_DeadWaiters = new();
         private static int s_ActiveStep;
+        private static int s_ReservedMixedSlots;
         private static ulong s_WorldEpoch;
         private static int s_PreferredStep;
         private static int s_PreferredUntilFrame;
 
         internal static int ActiveCount => s_Owners.Count;
         internal static int ActiveStep => s_ActiveStep;
+        internal static int ReservedMixedSlots => s_ReservedMixedSlots;
         internal static int WaitingCount { get { PruneInactiveWaiters(); return s_Waiters.Count; } }
 
         internal static bool TryAcquire(GpuSurfaceExtractionContext owner,
@@ -44,13 +48,15 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 throw new InvalidOperationException("GPU source admission owner was acquired twice.");
 
             int step = request.SourceStep;
-            int capacity = MaximumOwners(step);
+            int reservation = RequiredMixedSlots(step, brickCacheEdge);
             if (s_Owners.Count != 0)
             {
                 // Once another LOD is waiting, drain the current mode instead of replenishing it.
                 // This prevents continuous near work from starving coarse ownership indefinitely.
                 bool otherStepWaiting = HasWaitingStepOtherThan(s_ActiveStep);
-                if (s_ActiveStep != step || s_Owners.Count >= capacity || otherStepWaiting)
+                bool capacityFull = s_Owners.Count >= GpuSurfaceMirrorCoordinator.MaxConcurrentExtractionChains
+                    || (long)s_ReservedMixedSlots + reservation > owner.Mirror.SlotCapacity;
+                if (s_ActiveStep != step || capacityFull || otherStepWaiting)
                 {
                     s_Waiters[owner] = step;
                     return false;
@@ -66,11 +72,21 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 s_PreferredStep = 0;
             }
 
+            // One step-8 HLOD owner at a time. Its mixed-slot reservation is zero because copied
+            // summaries, not packed live slot references, survive preparation.
+            if (step == VoxelReadGrid.BlockEdge && s_Owners.Count != 0)
+            {
+                s_Waiters[owner] = step;
+                return false;
+            }
+
             s_ActiveStep = step;
             s_Waiters.Remove(owner);
             if (s_PreferredStep == step) s_PreferredStep = 0;
             if (!s_Owners.Add(owner))
                 throw new InvalidOperationException("GPU source admission owner collision.");
+            s_OwnerReservations.Add(owner, reservation);
+            s_ReservedMixedSlots = checked(s_ReservedMixedSlots + reservation);
 
             int coreExtentVoxels = GpuSolidChunkCache.CellsPerAxis * step;
             int3 coreMaxVoxelExclusive = request.ChunkOriginVoxel + new int3(coreExtentVoxels);
@@ -89,6 +105,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (owner == null) return;
             s_Waiters.Remove(owner);
             if (!s_Owners.Remove(owner)) return;
+            if (s_OwnerReservations.Remove(owner, out int reservation))
+                s_ReservedMixedSlots = Math.Max(0, s_ReservedMixedSlots - reservation);
 
             int step = request.SourceStep;
             int coreExtentVoxels = GpuSolidChunkCache.CellsPerAxis * step;
@@ -107,7 +125,14 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             s_PreferredUntilFrame = Time.frameCount + 4;
         }
 
-        private static int MaximumOwners(int step) => step <= 2 ? 2 : 1;
+        private static int RequiredMixedSlots(int step, int edge)
+        {
+            if (step == VoxelReadGrid.BlockEdge) return 0;
+            long blocks = (long)edge * edge * edge;
+            if (blocks <= 0 || blocks > int.MaxValue)
+                throw new ArgumentOutOfRangeException(nameof(edge));
+            return (int)blocks;
+        }
 
         private static int StepBit(int step) => step switch
         {
@@ -159,9 +184,11 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         {
             // Coordinator world reset already discarded the prior world's demand/edit maps.
             s_Owners.Clear();
+            s_OwnerReservations.Clear();
             s_Waiters.Clear();
             s_DeadWaiters.Clear();
             s_ActiveStep = 0;
+            s_ReservedMixedSlots = 0;
             s_PreferredStep = 0;
             s_PreferredUntilFrame = 0;
             s_WorldEpoch = world;
