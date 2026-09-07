@@ -27,38 +27,39 @@ Resident far-instance checkpoint `8b50ca1b8`: GPU transforms/compaction/indirect
 CPU replacement supplies flags.523tests/module pass;Showcase322/271FPS,272missing,zero
 allocation failures. Source-service latency remains unresolved.
 
-Incremental demand checkpoint `65b560afc`:527tests/module pass,Showcase332/285FPS,
-CPU2.87/2.90ms,sampled feedback.129ms.350missing/2133residents,oldest21.62s(coarse),zero
-allocation failures/evictions; all164liveness samples show no unqueued demand. Coverage remains
-unresolved; this is not equivalent-coverage or400FPS acceptance.
+Incremental demand checkpoint `65b560afc` reduced feedback to~.13ms; no unqueued demand,
+but coverage/service latency remains unresolved.
 
-H1:128indirect solid submissions impose avoidable host/driver cost, as106empty far draws did.
-H2: broader groups increase padded GPU vertex work enough to outweigh the CPU saving.
-Experiment:32power-of-two buckets instead of128quarter-power buckets, same selected handles,
-index counts, materials, generations, page tables, distances and budgets. GPU maximum index
-count still defines each draw and per-instance live counts still guard fetches; padding stays
-below2x. No CPU readback or selection is introduced. Compare identical60–90s/120–180s Showcase
-windows, CPU/GPU timings and coverage, plus real GPU scatter/raster tests and module captures.
+64-group checkpoint `15668edeb`:527tests/module passed,Showcase339/288FPS,272missing,zero allocation failures. Single runs
+with unequal coverage do not prove a robust gain.
 
-32groups:527tests/module pass;Showcase331/294FPS,353missing,zero allocation failures/evictions,
-3798publications. Module p95 .889→.714ms, but stationary GPU diagnostic5.83→7.76ms and no FPS
-gain. Test64half-power groups next (<1.5x padding), preserving the600-handle/prefix/bank checks
-and shipped solid/water raster regressions.64groups passed527tests/module;Showcase339/288FPS,272missing,zero allocation failures,
-4074publications. Keep64 interim; unequal coverage and single runs do not prove a robust gain.
+H1: manual index pulling and chunk padding waste GPU vertex work and host submissions.
+H2: extra GPU index-copy bandwidth may outweigh hardware vertex reuse/submission savings.
+Experiment now implemented: GPU reserves exact selected index ranges, builds bounded page-copy
+records, remaps local indices to physical vertex IDs, and emits five-word arguments. One
+Index|Raw stream is written immediately before one indexed draw on the graphics queue. Same
+live bank metadata, geometry, materials, ranges and retirement policy; no CPU index readback.
+529tests/module passed, including page/bank/removal and shipped shader rasterization. Module
+proved one draw;Showcase329/295FPS,310missing,zero allocation failures,4072publications. No
+robust overall gain. Next version now bypasses four bucket dispatches and consumes GPU selection
+directly;530tests/module passed with one draw. Showcase333/297FPS,229missing,zero allocation
+failures,3777publications. Exact captures reviewed; no robust overall gain or400FPS acceptance.
 
-## Next steps and remaining gates
+## Remaining validation and next steps
 
-Move conservative far replacement proof to GPU using current publication, discovery and region
-residency evidence; preserve unknown/stale/edit guards. Avoid replacing CPU proof with per-batch
-compute/empty-draw overhead. Retain the incremental feedback improvement.
-Next structural experiment: GPU compacts selected live indices into one hardware index stream
-(global physical vertex IDs), then one indexed indirect draw consumes it without chunk padding.
-Use Index|Raw storage and five-word arguments. Preserve bank/generation/page retirement guards;
-record compaction and draw in graphics-queue order. First prove page remapping, exact triangle
-counts, no stale/released geometry, and shipped shader rasterization. A single stream sized to
-index-page capacity may fit the currently unused geometry-budget remainder; verify aggregate
-allocation at every tier before adding it. Never triple-buffer a full arena or reduce coverage
-to fit. Pressure eviction and helper cleanup remain.
+Memory audit: full stream adds~181MB on PC. Geometry payload plus bounded primary metadata/LOD
+fits PC; console/mobile aggregate accounting does not fit once metadata is included. Existing
+mobile metadata already exceeds the nominal envelope. Do not checkpoint as tier-safe or weaken
+budgets. After PC measurement, use bounded tiled scratch and resolve metadata allocation without
+reducing resident geometry capacity. Audit artifact: gpu-index-stream-memory-audit.json.
+
+Next move far replacement proof to GPU using current publication/discovery/region evidence.
+Discovery prerequisite implemented: versioned512-bit region images,270KB buffered GPU hash/query
+map;532tests passed with CPU/GPU differential coverage across lifecycle,negative coordinates,
+all bits/LODs and1024-region pressure. Not yet connected to far visibility; no player/FPS claim.
+Next bind journal/residency guards and current selected/live geometry to shared GPU far queries
+and draw data. Avoid106empty submissions. Pressure eviction and retired CPU
+helper cleanup remain; keep incremental demand feedback.
 
 400FPS, startup pop-in, coverage/visual fidelity, long-session memory/pressure, canonical Kentridge
 integration and repeated workloads remain unproven. Castle silhouette persists; terrain gaps/seams,
