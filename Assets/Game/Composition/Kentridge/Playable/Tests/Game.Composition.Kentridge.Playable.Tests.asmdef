@@ -16,6 +16,8 @@
     "Game.Sessions.Api",
     "Game.Sessions.Runtime",
     "Game.WorldBuilder.Api",
+    "Game.WorldObjects.Api",
+    "Game.WorldObjects.Runtime",
     "VoxelEngine.Net.Api",
     "VoxelEngine.Net.Runtime"
   ],
