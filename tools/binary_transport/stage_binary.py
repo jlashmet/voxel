@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import argparse, base64, hashlib, json, re, shutil
 from pathlib import Path, PurePosixPath
-from tools.binary_transport.common import MAX_CHUNK_CHARS, validate_job_id, validate_target
+try:
+    from .common import MAX_CHUNK_CHARS, validate_job_id, validate_target
+except ImportError:
+    from common import MAX_CHUNK_CHARS, validate_job_id, validate_target
 
 
 def _derived_id(target: str, sha: str) -> str:

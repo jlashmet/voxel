@@ -3,7 +3,10 @@
 from __future__ import annotations
 import argparse, base64, hashlib, json, os, shutil, tempfile
 from pathlib import Path
-from tools.binary_transport.common import MAX_CHUNK_CHARS, validate_target, within
+try:
+    from .common import MAX_CHUNK_CHARS, validate_target, within
+except ImportError:
+    from common import MAX_CHUNK_CHARS, validate_target, within
 
 def reconstruct_binary(repo_root: Path, job_dir: Path, *, cleanup=False):
     root = repo_root.resolve()
