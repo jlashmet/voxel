@@ -12,7 +12,7 @@ This is a handoff specification, not a claim that any implementation or acceptan
 - [x] Inspect AGENTS.md, constitution, device matrix, both feature plans, previous restoration
   tasks, checkpoint-evidence.json and cpu-render-backend-removal-ledger.md. Treat historical fixes
   as leads, not proof that the current scene is correct.
-- [ ] Confirm the actual editor/player project path. Audit tracked diffs AND untracked C#/shader/
+- [x] Confirm the actual editor/player project path. Audit tracked diffs AND untracked C#/shader/
   asmdef files, not just branch ancestry. Preserve user edits before repairing checkout state.
   Specifically verify obsolete `CpuWaterSurfaceChunkCache.cs` and `WaterBrickMeshBatchJobTests.cs`
   are absent; do not restore the retired CPU backend to satisfy references.
@@ -32,22 +32,23 @@ This is a handoff specification, not a claim that any implementation or acceptan
   historical local Artifacts paths alone are insufficient. Define explicit settle/convergence
   deadlines from existing scenarios/budgets before evaluating results; do not extend them to pass.
 
-Progress note: `experiment-001-source-and-baseline.md` records source/document review and the malformed
-first request. `experiment-002-cold-player-build-memory-guard.md` records the 12,288 MB cold-build guard
-failure and narrow 14,336 MB repair. Exact-SHA request `fd092c40e8d19ddc5f67d7a1f2165ae74f865864`,
-run `34155859120` / job `101847425373`, then completed the real cold build and 180-second production
+Progress note: the authoritative targeted-CI checkout is `/Users/jlashmet/actions/_work/voxel/voxel`;
+checkout runs with `clean: true`, `git clean -ffdx` and `git reset --hard`, so the remote validation
+workspace has no surviving untracked C#/shader/asmdef inputs. Both retired CPU-water paths named above
+are absent on `fixes/agent-3`. `experiment-001-source-and-baseline.md` records source/document review;
+`experiment-002-cold-player-build-memory-guard.md` records the 12,288 MB cold-build guard failure and
+narrow 14,336 MB repair. Exact-SHA request `fd092c40e8d19ddc5f67d7a1f2165ae74f865864`, run
+`34155859120` / job `101847425373`, completed the real cold build and 180-second production
 VoxelShowcase replay on Unity 6000.5.6f1 / Apple M4 Max / Metal without C#, shader or Burst compiler
-errors. It produced the full player log and stationary captures from startup through the 180-second
-window. The renderer still ended with `missingVisible=63`, mixed mirror `40270/40270`, `NoSlot=130550`
-and an oldest fine request near 151.7 seconds, so setup succeeded but correctness did not. GitHub remote
-state still cannot prove developer-machine untracked-file absence, and the baseline did not independently
-exercise the required annotated traversal/return route; those checkboxes remain open.
+errors. The renderer still ended with `missingVisible=63`, mixed mirror `40270/40270`, `NoSlot=130550`
+and an oldest fine request near 151.7 seconds. The baseline did not independently exercise the required
+annotated traversal/return route, so that gate remains open.
 
 ## 2. Find the first broken geometry invariant
 
-- [ ] Read `GpuSolidChunkCache`, `VoxelSurfaceScheduler`, `GpuSurfaceDiscovery.compute`,
-  GPU source readiness/extraction/page-arena code, far coverage/selection dispatchers and
-  `ShowcaseFarFeatureRuntime`. Identify what MissingVisibleCount actually counts, its readback
+- [x] Read `GpuSolidChunkCache`, `VoxelSurfaceScheduler`, `GpuSurfaceDiscovery.compute`,
+  GPU source readiness/extraction/page-arena code, far coverage/selection dispatchers and the current
+  far-feature composition successor. Identify what MissingVisibleCount actually counts, its readback
   age and whether it includes empty or correctly far-covered candidates. Retain raw counters;
   independently establish visible occupied coverage instead of redefining missing to zero.
 - [ ] Choose a reproducible annotated gap. Obtain bounded diagnostic records keyed by world
@@ -56,7 +57,7 @@ exercise the required annotated traversal/return route; those checkboxes remain 
   discovery/demand and queue age; admission/rejection reason; extraction output/count;
   allocation/page handle; publication acknowledgment; retirement; selected draw and bounds.
   GPU readback is diagnostics only, never authoritative world state. Bound trace memory/cost.
-- [ ] Discriminate H1 versus H2: occupied source never reaches ready/extraction indicates source/
+- [x] Discriminate H1 versus H2: occupied source never reaches ready/extraction indicates source/
   scheduling ownership; valid current geometry lost after publication indicates lifetime,
   replacement or draw ownership. If cells are actually absent, trace production generation/bake
   rather than inventing renderer geometry. If both fail, record separate defects and owners.
@@ -74,6 +75,15 @@ exercise the required annotated traversal/return route; those checkboxes remain 
   private reflection oracle or manual scene registration. Use player-scenario.json only for behavior.
 - [ ] If two materially different fixes fail the same symptom, stop speculative patching and reduce
   to a causal production-path repro before another fix. Revisit hypotheses explicitly.
+
+Diagnosis note: current `MissingVisibleCount` counts frustum-visible pending chunks that have no ready
+drawable entry; known-air and stale-but-still-drawable entries are excluded. `ShowcaseFarFeatureRuntime`
+has been superseded by `Assets/Game/Composition/Showcase/ShowcaseWorld.FarFeatures.cs`; current far
+coverage/selection is `GpuFarCoverageDispatcher` + `GpuFarSelectionDispatcher`. Baseline evidence and
+experiments 003/004 support H1 source/admission starvation: the shared mixed mirror saturates while
+whole exact source footprints remain demanded, `NoSlot` climbs to 130,550 and visible work remains
+missing. H2 premature pressure retirement was falsified by the pressure-selection and generation/handle
+acknowledgment path; page allocation failures/evictions are zero in the failing baseline.
 
 ## 3. Full-scene correctness gate — blocks optimization
 
