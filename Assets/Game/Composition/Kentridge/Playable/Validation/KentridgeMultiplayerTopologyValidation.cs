@@ -4,24 +4,32 @@ using System.Globalization;
 using System.Text;
 using Game.Application.Api;
 using Game.Composition.Campaign.Content;
+using Game.Composition.Kentridge.Api;
 using Game.Composition.Kentridge.Playable;
 using Game.Composition.Kentridge.Runtime;
 using Game.Composition.WorldBuilderWorldGen.Runtime;
 using Game.Cutscenes.Api;
 using Game.GameplayReplication.Api;
 using Game.Input.Api;
+using Game.Inventory.Api;
+using Game.Inventory.Runtime;
+using Game.Loot.Runtime;
 using Game.Outcomes.Api;
 using Game.Persistence.Api;
 using Game.SessionPresentation.Api;
 using Game.Sessions.Api;
+using Game.WorldObjects.Api;
+using Game.WorldObjects.Runtime;
 using MountingForce.WorldGen;
 using MountingForce.WorldGen.Content.Kentridge;
 using Unity.Collections;
+using Unity.Mathematics;
 using Unity.Networking.Transport;
 using UnityEngine;
 using VoxelEngine.Edits.Runtime;
 using VoxelEngine.Net.Api;
 using VoxelEngine.Net.Runtime.Client;
+using VoxelEngine.Net.Runtime.Protocol;
 using VoxelEngine.Net.Runtime.Server;
 using VoxelEngine.Storage.Runtime;
 
@@ -29,22 +37,29 @@ namespace Game.Composition.Kentridge.Playable.Validation
 {
     /// <summary>
     /// Build-once, separate-process smoke for the production Kentridge multiplayer composition.
-    /// The harness supplies only process role/port/lifecycle. Application, Sessions, UTP admission,
-    /// authority, gameplay replication, and the authority campaign graph are production types.
+    /// The harness supplies only deterministic process role/port/player setup and public player input.
+    /// Application, Sessions, UTP admission, authoritative world interaction, inventory mutation,
+    /// gameplay replication, and the authority campaign graph are production types.
     /// </summary>
     public sealed class KentridgeMultiplayerTopologyValidation : MonoBehaviour
     {
         private const string SessionValue = "gamesystem25-topology";
         private const string Protocol = "gamesystem25-v1";
         private const string Content = "kentridge-generated-world";
+        private const string ContentionObjectValue = "gamesystem25-contention-pickup";
         private const uint Seed = 0x4B454E54u;
         private const string MilestonePrefix = "VOXEL_VALIDATION_MILESTONE ";
+        private static readonly CharacterVector3 ContentionPosition = new CharacterVector3(12f, 0f, -4f);
 
         private string _role;
         private ushort _port;
         private KentridgeAuthoritativeMultiplayerApplication _authority;
         private KentridgeClientMultiplayerApplication _client;
+        private KentridgeSessionRuntimeGraphFactory _campaignGraph;
         private KentridgeCharacterHost _actors;
+        private WorldObjectRegistry _worldObjects;
+        private ItemPickupObject _contentionPickup;
+        private KentridgeAuthoritativePlayerInputRouter _inputRouter;
         private RegionTable _table;
         private BrickPool _pool;
         private bool _tableCreated;
@@ -53,6 +68,9 @@ namespace Game.Composition.Kentridge.Playable.Validation
         private bool _joinedReported;
         private bool _topologyReported;
         private bool _baselineReported;
+        private bool _contentionInitialized;
+        private bool _contentionInputSent;
+        private bool _contentionReported;
         private bool _startRequested;
         private string _failure;
 
@@ -106,22 +124,24 @@ namespace Game.Composition.Kentridge.Playable.Validation
             _tableCreated = true;
             _pool = new BrickPool(4, Allocator.Persistent);
             _poolCreated = true;
-            _table.LoadRegion(Unity.Mathematics.int3.zero);
+            _table.LoadRegion(int3.zero);
+            _worldObjects = new WorldObjectRegistry();
 
-            KentridgeSessionRuntimeGraphFactory graph = BuildProductionCampaignGraph();
+            _campaignGraph = BuildProductionCampaignGraph();
             KentridgeMultiplayerApplicationDependencies dependencies = BuildApplicationDependencies();
             var plans = new KentridgeMultiplayerSessionPlanProvider(
                 "kentridge-opening-campaign", KentridgeDefinition.Id, "kentridge-generated-world");
             KentridgeMultiplayerGameplayReplication gameplay = KentridgeMultiplayerGameplayReplication.Create(
                 _actors.Characters,
-                () => graph.Current?.Session.Inventory,
-                () => graph.Current?.Session.Runtime.Progression,
+                () => _campaignGraph.Current?.Session.Inventory,
+                () => _campaignGraph.Current?.Session.Runtime.Progression,
                 () => null,
                 () => null,
-                () => null);
+                () => null,
+                () => _worldObjects);
 
             _authority = new KentridgeAuthoritativeMultiplayerApplication(
-                graph,
+                _campaignGraph,
                 dependencies,
                 plans,
                 CreateClient,
@@ -135,7 +155,7 @@ namespace Game.Composition.Kentridge.Playable.Validation
                 () => NetworkEndpoint.LoopbackIpv4.WithPort(_port),
                 server => server.LocalEndpoint,
                 TickAuthority,
-                new KentridgeMultiplayerCharacterRoster(_actors.Characters),
+                new KentridgeMultiplayerCharacterRoster(_actors.Characters, _ => ContentionPosition),
                 gameplay);
 
             Require(_authority.Application.CompleteBoot(), "authority boot");
@@ -233,21 +253,126 @@ namespace Game.Composition.Kentridge.Playable.Validation
                 }
             }
 
-            if (_baselineReported || !_topologyReported) return;
+            if (!_topologyReported) return;
+            if (_authority != null) EnsureContentionFixture();
+
             IGameplayReplicationReadState readState = _authority != null
                 ? _authority.ReadState
                 : _client?.ReadState;
-            if (!TryCaptureBaseline(readState, out string revision, out string stateDigest)) return;
+            if (!_baselineReported && TryCaptureBaseline(readState, out string revision, out string stateDigest))
+            {
+                _baselineReported = true;
+                Emit(new Milestone
+                {
+                    name = "baseline-ready",
+                    role = _role,
+                    sessionId = party.SessionId.Value,
+                    rosterCount = party.Members.Count,
+                    revision = revision,
+                    stateDigest = stateDigest
+                });
+            }
 
-            _baselineReported = true;
+            if (!_baselineReported) return;
+            if (_client != null) TrySendContentionInput();
+            TickContentionMilestone(readState);
+        }
+
+        private void EnsureContentionFixture()
+        {
+            if (_contentionInitialized || _campaignGraph?.Current?.Session == null) return;
+
+            KentridgeCampaignSession session = _campaignGraph.Current.Session;
+            var inventory = new InventoryTransactionsAdapter(
+                session.InventoryAuthority,
+                session.Inventory,
+                session.InventoryState);
+            var bindings = new CharacterInventoryBindings();
+            for (int slot = 0; slot < 3; slot++)
+            {
+                if (!bindings.TryBind(
+                        KentridgeMultiplayerCharacterRoster.CharacterIdForSlot(slot),
+                        session.PlayerInventoryId))
+                    throw new InvalidOperationException("Failed to bind contention character inventory for slot " + slot + ".");
+            }
+
+            var transfer = new WorldObjectLootAdapter(inventory, bindings);
+            _contentionPickup = new ItemPickupObject(
+                new WorldObjectId(ContentionObjectValue),
+                ContentionPosition,
+                new WorldItemPayload(KentridgeWellQuestDefinition.RewardItemId, 1),
+                transfer);
+            if (!_worldObjects.TryRegister(_contentionPickup))
+                throw new InvalidOperationException("Failed to register GameSystem25 contention pickup.");
+
+            var interactions = new InteractionClickedProcessor(_actors.Characters, _worldObjects);
+            var commands = new KentridgeAuthoritativeGameplayCommandSink(interactions);
+            _inputRouter = new KentridgeAuthoritativePlayerInputRouter(
+                () => _authority?.PartySession,
+                commands);
+            _contentionInitialized = true;
+        }
+
+        private void TrySendContentionInput()
+        {
+            if (_contentionInputSent) return;
+            ClientNetworkRuntime network = _client.UtpFormation.ActiveClient;
+            if (network == null || !network.IsConnected) return;
+
+            uint tick = (uint)Mathf.Max(1, Time.frameCount);
+            var input = new C_PlayerInput(
+                tick,
+                1,
+                float2.zero,
+                new float3(0f, 0f, 1f),
+                C_PlayerInput.ActionBits.UseMain,
+                0);
+            if (!network.TrySendPlayerInput(in input))
+                throw new InvalidOperationException(_role + " failed to send production player input for contention.");
+            network.FlushSends();
+            _contentionInputSent = true;
             Emit(new Milestone
             {
-                name = "baseline-ready",
+                name = "contention-input-sent",
                 role = _role,
-                sessionId = party.SessionId.Value,
-                rosterCount = party.Members.Count,
-                revision = revision,
-                stateDigest = stateDigest
+                sessionId = SessionValue
+            });
+        }
+
+        private void TickContentionMilestone(IGameplayReplicationReadState readState)
+        {
+            if (_contentionReported || readState == null) return;
+
+            if (_authority != null)
+            {
+                if (!_contentionInitialized || _inputRouter == null || _inputRouter.AppliedInputs < 2 ||
+                    _contentionPickup == null || _contentionPickup.Enabled ||
+                    _campaignGraph?.Current?.Session == null)
+                    return;
+                int directQuantity = _campaignGraph.Current.Session.Inventory.Count(
+                    _campaignGraph.Current.Session.PlayerInventoryId,
+                    new ItemRef(KentridgeWellQuestDefinition.RewardItemId));
+                if (directQuantity != 1)
+                    throw new InvalidOperationException(
+                        "Authoritative contention inventory quantity was " + directQuantity + ", expected exactly one.");
+            }
+
+            if (!TryReadContentionProjection(readState, out int quantity, out bool pickupEnabled)) return;
+            if (quantity != 1 || pickupEnabled)
+                throw new InvalidOperationException(
+                    _role + " contention projection is not conserved: quantity=" + quantity +
+                    " pickupEnabled=" + pickupEnabled + ".");
+
+            _contentionReported = true;
+            Emit(new Milestone
+            {
+                name = "contention-converged",
+                role = _role,
+                sessionId = SessionValue,
+                quantity = quantity,
+                pickupEnabled = pickupEnabled ? "true" : "false",
+                appliedInputs = _inputRouter == null ? 0 : (int)_inputRouter.AppliedInputs,
+                revision = readState.Revision.Value.ToString(CultureInfo.InvariantCulture)
             });
         }
 
@@ -284,7 +409,13 @@ namespace Game.Composition.Kentridge.Playable.Validation
             ProtectedZones zones = default;
             var read = new RegionReadSource(in _table, in _pool);
             var mutations = new RegionMutationStore(in _table, in _pool);
-            server.ProcessAuthoritativeTick(++_serverTick, read, mutations, read, in zones, NoInputSink.Instance);
+            server.ProcessAuthoritativeTick(
+                ++_serverTick,
+                read,
+                mutations,
+                read,
+                in zones,
+                _inputRouter ?? NoInputSink.Instance);
         }
 
         private static KentridgeMultiplayerApplicationDependencies BuildApplicationDependencies() =>
@@ -338,7 +469,8 @@ namespace Game.Composition.Kentridge.Playable.Validation
                     return false;
                 if ((descriptor.Id == KentridgeMultiplayerGameplayReplication.CharactersDescriptor.Id ||
                      descriptor.Id == KentridgeMultiplayerGameplayReplication.InventoryDescriptor.Id ||
-                     descriptor.Id == KentridgeMultiplayerGameplayReplication.ProgressionDescriptor.Id) &&
+                     descriptor.Id == KentridgeMultiplayerGameplayReplication.ProgressionDescriptor.Id ||
+                     descriptor.Id == KentridgeMultiplayerGameplayReplication.WorldObjectsDescriptor.Id) &&
                     state.Entries.Count == 0)
                     return false;
 
@@ -354,6 +486,48 @@ namespace Game.Composition.Kentridge.Playable.Validation
             revision = readState.Revision.Value.ToString(CultureInfo.InvariantCulture);
             stateDigest = hash.ToString("x16", CultureInfo.InvariantCulture);
             return true;
+        }
+
+        private static bool TryReadContentionProjection(
+            IGameplayReplicationReadState readState,
+            out int quantity,
+            out bool pickupEnabled)
+        {
+            quantity = 0;
+            pickupEnabled = true;
+            if (!readState.TryGetProjection(
+                    KentridgeMultiplayerGameplayReplication.WorldObjectsDescriptor.Id,
+                    out GameplayProjectionState worldObjects) ||
+                !readState.TryGetProjection(
+                    KentridgeMultiplayerGameplayReplication.InventoryDescriptor.Id,
+                    out GameplayProjectionState inventory))
+                return false;
+
+            string enabledKey = "object/" + ContentionObjectValue + "/enabled";
+            bool foundPickup = false;
+            for (int i = 0; i < worldObjects.Entries.Count; i++)
+            {
+                GameplayProjectionEntry entry = worldObjects.Entries[i];
+                if (!string.Equals(entry.Key, enabledKey, StringComparison.Ordinal)) continue;
+                if (!bool.TryParse(entry.Value, out pickupEnabled))
+                    throw new InvalidOperationException("Invalid replicated pickup enabled value: " + entry.Value);
+                foundPickup = true;
+                break;
+            }
+            if (!foundPickup) return false;
+
+            string itemSuffix = "/item/" + KentridgeWellQuestDefinition.RewardItemId;
+            bool foundItem = false;
+            for (int i = 0; i < inventory.Entries.Count; i++)
+            {
+                GameplayProjectionEntry entry = inventory.Entries[i];
+                if (!entry.Key.EndsWith(itemSuffix, StringComparison.Ordinal)) continue;
+                if (!int.TryParse(entry.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int value))
+                    throw new InvalidOperationException("Invalid replicated inventory quantity: " + entry.Value);
+                quantity += value;
+                foundItem = true;
+            }
+            return foundItem;
         }
 
         private static ulong HashText(ulong hash, string value)
@@ -441,6 +615,9 @@ namespace Game.Composition.Kentridge.Playable.Validation
             public string signature;
             public string revision;
             public string stateDigest;
+            public int quantity;
+            public string pickupEnabled;
+            public int appliedInputs;
         }
 
         private sealed class EmptySaveCatalog : ISessionSaveCatalog
