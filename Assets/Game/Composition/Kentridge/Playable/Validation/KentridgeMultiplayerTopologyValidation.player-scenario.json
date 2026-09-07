@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "mode": "multiProcess",
-  "runSeconds": 120,
+  "runSeconds": 150,
   "processes": [
     {
       "role": "authority",
@@ -190,6 +190,40 @@
         "sessionId": "gamesystem25-topology",
         "progressionState": "Completed"
       }
+    },
+    {
+      "op": "wait",
+      "role": "authority",
+      "name": "combat-vitality-converged",
+      "timeoutSeconds": 30,
+      "fields": {
+        "sessionId": "gamesystem25-topology",
+        "currentVitality": 4,
+        "maximumVitality": 6,
+        "appliedCombatActions": 1
+      }
+    },
+    {
+      "op": "wait",
+      "role": "client-a",
+      "name": "combat-vitality-converged",
+      "timeoutSeconds": 30,
+      "fields": {
+        "sessionId": "gamesystem25-topology",
+        "currentVitality": 4,
+        "maximumVitality": 6
+      }
+    },
+    {
+      "op": "wait",
+      "role": "client-b",
+      "name": "combat-vitality-converged",
+      "timeoutSeconds": 30,
+      "fields": {
+        "sessionId": "gamesystem25-topology",
+        "currentVitality": 4,
+        "maximumVitality": 6
+      }
     }
   ],
   "assertions": {
@@ -198,6 +232,11 @@
         "name": "baseline-ready",
         "roles": ["authority", "client-a", "client-b"],
         "fields": ["revision", "stateDigest"]
+      },
+      {
+        "name": "combat-vitality-converged",
+        "roles": ["authority", "client-a", "client-b"],
+        "fields": ["damagedCharacter", "currentVitality", "maximumVitality"]
       }
     ],
     "requiredLogPatterns": ["VOXEL_VALIDATION_MILESTONE"],
