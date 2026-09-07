@@ -99,7 +99,12 @@ namespace Game.WorldBuilder.Voxel
                     half += (6 - row + 1) / 2;
 
                 int y = portraitEave + row;
-                int shellHalf = math.max(1, half - 3);
+
+                // Iteration 9 exposed a one-voxel black seam between the rebuilt plaster shell and
+                // the inner roof edge. Make the two opaque masses meet exactly, then overwrite that
+                // shared interface with a supported timber bargboard. This keeps the nonlinear roof
+                // profile while eliminating sky-visible separation rather than hiding it by camera.
+                int shellHalf = math.max(1, half - 2);
                 a.Box(new int3(centre - shellHalf, y, front - 1),
                     new int3(shellHalf * 2 + 1, 1, 6), p.Plaster);
 
@@ -107,9 +112,9 @@ namespace Game.WorldBuilder.Voxel
                     new int3(4, 2, roofDepth), p.Roof);
                 a.Box(new int3(centre + half - 1, y, roofZ),
                     new int3(4, 2, roofDepth), p.Roof);
-                a.Box(new int3(centre - half - 1, y, front - 5),
+                a.Box(new int3(centre - half + 1, y, front - 5),
                     new int3(2, 2, TimberDepth), p.Timber);
-                a.Box(new int3(centre + half, y, front - 5),
+                a.Box(new int3(centre + half - 2, y, front - 5),
                     new int3(2, 2, TimberDepth), p.Timber);
             }
 
