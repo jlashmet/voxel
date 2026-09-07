@@ -12,7 +12,7 @@ using Game.Cutscenes.Api;
 using Game.Encounters.Api;
 using Game.Encounters.Runtime;
 using Game.Input.Api;
-using Game.Kentridge.PlayableSlice;
+using KentridgePlayableFullRunBootstrap = Game.Kentridge.PlayableSlice.KentridgePlayableFullRunBootstrap;
 using Game.Outcomes.Api;
 using Game.Persistence.Api;
 using Game.SessionOrchestration.Api;
