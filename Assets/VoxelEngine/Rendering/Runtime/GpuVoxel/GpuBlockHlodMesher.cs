@@ -14,8 +14,16 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
     internal static class GpuBlockHlodMesher
     {
         internal const int MaximumCoreBrickEdge = 64;
-        internal const int MaximumBricksPerSlice = 1024;
+        internal const int MaximumPlanesPerSlice = 128;
         internal const int MaximumBatchCount = 4;
+        // Each group merges one 64x64 subcell tile across brick boundaries, using 16 KiB.
+        internal static int PlaneCount(int edge)
+        {
+            if (edge < 1 || edge > MaximumCoreBrickEdge) throw new ArgumentOutOfRangeException(nameof(edge));
+            int cells = edge * 4, tiles = (cells + 63) / 64;
+            return 6 * cells * tiles * tiles;
+        }
+
         private static readonly uint[] CounterZeros = new uint[
             GpuSurfaceExtractor.BatchHeaderWords + MaximumBatchCount * GpuSurfaceExtractor.BatchRecordWords];
 
@@ -35,23 +43,23 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         internal static void Count(ComputeShader shader, ComputeBuffer summaries,
             ComputeBuffer descriptors, ComputeBuffer counters, int coreBrickEdge,
-            int batchCount, int brickStart, int brickCount, ComputeBuffer selection = null)
+            int batchCount, int planeStart, int planeCount, ComputeBuffer selection = null)
         {
             int kernel = Bind(shader, "CSCountHlodFaces", summaries, descriptors, counters,
-                coreBrickEdge, batchCount, brickStart, brickCount, selection);
-            if (brickStart == 0 && selection == null)
+                coreBrickEdge, batchCount, planeStart, planeCount, selection);
+            if (planeStart == 0 && selection == null)
                 counters.SetData(CounterZeros, 0, 0, GpuSurfaceExtractor.BatchHeaderWords
                     + batchCount * GpuSurfaceExtractor.BatchRecordWords);
-            shader.Dispatch(kernel, (brickCount * 24 + 63) / 64, batchCount, 1);
+            shader.Dispatch(kernel, planeCount, batchCount, 1);
         }
 
         internal static void Write(ComputeShader shader, ComputeBuffer summaries,
             ComputeBuffer descriptors, ComputeBuffer counters, GpuSurfacePageArena arena,
-            int coreBrickEdge, int batchCount, int brickStart, int brickCount, ComputeBuffer selection = null)
+            int coreBrickEdge, int batchCount, int planeStart, int planeCount, ComputeBuffer selection = null)
         {
             if (arena == null) throw new ArgumentNullException(nameof(arena));
             int kernel = Bind(shader, "CSWriteHlodFaces", summaries, descriptors, counters,
-                coreBrickEdge, batchCount, brickStart, brickCount, selection);
+                coreBrickEdge, batchCount, planeStart, planeCount, selection);
             shader.SetBuffer(kernel, "_Vertices", arena.Vertices);
             shader.SetBuffer(kernel, "_Indices", arena.Indices);
             shader.SetBuffer(kernel, "_VertexPageTable", arena.VertexPageTable);
@@ -60,7 +68,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             shader.SetInt("_IndexPageSize", GpuSurfacePageArena.IndexPageSize);
             shader.SetInt("_MaxVertexPages", GpuSurfacePageArena.MaxVertexPagesPerChunk);
             shader.SetInt("_MaxIndexPages", GpuSurfacePageArena.MaxIndexPagesPerChunk);
-            shader.Dispatch(kernel, (brickCount * 24 + 63) / 64, batchCount, 1);
+            shader.Dispatch(kernel, planeCount, batchCount, 1);
         }
 
         private static int Bind(ComputeShader shader, string kernelName, ComputeBuffer summaries,
@@ -72,8 +80,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (counters == null) throw new ArgumentNullException(nameof(counters));
             if (edge < 1 || edge > MaximumCoreBrickEdge) throw new ArgumentOutOfRangeException(nameof(edge));
             if (batches < 1 || batches > MaximumBatchCount) throw new ArgumentOutOfRangeException(nameof(batches));
-            int total = edge * edge * edge, padded = edge + 2;
-            if (start < 0 || count < 1 || count > MaximumBricksPerSlice || start > total - count)
+            int total = PlaneCount(edge), padded = edge + 2;
+            if (start < 0 || count < 1 || count > MaximumPlanesPerSlice || start > total - count)
                 throw new ArgumentOutOfRangeException(nameof(count));
             if (summaries.stride != 4 || summaries.count < padded * padded * padded * batches
                     * GpuBlockHlodSummary.WordsPerBlock
@@ -92,8 +100,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             shader.SetBuffer(kernel, "_BatchCounters", counters);
             shader.SetInt("_HlodCoreBrickEdge", edge);
             shader.SetInt("_HlodBatchCount", batches);
-            shader.SetInt("_HlodBrickStart", start);
-            shader.SetInt("_HlodBrickCount", count);
+            shader.SetInt("_HlodPlaneStart", start);
+            shader.SetInt("_HlodPlaneCount", count);
             return kernel;
         }
     }

@@ -10,8 +10,8 @@ RWStructuredBuffer<uint> _HlodSelection;
 uint _HlodConditional;
 uint _HlodCoreBrickEdge;
 uint _HlodBatchCount;
-uint _HlodBrickStart;
-uint _HlodBrickCount;
+uint _HlodPlaneStart;
+uint _HlodPlaneCount;
 uint _VertexPageSize;
 uint _IndexPageSize;
 uint _MaxVertexPages;
@@ -124,87 +124,72 @@ void Quad(uint batch, int3 cell, uint axis, int sign, uint width, uint height, u
 #endif
 }
 
-uint MaskMaterial(uint4 rows, uint index)
-{
-    uint row = index / 4u;
-    uint packed = row == 0u ? rows.x : (row == 1u ? rows.y : (row == 2u ? rows.z : rows.w));
-    uint column = index & 3u;
-    if (column == 0u) return packed & 255u;
-    if (column == 1u) return (packed >> 8u) & 255u;
-    if (column == 2u) return (packed >> 16u) & 255u;
-    return (packed >> 24u) & 255u;
-}
+// The mask spans bricks but stays bounded independently of the chunk edge.
+groupshared uint FaceMask[4096];
 
-void Faces(uint3 id)
+void Faces(uint3 group, uint lane)
 {
-    uint batch = id.y;
-    if (batch >= _HlodBatchCount || id.x >= _HlodBrickCount * 24u) return;
+    uint batch = group.y;
+    if (batch >= _HlodBatchCount || group.x >= _HlodPlaneCount) return;
     uint record = Record(batch);
-    if (_HlodConditional != 0u && _HlodSelection[batch] == 0u) return;
+    bool enabled = _HlodConditional == 0u || _HlodSelection[batch] != 0u;
 #ifdef VOXEL_HLOD_WRITE
-    if (_BatchCounters[record + 10u] != 0u) return;
+    enabled = enabled && _BatchCounters[record + 10u] == 0u;
 #endif
-    uint brickIndex = _HlodBrickStart + id.x / 24u;
-    uint edge = _HlodCoreBrickEdge;
-    int3 origin = int3(brickIndex % edge, (brickIndex / edge) % edge, brickIndex / (edge * edge)) * 4;
-    uint slice = id.x % 24u;
-    uint axis = slice / 8u, layer = slice & 3u;
-    int sign = (slice & 4u) == 0u ? -1 : 1;
+    uint edge = _HlodCoreBrickEdge * 4u;
+    uint tiles = (edge + 63u) / 64u;
+    uint plane = _HlodPlaneStart + group.x;
+    uint tileA = plane % tiles; plane /= tiles;
+    uint tileB = plane % tiles; plane /= tiles;
+    uint layer = plane % edge; plane /= edge;
+    uint axis = plane / 2u;
+    int sign = (plane & 1u) == 0u ? -1 : 1;
     uint axisA = (axis + 1u) % 3u, axisB = (axis + 2u) % 3u;
-    uint4 rows = 0u;
-    uint remaining = 0u;
-    // Greedy rectangles are bounded to a 4x4 brick slice. Sampling its neighbours in the
-    // padded source grid removes internal faces, including at brick and chunk boundaries.
-    [loop] for (uint b = 0u; b < 4u; b++)
-    [loop] for (uint a = 0u; a < 4u; a++)
+    uint spanA = min(64u, edge - tileA * 64u);
+    uint spanB = min(64u, edge - tileB * 64u);
+    int3 origin = AxisOffset(axis, layer) + AxisOffset(axisA, tileA * 64u)
+        + AxisOffset(axisB, tileB * 64u);
+    [loop] for (uint index = lane; index < spanA * spanB; index += 64u)
     {
-        int3 cell = origin;
-        cell += AxisOffset(axis, layer) + AxisOffset(axisA, a) + AxisOffset(axisB, b);
-        int3 neighbour = cell + AxisOffset(axis, sign);
-        uint material = Material(batch, cell);
-        uint adjacent = Material(batch, neighbour);
-        uint exposed = adjacent == 0u ? material : 0u;
-        uint packed = exposed << (a * 8u);
-        if (b == 0u) rows.x |= packed;
-        else if (b == 1u) rows.y |= packed;
-        else if (b == 2u) rows.z |= packed;
-        else rows.w |= packed;
-        if (exposed != 0u) remaining |= 1u << (a + b * 4u);
-    }
-    [loop] for (uint b = 0u; b < 4u; b++)
-    [loop] for (uint a = 0u; a < 4u; a++)
-    {
-        uint index = a + b * 4u;
-        if ((remaining & (1u << index)) == 0u) continue;
-        uint material = MaskMaterial(rows, index);
-        uint width = 1u;
-        [loop] while (a + width < 4u)
+        int3 cell = origin + AxisOffset(axisA, index % spanA) + AxisOffset(axisB, index / spanA);
+        uint material = 0u, adjacent = 0u;
+        if (enabled)
         {
-            uint next = a + width + b * 4u;
-            if ((remaining & (1u << next)) == 0u || MaskMaterial(rows, next) != material) break;
+            material = Material(batch, cell);
+            adjacent = Material(batch, cell + AxisOffset(axis, sign));
+        }
+        FaceMask[index] = adjacent == 0u ? material : 0u;
+    }
+    GroupMemoryBarrierWithGroupSync();
+    if (lane != 0u) return;
+    [loop] for (uint b = 0u; b < spanB; b++)
+    [loop] for (uint a = 0u; a < spanA; a++)
+    {
+        uint material = FaceMask[a + b * spanA];
+        if (material == 0u) continue;
+        uint width = 1u;
+        [loop] while (a + width < spanA)
+        {
+            if (FaceMask[a + width + b * spanA] != material) break;
             width++;
         }
         uint height = 1u;
-        [loop] while (b + height < 4u)
+        [loop] while (b + height < spanB)
         {
             bool same = true;
             [loop] for (uint k = 0u; k < width; k++)
-            {
-                uint next = a + k + (b + height) * 4u;
-                if ((remaining & (1u << next)) == 0u || MaskMaterial(rows, next) != material) same = false;
-            }
+                if (FaceMask[a + k + (b + height) * spanA] != material) same = false;
             if (!same) break;
             height++;
         }
         [loop] for (uint hb = 0u; hb < height; hb++)
-        [loop] for (uint ha = 0u; ha < width; ha++) remaining &= ~(1u << (a + ha + (b + hb) * 4u));
-        int3 cell = origin;
-        cell += AxisOffset(axis, layer) + AxisOffset(axisA, a) + AxisOffset(axisB, b);
+        [loop] for (uint ha = 0u; ha < width; ha++) FaceMask[a + ha + (b + hb) * spanA] = 0u;
+        int3 cell = origin + AxisOffset(axisA, a) + AxisOffset(axisB, b);
         Quad(batch, cell, axis, sign, width, height, material);
     }
 }
 
 [numthreads(64, 1, 1)]
-void CSCountHlodFaces(uint3 id : SV_DispatchThreadID) { Faces(id); }
+void CSCountHlodFaces(uint3 group : SV_GroupID, uint lane : SV_GroupIndex) { Faces(group, lane); }
 [numthreads(64, 1, 1)]
-void CSWriteHlodFaces(uint3 id : SV_DispatchThreadID) { Faces(id); }
+void CSWriteHlodFaces(uint3 group : SV_GroupID, uint lane : SV_GroupIndex) { Faces(group, lane); }

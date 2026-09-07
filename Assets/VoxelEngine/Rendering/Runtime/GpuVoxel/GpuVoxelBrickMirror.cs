@@ -153,8 +153,11 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             return (Math.Min(slots, GpuBrickBufferLayout.MaximumAddressableSlots), directory);
         }
 
-        public GpuVoxelBrickMirror(int slotCapacity, int directoryCapacity = 0)
+        private readonly bool _retainKnownEmpty;
+
+        public GpuVoxelBrickMirror(int slotCapacity, int directoryCapacity = 0, bool retainKnownEmpty = false)
         {
+            _retainKnownEmpty = retainKnownEmpty;
             if (slotCapacity <= 0 || slotCapacity > GpuBrickBufferLayout.MaximumAddressableSlots)
                 throw new ArgumentOutOfRangeException(nameof(slotCapacity));
 
@@ -286,9 +289,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 case GpuBrickAdmission.Full:
                     return GpuBrickPublish.NoSlot;
                 case GpuBrickAdmission.NoPayload:
-                    // Absence from a ready region is the canonical GPU representation of empty.
-                    // Uniform bricks still need one compact directory entry; empty bricks do not.
-                    if (delta.Content == VoxelBrickContent.Empty)
+                    // Production readiness distinguishes known air from an unuploaded source.
+                    // Legacy dense fixtures may still supply independent CPU coverage proof.
+                    if (delta.Content == VoxelBrickContent.Empty && !_retainKnownEmpty)
                     {
                         RemoveLookup(delta.Coordinate);
                         return GpuBrickPublish.MetadataOnly;
@@ -352,7 +355,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 case GpuBrickAdmission.Full:
                     return GpuBrickPublish.NoSlot;
                 case GpuBrickAdmission.NoPayload:
-                    if (delta.Content == VoxelBrickContent.Empty)
+                    if (delta.Content == VoxelBrickContent.Empty && !_retainKnownEmpty)
                     {
                         RemoveLookup(delta.Coordinate);
                         return GpuBrickPublish.MetadataOnly;
@@ -398,6 +401,18 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 throw new InvalidOperationException("Mirror clear is waiting for submitted readers.");
             _slots.Release(coordinate);
             RemoveLookup(coordinate);
+        }
+
+        // Low bits2..7 are outside kind/material/slot fields. Existing readers still see the
+        // immutable source value, while new GPU coverage requests wait for its replacement.
+        internal const uint SourcePendingBit = 1u << 2;
+
+        internal void InvalidateReadiness(int3 coordinate)
+        {
+            ThrowIfDisposed();
+            if (!_directoryIndexByCoordinate.TryGetValue(coordinate, out int index)) return;
+            _directoryStaging[index * DirectoryWordsPerEntry + 3] |= SourcePendingBit;
+            MarkDirectoryDirty(index);
         }
 
         private bool PublishLookup(in VoxelBrickDelta delta, int slot)

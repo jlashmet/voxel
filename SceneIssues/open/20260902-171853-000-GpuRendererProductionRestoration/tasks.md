@@ -1,5 +1,125 @@
 # GPU-only VoxelShowcase — execution checklist
 
+### 2026-09-06 — GPU canonical uniform-block decoding (validation ongoing)
+
+Storage RegionReadView now exposes bounded copy of canonical encoded block references without
+per-brick transformation: -1 air, negative uniform(-material-1), nonnegative mixed identifier.
+Destination owns its copy; range errors are nonmutating. GPU coarse source resolution decodes
+uniform material and excludes water directly, overrides stale directory data with current uniform
+metadata, and looks up only mixed payloads. Storage mixed addresses are never GPU addresses.
+Host copies only intersected Y rows in one Z slice per region after obtaining a submission slot,
+validates borrowed version, and retains buffer/source lifetime. CPU16KiB/GPU128KiB bounded scratch
+per lane replaces occupancy scratch. Mirror/arena capacity and submission allowance unchanged.
+Storage API is headless data-copy behavior: module-local Storage EditMode coverage is appropriate;
+Rendering's existing production validation scene and Showcase exercise its runtime consumer.
+
+`gpu-canonical-blocks.log`: initial test compilation failed because NativeArray using variables
+were modified; fixed through mutable aliases. `gpu-canonical-blocks-final.xml`:549/562 passed;
+13 failures traced to HLSL reserved identifier `uniform`, renamed `sourceUniform`.
+`gpu-canonical-blocks-verified.xml`:562/562 passed20s (482 Rendering,80 Storage),zero skipped.
+New tests prove copy encoding/end-of-region/invalid-range isolation; realGPU negative/region
+boundaries, uniform override of pending stale material, water exclusion, mixed readiness and
+clearing to air. Existing realStorage edit/pressure/retirement tests pass with the new production
+source route.
+`gpu-canonical-blocks-module`:31s build,48s/seven captures,exit0; all edit/restart/far markers,
+zero missing/fallback/errors/finalizers. Frame p95/p99 .818/.892ms;prepare .027/.027ms;261.1MB.
+Reviewed42s: fort intact, prototype/blockout composition.
+`gpu-canonical-blocks-showcase`:18s build,180s/12 captures,exit0. Source hashes match final source.
+Stationary60–90s30 samples222.15 FPS,CPU3.905ms,GPU diagnostic5.075ms. Walking120–180s59
+samples133.99 FPS,CPU7.32ms,GPU1.73ms. Final442 missing-visible,259 allocation failures/evictions.
+Reviewed74.9s castle and149.9s terrain: castle retained; terrain seams/far/vegetation unacceptable.
+No400FPS or coverage acceptance. Directory refusals are zero early but end82,993 (was175,837);
+8.63M recovery publications (was11.56M),165,481 mixed-slot refusals,40,270/40,270 mixed slots.
+Coarse GPU publications32→37. Fine CPU coverage still causes per-air/uniform handling; final
+step4 request has536 polls,4.07s age. Remaining walking visibility traversal~1.9ms plus periodic
+~1.3ms CPU hierarchy rebuild. Next migrate fine source readiness into GPU dense-cache preparation,
+retaining full fine-source demand to protect mixed slots and ordered readers only while GPU uses
+them; do not pin missing blocks against recovery. Preserve version/epoch rejection across portions.
+This is a functional checkpoint, not final performance/visual acceptance. Local only; no push.
+
+
+### 2026-09-06 — GPU occupancy readiness removes per-empty directory records (validation ongoing)
+
+The previous checkpoint's explicit empty keys saturated the1,048,576-entry directory at786,431
+ready keys,290,724 refused insertions and12.27M recovery publications. Production now uses
+Storage's canonical `TryCopyBlockSummary` bitmap: copy only the source portion's512B Z slice per
+intersected region to GPU. GPU recognizes air directly; occupied sources still require current
+non-pending uploaded payloads. Optional nonresident halo remains air. No CPU per-brick bitmap
+expansion and no geometry/material readback. Production mirror again omits empty keys; fine-step
+CPU coverage keeps its existing independent proof until migrated. Queue/frame/arena budgets
+unchanged. Lane owns64KiB CPU bitmap scratch plus4KiB GPU slice storage, reused and released
+with the submission. Copies occur only after acquiring the single submission slot.
+
+`gpu-occupancy-readiness.xml`:480/480 rendering tests pass23s,zero skipped.
+`gpu-occupancy-readiness-final.xml`:480/480 pass19s after slot/lifetime refinement. New realGPU
+cases exercise negative coordinates,32-bit word and64-brick region boundaries, stale payloads
+over canonical air, occupied missing sources, pending air-to-solid edits and cleared occupancy.
+Existing realStorage step8 summary/edit/4096-source pressure tests use a mirror without empty
+keys. In-flight world retirement now checks occupancy buffer retention and eventual release.
+`gpu-occupancy-readiness-module`:28s build,48s/seven captures,exit0; all edit/lifecycle/far markers,
+zero missing/errors/finalizers. Frame p95/p99 .818/.958ms;prepare .027/.040ms;261.1MB allocated.
+Reviewed42s fort: production systems intact, prototype/blockout composition.
+`gpu-occupancy-readiness-showcase`:18s build,180s/12 captures,exit0; source hashes match.
+Stationary60–90s30 samples204.57 FPS,CPU4.095ms,GPU diagnostic5.045ms. Walking120–180s59
+samples132.11 FPS,CPU7.58ms,GPU1.98ms. Final376 missing-visible,416 allocation failures/evictions
+(up from99 as more sources complete); GPU step8 publications12→32. Reviewed74.8s castle and
+149.9s terrain: castle retained, terrain seams/far/vegetation finish remains unacceptable.
+
+Occupancy improves stationary180→205 FPS in single runs, but does not achieve400 FPS or eliminate
+source pressure:175,837 refused directory insertions remain (down from290,724),11.56M recovery
+publications,824,583 host-ready keys. Empty keys are absent in production; uniform solid terrain
+still requires individual directory records. Next expose/copy canonical encoded block metadata
+through RegionReadView so GPU decodes uniform material directly and asks mirror only for mixed
+payloads. Existing encoding is -1 air, negative uniform(-material-1), nonnegative mixed; CPU must
+only copy, never per-brick transform. Do not use fully-solid occupancy alone as a solid-material
+substitute: Storage occupancy includes nonempty water. Fine GPU coverage and camera-driven
+CPU visibility/band traversal plus hierarchy rebuild remain major migrations after source pressure.
+All changes remain local/uncommitted, performance/coverage failures explicitly open.
+
+
+### 2026-09-06 — GPU source readiness and cross-brick coarse face merging (local, validation ongoing)
+
+Step8 source coordinate expansion, lookup/readiness and summaries now execute on GPU. Retain
+explicit known-air directory keys and pending-upload bits; bounded missing-source readback only
+requests canonical CPU uploads. Host retains residency/version approval and world truth. Fine
+steps1/2/4 still use CPU coverage. Near-ready submission priority with coarse service after eight
+near reservations preserves one existing submission slot. No memory/radius/budget increase.
+
+Readiness validation:473/473 rendering tests; unknown/air/solid, negative regions,990-source/six-region
+parity, pending edits, cancellation and reduced-capacity pressure. Module48s/seven captures passed
+before final priority correction. Startup after correction restored near462 at9.1s after generation.
+Full `gpu-source-readiness-showcase`180s/12 captures exited0 but FAILED performance acceptance:
+195/129 FPS stationary/walking,566 missing-visible,1,231 allocation failures and evictions. Reviewed
+74.9s: castle retained, terrain/far finish unacceptable. Harness success is not performance success.
+
+Proven geometry inefficiency: coarse GPU merges only4x4 subcell slices within a brick; CPU merges
+whole planes. Replace with64x64 subcell tiles across brick boundaries,16KiB shared mask per group,
+bounded128-plane dispatches and identical count/write merging. Two adjacent bricks now6 instead
+of10 quads; solid3x3x3 brick grid6 rather than54. Long17-brick bars across the clipped tile boundary
+emit10 quads in all three orientations, preserving exact bounds, material, surface area and winding.
+
+`gpu-hlod-cross-brick.xml`:454/473 passed;19 failures traced to Metal rejecting buffer-dependent
+early return before group barrier. Conditional sampling now reaches the barrier uniformly.
+`gpu-hlod-cross-brick-fixed.xml`:473/473 passed18s.
+`gpu-hlod-cross-brick-final.xml`:477/477 passed18s, zero skipped, including new tile/3D tests.
+`gpu-hlod-cross-brick-module`:29s build,48s/seven captures,exit0; all lifecycle/edit/far markers,
+zero missing/fallback/errors/finalizers. Frame p95/p99 .822/.901ms;prepare .027/.029ms;261.1MB.
+Reviewed42s: fort intact, prototype/blockout composition, not final art acceptance.
+`gpu-hlod-cross-brick-showcase`:18s build,180s/12 captures,exit0. Exact source hashes match final
+source; standalone74.9s castle retained,149.9s terrain seams/flat far finish remain unacceptable.
+Stationary60–90s:179.62 FPS,CPU5.43ms,GPU diagnostic5.085ms. Walking120–180s:127.45 FPS,
+CPU7.805ms,GPU1.75ms. Final486 missing-visible,99 allocation failures/evictions. Merging reduces
+allocation churn1,231→99 but does not pass performance or coverage gates. Failures returned late
+in traversal after initial zero-failure interval. No FPS gain claim and no400FPS acceptance.
+
+Next proven pressure: explicit empty records fill directory at786,431 ready keys/1,048,576 slots,
+with290,724 refused insertions and12,267,629 published recovery records. Replace per-empty source
+keys with GPU lookup of canonical Storage occupancy bitmaps (`TryCopyBlockSummary`), preserving
+version/pending edit proof and existing memory budget. Then migrate fine-step CPU Covers.
+Changes remain local/uncommitted until the source-directory regression is corrected. Startup,
+terrain/vegetation/far finish, missing geometry, final FPS and full CPU retirement remain open.
+
+
 ### 2026-09-06 — Prioritize initial nearby discovery for startup performance
 
 User steering makes castle/house time-to-visible and FPS the priority. Confirmed startup skipped

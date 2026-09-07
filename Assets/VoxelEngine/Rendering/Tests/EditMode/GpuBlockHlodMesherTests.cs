@@ -70,18 +70,29 @@ namespace VoxelEngine.Rendering.Tests.EditMode
         private uint[] Build(bool write = true, bool split = false, bool summariesPrepared = false)
         {
             if (!summariesPrepared)
-                GpuBlockHlodSummary.Dispatch(_summaryShader, _mirror, _requests, _summaries,
-                    _requests.count, (1u << 11) | (1u << 16));
-            int bricks = _edge * _edge * _edge;
-            int slice = split ? 1 : bricks;
-            for (int start = 0; start < bricks; start += slice)
+            {
+                var requests = new int4[_requests.count];
+                _requests.GetData(requests);
+                using var portion = new ComputeBuffer(Math.Min(requests.Length,
+                    GpuBlockHlodSummary.MaximumBlocksPerDispatch), 16);
+                for (int start = 0; start < requests.Length; start += portion.count)
+                {
+                    int count = Math.Min(portion.count, requests.Length - start);
+                    portion.SetData(requests, start, 0, count);
+                    GpuBlockHlodSummary.Dispatch(_summaryShader, _mirror, portion, _summaries,
+                        count, (1u << 11) | (1u << 16), start);
+                }
+            }
+            int planes = GpuBlockHlodMesher.PlaneCount(_edge);
+            int slice = split ? 1 : GpuBlockHlodMesher.MaximumPlanesPerSlice;
+            for (int start = 0; start < planes; start += slice)
                 GpuBlockHlodMesher.Count(_meshShader, _summaries, _descriptors, _counters,
-                    _edge, 1, start, slice);
+                    _edge, 1, start, Math.Min(slice, planes - start));
             _arena.AllocateBatch(_descriptors, _counters, 1, 17, 1);
             if (write)
-                for (int start = 0; start < bricks; start += slice)
+                for (int start = 0; start < planes; start += slice)
                     GpuBlockHlodMesher.Write(_meshShader, _summaries, _descriptors, _counters,
-                        _arena, _edge, 1, start, slice);
+                        _arena, _edge, 1, start, Math.Min(slice, planes - start));
             _arena.PublishBatch(_descriptors, _counters, 1, 17, 1);
             var words = new uint[21];
             // Test-only observation after ordered completion. Production keeps all geometry on GPU.
@@ -105,7 +116,33 @@ namespace VoxelEngine.Rendering.Tests.EditMode
         public void AdjacentBricksSuppressSharedFacesAcrossDispatchSlices(bool split)
         {
             Setup(2); Uniform(int3.zero); Uniform(new int3(1, 0, 0));
-            VerifyBox(Build(split: split), int3.zero, new int3(16, 8, 8), 10, 200);
+            VerifyBox(Build(split: split), int3.zero, new int3(16, 8, 8), 6, 200);
+        }
+
+        [TestCase(0)]
+        [TestCase(1)]
+        [TestCase(2)]
+        public void LongBoxMergesAcrossBricksAndPreservesClippedTileBoundary(int axis)
+        {
+            Setup(17);
+            for (int i = 0; i < 17; i++)
+            {
+                int3 position = int3.zero; position[axis] = i;
+                Uniform(position);
+            }
+            int3 maximum = new int3(8); maximum[axis] = 17 * 8;
+            // Four longitudinal faces each cross the 64-subcell tile boundary, plus two ends.
+            VerifyBox(Build(), int3.zero, maximum, 10, 200);
+        }
+
+        [Test]
+        public void SolidThreeDimensionalBrickGridMergesToSixFaces()
+        {
+            Setup(3);
+            for (int z = 0; z < 3; z++)
+            for (int y = 0; y < 3; y++)
+            for (int x = 0; x < 3; x++) Uniform(new int3(x, y, z));
+            VerifyBox(Build(), int3.zero, new int3(24), 6, 200);
         }
 
         [Test]
@@ -137,7 +174,7 @@ namespace VoxelEngine.Rendering.Tests.EditMode
                 _mirror.Remove(coordinate);
             }
             _mirror.Clear();
-            VerifyBox(Build(split: true, summariesPrepared: true), int3.zero, new int3(16, 8, 8), 10, 200);
+            VerifyBox(Build(split: true, summariesPrepared: true), int3.zero, new int3(16, 8, 8), 6, 200);
         }
 
         [Test]
@@ -195,7 +232,7 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             using var selection = new ComputeBuffer(1, 4);
             GpuBlockHlodMesher.SelectFallback(_meshShader, _descriptors, _counters, selection, 1);
             GpuBlockHlodSummary.Dispatch(_summaryShader, _mirror, _requests, _summaries, _requests.count, 0);
-            GpuBlockHlodMesher.Count(_meshShader, _summaries, _descriptors, _counters, 1, 1, 0, 1, selection);
+            GpuBlockHlodMesher.Count(_meshShader, _summaries, _descriptors, _counters, 1, 1, 0, GpuBlockHlodMesher.PlaneCount(1), selection);
             _counters.GetData(words);
             Assert.That(words[4], Is.EqualTo(unsupported));
             Assert.That(words[6], Is.EqualTo(selected ? 24u : vertices));

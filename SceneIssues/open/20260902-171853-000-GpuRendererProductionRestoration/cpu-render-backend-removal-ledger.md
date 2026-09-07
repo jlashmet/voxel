@@ -6,6 +6,14 @@
 
 This is a removal ledger, not permission to delete everything whose name contains `Cpu`. Authoritative voxel storage, deterministic generation, collision, simulation, canonical semantic data, and CPU host orchestration required to submit/validate GPU work remain. A file is deleted only after every required rendering responsibility has a GPU/shared replacement and repository references/tests are migrated.
 
+2026-09-06 GPU source-readiness migration: the production step8 lane no longer calls CPU
+CoversSourceRange or expands per-brick request coordinates. The summary shader resolves explicit
+canonical block-reference slices and pending/ready GPU keys, generates coordinates, and reports
+bounded upload-request indices. GPU decodes air/uniform/water directly from Storage metadata;
+only mixed sources need directory payloads. Fine coverage is the next migration target. CPU retains region residency/version approval and canonical source uploads. Fine steps
+still use CPU Covers and are the next source-preparation migration target. Mirror capacity and
+single-submission queue bounds remain unchanged. See tasks.md for final validation and timings.
+
 2026-09-06 checkpoint: the mixed cache no longer schedules or executes CPU geometry phases or
 allocates `TransvoxelBuildWorkspace`; roughly2,600 implementation lines and the startup CPU
 fallback policy are removed. All469 rendering EditMode tests and the48s GPU module pass. Entry

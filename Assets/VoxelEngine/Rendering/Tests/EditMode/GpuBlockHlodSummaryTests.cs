@@ -32,6 +32,221 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             if (_shader != null) Object.DestroyImmediate(_shader);
         }
 
+        [TestCase(-1)]
+        [TestCase(63)]
+        public void CanonicalReferencesDecodeUniformAirAndWaterWithoutDirectoryKeys(int x)
+        {
+            int3 origin = new(x, 63, -1), second = origin + new int3(1, 0, 0);
+            _requests.SetData(new[] { new int4(origin >> 6, 1), new int4(second >> 6, 1) });
+            using var references = new ComputeBuffer(8192, 4);
+            using var missing = new ComputeBuffer(3, 4);
+            var encoded = new int[8192];
+            var feedback = new uint[3]; var summary = new uint[_summaries.count];
+            void SetReference(int3 coordinate, int value)
+            {
+                for (int r = 0; r < 2; r++)
+                {
+                    int3 region = (r == 0 ? origin : second) >> 6;
+                    if (!math.all(region == (coordinate >> 6))) continue;
+                    int3 local = coordinate - region * 64;
+                    encoded[r * 4096 + local.x + 64 * local.y] = value;
+                }
+            }
+            void Dispatch()
+            {
+                references.SetData(encoded); missing.SetData(new uint[3]);
+                GpuBlockHlodSummary.DispatchSourceRange(_shader, _mirror, _requests, 2,
+                    origin, new int3(2, 1, 1), _summaries, 0, missing, 1u << 11,
+                    blockReferences: references);
+                missing.GetData(feedback); _summaries.GetData(summary);
+            }
+            SetReference(origin, -201); SetReference(second, -1);
+            // Canonical uniform metadata must override an obsolete directory payload.
+            _mirror.Publish(VoxelBrickDelta.UniformAt(origin, 1, 3), default, default, default, 0, false);
+            _mirror.InvalidateReadiness(origin);
+            Dispatch(); Assert.That(feedback[0], Is.Zero);
+            Assert.That(summary[2], Is.EqualTo(0xc8c8c8c8u));
+            Assert.That(summary[19] | summary[20] | summary[21] | summary[37], Is.Zero);
+            SetReference(origin, -12); SetReference(second, 123456);
+            Dispatch(); Assert.That(feedback[0], Is.EqualTo(1)); Assert.That(feedback[1], Is.EqualTo(1));
+            Assert.That(summary[0] | summary[1] | summary[2] | summary[18], Is.Zero,
+                "Uniform water is not solid geometry; mixed storage addresses are never GPU slot addresses.");
+            using var ownedVoxels = new NativeArray<byte>(512, Allocator.Temp);
+            var voxels = ownedVoxels;
+            using var surfaces = new NativeArray<ushort>(512, Allocator.Temp);
+            using var boundaries = new NativeArray<byte>(512, Allocator.Temp);
+            for (int i = 0; i < voxels.Length; i++) voxels[i] = 3;
+            _mirror.Publish(VoxelBrickDelta.MixedAt(second, 2, 0), voxels, surfaces, boundaries, 0, true);
+            Dispatch(); Assert.That(feedback[0], Is.Zero);
+            Assert.That(summary[21], Is.EqualTo(0x03030303u));
+            _mirror.InvalidateReadiness(second);
+            Dispatch(); Assert.That(feedback[0], Is.EqualTo(1)); Assert.That(feedback[1], Is.EqualTo(1));
+            SetReference(second, -1);
+            Dispatch(); Assert.That(feedback[0], Is.Zero);
+            Assert.That(summary[19] | summary[20] | summary[21] | summary[37], Is.Zero);
+        }
+
+        [TestCase(-1)]
+        [TestCase(31)]
+        [TestCase(63)]
+        public void OccupancySliceProvesAirWithoutKeysAndRequiresCurrentOccupiedPayload(int x)
+        {
+            int3 origin = new(x, 63, -1), second = origin + new int3(1, 0, 0);
+            _requests.SetData(new[] { new int4(origin >> 6, 1), new int4(second >> 6, 1) });
+            using var occupancy = new ComputeBuffer(256, 4);
+            using var missing = new ComputeBuffer(3, 4);
+            var bits = new uint[256];
+            var feedback = new uint[3];
+            var summary = new uint[_summaries.count];
+            void SetOccupied(int3 coordinate, bool value)
+            {
+                // Both region records may refer to the same region; keep their snapshots equal.
+                for (int r = 0; r < 2; r++)
+                {
+                    int3 region = (r == 0 ? origin : second) >> 6;
+                    if (!math.all(region == (coordinate >> 6))) continue;
+                    int3 local = coordinate - region * 64;
+                    int bit = local.x + 64 * local.y, word = r * 128 + bit / 32;
+                    if (value) bits[word] |= 1u << (bit & 31);
+                    else bits[word] &= ~(1u << (bit & 31));
+                }
+            }
+            void Dispatch()
+            {
+                occupancy.SetData(bits); missing.SetData(new uint[3]);
+                GpuBlockHlodSummary.DispatchSourceRange(_shader, _mirror, _requests, 2,
+                    origin, new int3(2, 1, 1), _summaries, 0, missing, 0, occupancy);
+                missing.GetData(feedback); _summaries.GetData(summary);
+            }
+            SetOccupied(origin, true);
+            // Stale material must not override authoritative air, even with a live directory key.
+            _mirror.Publish(VoxelBrickDelta.UniformAt(second, 1, 200), default, default, default, 0, false);
+            Dispatch();
+            Assert.That(feedback[0], Is.EqualTo(1)); Assert.That(feedback[1], Is.Zero);
+            Assert.That(summary[18], Is.EqualTo(1));
+            Assert.That(summary[19] | summary[20] | summary[21] | summary[37], Is.Zero);
+            _mirror.Publish(VoxelBrickDelta.UniformAt(origin, 1, 200), default, default, default, 0, false);
+            Dispatch(); Assert.That(feedback[0], Is.Zero);
+            Assert.That(summary[2], Is.EqualTo(0xc8c8c8c8u));
+            SetOccupied(second, true); _mirror.InvalidateReadiness(second);
+            Dispatch(); Assert.That(feedback[0], Is.EqualTo(1)); Assert.That(feedback[1], Is.EqualTo(1));
+            _mirror.Publish(VoxelBrickDelta.UniformAt(second, 2, 3), default, default, default, 0, false);
+            SetOccupied(origin, false);
+            Dispatch(); Assert.That(feedback[0], Is.Zero);
+            Assert.That(summary[0] | summary[1] | summary[2] | summary[18], Is.Zero);
+            Assert.That(summary[21], Is.EqualTo(0x03030303u));
+        }
+
+        [TestCase(-1)]
+        [TestCase(63)]
+        public void SourceRangeFindsMissingKeysAndDistinguishesKnownAirWithoutCpuBrickCoverage(int x)
+        {
+            _mirror.Dispose();
+            _mirror = new GpuVoxelBrickMirror(4, retainKnownEmpty: true);
+            int3 origin = new(x, -1, 0), extent = new(2, 1, 1);
+            int3 second = origin + new int3(1, 0, 0);
+            _requests.SetData(new[] { new int4(origin >> 6, 1), new int4(second >> 6, 1) });
+            using var missing = new ComputeBuffer(3, 4);
+            var feedback = new uint[3];
+            var summary = new uint[2 * GpuBlockHlodSummary.WordsPerBlock];
+            void Dispatch()
+            {
+                missing.SetData(new uint[3]);
+                GpuBlockHlodSummary.DispatchSourceRange(_shader, _mirror, _requests, 2,
+                    origin, extent, _summaries, 0, missing, 0);
+                missing.GetData(feedback);
+                _summaries.GetData(summary);
+            }
+            Dispatch();
+            Assert.That(feedback[0], Is.EqualTo(2));
+            CollectionAssert.AreEquivalent(new uint[] { 0, 1 }, new[] { feedback[1], feedback[2] });
+            Assert.That(summary[18], Is.EqualTo(1));
+            Assert.That(summary[37], Is.EqualTo(1));
+
+            _mirror.Publish(VoxelBrickDelta.EmptyAt(origin, 1), default, default, default, 0, false);
+            _mirror.Publish(VoxelBrickDelta.UniformAt(second, 1, 200), default, default, default, 0, false);
+            Dispatch();
+            Assert.That(feedback[0], Is.Zero, "The GPU must recognize uploaded air without CPU per-brick proof.");
+            Assert.That(summary[0] | summary[1] | summary[18] | summary[37], Is.Zero);
+            Assert.That(summary[19], Is.EqualTo(uint.MaxValue));
+            Assert.That(summary[20], Is.EqualTo(uint.MaxValue));
+            for (int word = 21; word < 37; word++) Assert.That(summary[word], Is.EqualTo(0xc8c8c8c8u));
+
+            _mirror.InvalidateReadiness(origin);
+            _mirror.InvalidateReadiness(second);
+            Dispatch();
+            Assert.That(feedback[0], Is.EqualTo(2), "Present but pending source keys are not ready.");
+            Assert.That(summary[18], Is.EqualTo(1));
+            Assert.That(summary[37], Is.EqualTo(1));
+            using (var oldRequest = new ComputeBuffer(1, 16))
+            {
+                oldRequest.SetData(new[] { new int4(second, 0) });
+                GpuBlockHlodSummary.Dispatch(_shader, _mirror, oldRequest, _summaries, 1, 0);
+                _summaries.GetData(summary);
+                Assert.That(summary[0], Is.EqualTo(uint.MaxValue));
+                Assert.That(summary[2], Is.EqualTo(0xc8c8c8c8u),
+                    "Readiness invalidation must not overwrite data retained by an older reader.");
+            }
+            _mirror.Publish(VoxelBrickDelta.EmptyAt(origin, 2), default, default, default, 0, false);
+            _mirror.Publish(VoxelBrickDelta.UniformAt(second, 2, 200), default, default, default, 0, false);
+            Dispatch();
+            Assert.That(feedback[0], Is.Zero, "A replacement publication clears pending readiness.");
+
+            _mirror.Remove(second);
+            Dispatch();
+            Assert.That(feedback[0], Is.EqualTo(1));
+            Assert.That(feedback[1], Is.EqualTo(1));
+            Assert.That(summary[37], Is.EqualTo(1), "A retired key must not reuse its old summary.");
+
+            // Optional nonresident halo is authorized at region granularity; stale directory
+            // content there must not be treated as resident world data.
+            _mirror.Publish(VoxelBrickDelta.UniformAt(second, 2, 200), default, default, default, 0, false);
+            _requests.SetData(new[] { new int4(origin >> 6, 0), new int4(second >> 6, 0) });
+            Dispatch();
+            Assert.That(feedback[0], Is.Zero);
+            foreach (uint word in summary) Assert.That(word, Is.Zero);
+        }
+
+        [Test]
+        public void ProductionSizedSourceRangeMatchesExplicitBrickSummariesAcrossRegionBoundaries()
+        {
+            const int count = 66 * 15;
+            int3 origin = new(-1), extent = new(66, 15, 1);
+            using var mirror = new GpuVoxelBrickMirror(4, 4096, retainKnownEmpty: true);
+            using var explicitRequests = new ComputeBuffer(count, 16);
+            using var regions = new ComputeBuffer(6, 16);
+            using var expected = new ComputeBuffer(count * GpuBlockHlodSummary.WordsPerBlock, 4);
+            using var actual = new ComputeBuffer(count * GpuBlockHlodSummary.WordsPerBlock, 4);
+            using var missing = new ComputeBuffer(count + 1, 4);
+            var requests = new int4[count];
+            for (int i = 0; i < count; i++)
+            {
+                int3 coordinate = origin + new int3(i % 66, i / 66, 0);
+                requests[i] = new int4(coordinate, 0);
+                VoxelBrickDelta delta = i % 5 == 0 ? VoxelBrickDelta.EmptyAt(coordinate, 1)
+                    : VoxelBrickDelta.UniformAt(coordinate, 1, (byte)(2 + i % 29));
+                Assert.That(mirror.Publish(delta, default, default, default, 0, false),
+                    Is.EqualTo(GpuBrickPublish.MetadataOnly));
+            }
+            var regionRecords = new int4[6];
+            int next = 0;
+            for (int y = -1; y <= 0; y++)
+            for (int x = -1; x <= 1; x++) regionRecords[next++] = new int4(x, y, -1, 1);
+            explicitRequests.SetData(requests);
+            regions.SetData(regionRecords);
+            missing.SetData(new uint[count + 1]);
+            GpuBlockHlodSummary.Dispatch(_shader, mirror, explicitRequests, expected, count, 0);
+            GpuBlockHlodSummary.DispatchSourceRange(_shader, mirror, regions, 6, origin, extent,
+                actual, 0, missing, 0);
+            var expectedWords = new uint[expected.count];
+            var actualWords = new uint[actual.count];
+            var feedback = new uint[count + 1];
+            expected.GetData(expectedWords); actual.GetData(actualWords); missing.GetData(feedback);
+            Assert.That(feedback[0], Is.Zero);
+            CollectionAssert.AreEqual(expectedWords, actualWords,
+                "GPU coordinate expansion must preserve every ordered occupancy/material summary.");
+        }
+
         [TestCase(1)]
         [TestCase(200)]
         public void UniformSolidPreservesEverySubcellAndPackedMaterial(int material)

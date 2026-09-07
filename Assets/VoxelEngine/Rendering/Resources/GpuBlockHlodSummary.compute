@@ -1,3 +1,4 @@
+#pragma kernel CSSummarizeSourceRange VOXEL_HLOD_SOURCE_RANGE
 #pragma kernel CSSummarizeBlocks
 #pragma kernel CSSummarizeDenseBlocks VOXEL_HLOD_DENSE_ENTRY
 #define VOXEL_FORCE_PERSISTENT_LOOKUP 1
@@ -10,6 +11,17 @@ uint _HlodBlockCount;
 uint _HlodOutputBlockOffset;
 uint _HlodDirectoryOffset;
 uint _HlodDirectoryMask;
+#ifdef VOXEL_HLOD_SOURCE_RANGE
+StructuredBuffer<int4> _HlodRegions;
+StructuredBuffer<uint> _HlodOccupancy;
+uint _HlodHasOccupancy;
+StructuredBuffer<int> _HlodBlockReferences;
+uint _HlodHasBlockReferences;
+RWStructuredBuffer<uint> _HlodMissingBlocks;
+int3 _HlodRangeOrigin;
+int3 _HlodRangeExtent;
+uint _HlodRegionCount;
+#endif
 groupshared uint s_Entry;
 groupshared uint s_Known;
 groupshared uint s_Material[64];
@@ -61,12 +73,51 @@ void Summarize(uint3 group, uint lane)
         s_Known = 1u;
 #else
         s_Entry = 0u;
-        // w = 1 proves complete mirrored region coverage; absent bricks are air.
+#ifdef VOXEL_HLOD_SOURCE_RANGE
+        uint yz = brickIndex / (uint)_HlodRangeExtent.x;
+        int3 coordinate = _HlodRangeOrigin + int3(brickIndex % (uint)_HlodRangeExtent.x,
+            yz % (uint)_HlodRangeExtent.y, yz / (uint)_HlodRangeExtent.y);
+        int3 region = coordinate / 64;
+        int3 remainder = coordinate % 64;
+        region -= int3(remainder.x < 0 ? 1 : 0, remainder.y < 0 ? 1 : 0, remainder.z < 0 ? 1 : 0);
+        bool resident = false, regionKnown = false, occupied = true, sourceUniform = false;
+        for (uint r = 0u; r < _HlodRegionCount; r++)
+            if (all(_HlodRegions[r].xyz == region))
+            {
+                resident = _HlodRegions[r].w != 0;
+                regionKnown = true;
+                if (_HlodHasBlockReferences != 0u && resident)
+                {
+                    uint3 local = (uint3)(coordinate - region * 64);
+                    int encoded = _HlodBlockReferences[r * 4096u + local.x + local.y * 64u];
+                    sourceUniform = encoded < 0;
+                    if (sourceUniform)
+                    {
+                        uint material = (uint)(-encoded - 1);
+                        s_Entry = material == 0u ? 0u : 1u | (material << 8u);
+                    }
+                }
+                if (_HlodHasOccupancy != 0u)
+                {
+                    uint3 local = (uint3)(coordinate - region * 64);
+                    uint bit = local.x + local.y * 64u;
+                    occupied = (_HlodOccupancy[r * 128u + bit / 32u] & (1u << (bit & 31u))) != 0u;
+                }
+            }
+        // Canonical occupancy proves air without a directory record. Occupied sources still
+        // require an uploaded, non-pending payload; optional nonresident halo remains air.
+        s_Known = regionKnown && (!resident || !occupied || sourceUniform) ? 1u : 0u;
+#else
+        // Legacy callers provide independent coverage proof for absent air.
         s_Known = _HlodBlocks[group.x].w == 1 ? 1u : 0u;
         int3 coordinate = _HlodBlocks[group.x].xyz;
+#endif
         uint start = HashBrickCoordinate(coordinate) & _HlodDirectoryMask;
         uint limit = _PersistentDirectoryProbeCount == 0u ? _HlodDirectoryMask + 1u
             : min(_PersistentDirectoryProbeCount, _HlodDirectoryMask + 1u);
+#ifdef VOXEL_HLOD_SOURCE_RANGE
+        if (resident && occupied && !sourceUniform)
+#endif
         [loop] for (uint probe = 0u; probe < limit; probe++)
         {
             uint word = _HlodDirectoryOffset + ((start + probe) & _HlodDirectoryMask) * 5u;
@@ -77,9 +128,22 @@ void Summarize(uint3 group, uint lane)
                 || asint(_BrickMaterials[word + 1u]) != coordinate.y
                 || asint(_BrickMaterials[word + 2u]) != coordinate.z) continue;
             s_Entry = _BrickMaterials[word + 3u];
+#ifdef VOXEL_HLOD_SOURCE_RANGE
+            // Bit2 marks a queued replacement without overwriting the immutable old payload.
+            s_Known = (s_Entry & 4u) == 0u ? 1u : 0u;
+#else
             s_Known = 1u;
+#endif
             break;
         }
+#ifdef VOXEL_HLOD_SOURCE_RANGE
+        if (s_Known == 0u)
+        {
+            uint missingIndex;
+            InterlockedAdd(_HlodMissingBlocks[0], 1u, missingIndex);
+            _HlodMissingBlocks[1u + missingIndex] = brickIndex;
+        }
+#endif
 #endif
     }
     GroupMemoryBarrierWithGroupSync();
@@ -118,3 +182,6 @@ void Summarize(uint3 group, uint lane)
 void CSSummarizeBlocks(uint3 group : SV_GroupID, uint lane : SV_GroupIndex) { Summarize(group, lane); }
 [numthreads(64, 1, 1)]
 void CSSummarizeDenseBlocks(uint3 group : SV_GroupID, uint lane : SV_GroupIndex) { Summarize(group, lane); }
+
+[numthreads(64, 1, 1)]
+void CSSummarizeSourceRange(uint3 group : SV_GroupID, uint lane : SV_GroupIndex) { Summarize(group, lane); }

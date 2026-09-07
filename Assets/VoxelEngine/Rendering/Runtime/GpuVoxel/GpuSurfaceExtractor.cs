@@ -983,11 +983,11 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                         resources.PreparedCache.DenseEntries, resources.HlodSummaries,
                         resources.PreparedCache.BricksPerRequest, recordCount,
                         SolidMaterialClassification.WaterMaterialMask);
-                int core = BrickCacheEdge - 2, total = core * core * core;
-                for (int start = 0; start < total; start += GpuBlockHlodMesher.MaximumBricksPerSlice)
+                int core = BrickCacheEdge - 2, total = GpuBlockHlodMesher.PlaneCount(core);
+                for (int start = 0; start < total; start += GpuBlockHlodMesher.MaximumPlanesPerSlice)
                     GpuBlockHlodMesher.Count(resources.HlodMeshShader, resources.HlodSummaries,
                         resources.Chunks, batchCounters, core, recordCount, start,
-                        Math.Min(GpuBlockHlodMesher.MaximumBricksPerSlice, total - start));
+                        Math.Min(GpuBlockHlodMesher.MaximumPlanesPerSlice, total - start));
             }
             else
             {
@@ -1017,11 +1017,11 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                     resources.PreparedCache.DenseEntries, resources.HlodSummaries,
                     resources.PreparedCache.BricksPerRequest, recordCount,
                     SolidMaterialClassification.WaterMaterialMask);
-                int core = BrickCacheEdge - 2, total = core * core * core;
-                for (int start = 0; start < total; start += GpuBlockHlodMesher.MaximumBricksPerSlice)
+                int core = BrickCacheEdge - 2, total = GpuBlockHlodMesher.PlaneCount(core);
+                for (int start = 0; start < total; start += GpuBlockHlodMesher.MaximumPlanesPerSlice)
                     GpuBlockHlodMesher.Count(resources.HlodMeshShader, resources.HlodSummaries,
                         resources.Chunks, batchCounters, core, recordCount, start,
-                        Math.Min(GpuBlockHlodMesher.MaximumBricksPerSlice, total - start),
+                        Math.Min(GpuBlockHlodMesher.MaximumPlanesPerSlice, total - start),
                         resources.HlodSelection);
             }
         }
@@ -1107,11 +1107,11 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (resources.UsesBlockHlod)
             {
                 if (pageArena == null) throw new InvalidOperationException("Coarse GPU output requires the paged arena.");
-                int core = BrickCacheEdge - 2, total = core * core * core;
-                for (int start = 0; start < total; start += GpuBlockHlodMesher.MaximumBricksPerSlice)
+                int core = BrickCacheEdge - 2, total = GpuBlockHlodMesher.PlaneCount(core);
+                for (int start = 0; start < total; start += GpuBlockHlodMesher.MaximumPlanesPerSlice)
                     GpuBlockHlodMesher.Write(resources.HlodMeshShader, resources.HlodSummaries,
                         resources.Chunks, batchCounters, pageArena, core, recordCount, start,
-                        Math.Min(GpuBlockHlodMesher.MaximumBricksPerSlice, total - start));
+                        Math.Min(GpuBlockHlodMesher.MaximumPlanesPerSlice, total - start));
             }
             else
             {
@@ -1131,11 +1131,11 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (resources.UsesHlodFallback)
             {
                 if (pageArena == null) throw new InvalidOperationException("GPU fallback requires the paged arena.");
-                int core = BrickCacheEdge - 2, total = core * core * core;
-                for (int start = 0; start < total; start += GpuBlockHlodMesher.MaximumBricksPerSlice)
+                int core = BrickCacheEdge - 2, total = GpuBlockHlodMesher.PlaneCount(core);
+                for (int start = 0; start < total; start += GpuBlockHlodMesher.MaximumPlanesPerSlice)
                     GpuBlockHlodMesher.Write(resources.HlodMeshShader, resources.HlodSummaries,
                         resources.Chunks, batchCounters, pageArena, core, recordCount, start,
-                        Math.Min(GpuBlockHlodMesher.MaximumBricksPerSlice, total - start),
+                        Math.Min(GpuBlockHlodMesher.MaximumPlanesPerSlice, total - start),
                         resources.HlodSelection);
             }
             if (args != null)

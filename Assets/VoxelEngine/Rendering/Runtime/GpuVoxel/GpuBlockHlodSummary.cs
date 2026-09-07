@@ -1,16 +1,15 @@
 using System;
+using Unity.Mathematics;
 using UnityEngine;
 
 namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 {
     /// <summary>
-    /// GPU-only coarse occupancy/material preparation. Each int4 request names a world brick;
-    /// w = 1 requires a held proof of complete mirror coverage for the source region,
-    /// allowing absent directory entries as air. CPU region readiness alone is insufficient.
-    /// w = 0 keeps absent entries unknown;
-    /// output is two occupancy words, sixteen packed material words and an unknown-source flag.
-    /// The caller owns source/output leases through ordered completion. No feedback or waiting
-    /// occurs here; an unknown source must reject downstream publication, never become known air.
+    /// GPU coarse occupancy/material preparation. The production source-range kernel derives
+    /// coordinates and readiness from explicit GPU directory keys and region-level residency.
+    /// Missing-source indices request uploads; summary/geometry data never leaves the GPU.
+    /// Legacy dense/block entry points retain their independent coverage-proof contracts.
+    /// Callers own all source/output buffers through ordered completion.
     /// </summary>
     internal static class GpuBlockHlodSummary
     {
@@ -66,6 +65,46 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             shader.SetBuffer(kernel, "_BrickMaterials", mirror.Materials);
             shader.SetBuffer(kernel, "_HlodBlocks", blocks);
             shader.SetBuffer(kernel, "_HlodSummaries", summaries);
+            shader.SetInt("_HlodBlockCount", count);
+            shader.SetInt("_HlodOutputBlockOffset", outputBlockOffset);
+            shader.SetInt("_HlodDirectoryOffset", mirror.DirectoryWordOffset);
+            shader.SetInt("_HlodDirectoryMask", mirror.DirectoryCapacity - 1);
+            shader.SetInt("_PersistentDirectoryProbeCount", mirror.MaximumDirectoryProbeCount);
+            shader.SetInt("_SolidWaterMaterialMask", unchecked((int)waterMaterialMask));
+            shader.Dispatch(kernel, count, 1, 1);
+        }
+        internal static void DispatchSourceRange(ComputeShader shader, GpuVoxelBrickMirror mirror,
+            ComputeBuffer regions, int regionCount, int3 origin, int3 extent,
+            ComputeBuffer summaries, int outputBlockOffset, ComputeBuffer missing, uint waterMaterialMask,
+            ComputeBuffer occupancy = null, ComputeBuffer blockReferences = null)
+        {
+            int count = checked(extent.x * extent.y * extent.z);
+            if (count < 1 || count > MaximumBlocksPerDispatch || regionCount < 1
+                || regionCount > regions.count || missing.count < count + 1)
+                throw new ArgumentOutOfRangeException(nameof(extent));
+            if (outputBlockOffset < 0 || (long)(outputBlockOffset + count) * WordsPerBlock > summaries.count)
+                throw new ArgumentOutOfRangeException(nameof(outputBlockOffset));
+            if (occupancy != null && (extent.z != 1 || occupancy.stride != 4
+                || occupancy.count < regionCount * 128))
+                throw new ArgumentException("Occupancy must contain one 64x64-bit Z slice per region.", nameof(occupancy));
+            if (blockReferences != null && (extent.z != 1 || blockReferences.stride != 4
+                || blockReferences.count < regionCount * 4096 || occupancy != null))
+                throw new ArgumentException("Block references must contain one 64x64 Z slice per region.", nameof(blockReferences));
+            if (mirror.IsDisposed || mirror.IsClearPending)
+                throw new InvalidOperationException("HLOD source mirror is unavailable.");
+            mirror.FlushPendingUploads();
+            int kernel = shader.FindKernel("CSSummarizeSourceRange");
+            shader.SetBuffer(kernel, "_BrickMaterials", mirror.Materials);
+            shader.SetBuffer(kernel, "_HlodRegions", regions);
+            shader.SetBuffer(kernel, "_HlodOccupancy", occupancy ?? missing);
+            shader.SetInt("_HlodHasOccupancy", occupancy == null ? 0 : 1);
+            shader.SetBuffer(kernel, "_HlodBlockReferences", blockReferences ?? missing);
+            shader.SetInt("_HlodHasBlockReferences", blockReferences == null ? 0 : 1);
+            shader.SetBuffer(kernel, "_HlodMissingBlocks", missing);
+            shader.SetBuffer(kernel, "_HlodSummaries", summaries);
+            shader.SetInts("_HlodRangeOrigin", origin.x, origin.y, origin.z);
+            shader.SetInts("_HlodRangeExtent", extent.x, extent.y, extent.z);
+            shader.SetInt("_HlodRegionCount", regionCount);
             shader.SetInt("_HlodBlockCount", count);
             shader.SetInt("_HlodOutputBlockOffset", outputBlockOffset);
             shader.SetInt("_HlodDirectoryOffset", mirror.DirectoryWordOffset);

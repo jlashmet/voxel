@@ -48,6 +48,58 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             if (_arenaShader != null) UnityEngine.Object.DestroyImmediate(_arenaShader);
         }
 
+        [UnityTest]
+        public IEnumerator ReadyNearGeometrySubmitsBeforeAnEarlierCoarsePreparationLane() => ValidateSubmissionPriority(false);
+
+        [UnityTest]
+        public IEnumerator ContinuousNearWorkStillAllowsBoundedCoarseProgress() => ValidateSubmissionPriority(true);
+
+        private IEnumerator ValidateSubmissionPriority(bool coarseDue)
+        {
+            _first.Dispose();
+            _first = GpuSurfaceExtractionContext.TryCreate(8, 2, 1024, 10);
+            Assert.NotNull(_first);
+            using var storage = VoxelEngineBootstrap.CreateStorage(1, 1);
+            storage.Residency.EnsureRegionResident(int3.zero);
+            storage.PublishAllResidentRegions();
+            GpuSurfaceMirrorCoordinator.PrepareFrame(storage.Reads, storage.Changes, Time.frameCount, 1.0);
+            typeof(GpuSurfaceExtractionContext).GetField("_hasStaged", Fields).SetValue(_first, true);
+            // Queue the coarse lane first, reproducing a ready near batch arriving while a
+            // coarse request is preparing sources. Real GPU submissions prove slot ownership.
+            Coordinator.GetField("s_LastExtractionDispatchFrame", BindingFlags.Static | BindingFlags.NonPublic)
+                .SetValue(null, Time.frameCount);
+            Assert.That(GpuSurfaceMirrorCoordinator.TryDispatchCountBatch(_first, 0, _first.Extractor,
+                _first.Tables, new GpuChunkExtraction(int3.zero, int3.zero, 8, 0.1f), Time.frameCount), Is.True);
+            object coarse = FirstLane();
+            Queue(_second, 2);
+            object near = Lanes().GetValue(1);
+            Assert.That(Get(near, "Count"), Is.EqualTo(1));
+            if (coarseDue)
+                for (int i = 1; i <= 8; i++)
+                    Assert.That(GpuSurfaceMirrorCoordinator.TryReserveExtractionDispatch(Time.frameCount + i), Is.True);
+            Coordinator.GetField("s_LastExtractionDispatchFrame", BindingFlags.Static | BindingFlags.NonPublic)
+                .SetValue(null, -1);
+            Coordinator.GetMethod("AdvanceCountBatches", BindingFlags.Static | BindingFlags.NonPublic)
+                .Invoke(null, new object[] { Time.frameCount + 3 });
+            Assert.That(Get(near, "Submitted"), Is.EqualTo(!coarseDue),
+                "Ready near geometry wins unless the bounded coarse-service interval is due.");
+            Assert.That(Get(coarse, "SummarySubmitted"), Is.EqualTo(coarseDue),
+                "Only one GPU submission slot may be consumed, with no coarse starvation.");
+            double deadline = Time.realtimeSinceStartupAsDouble + 5;
+            if (coarseDue)
+            {
+                while ((bool)Get(coarse, "SummarySubmitted") && Time.realtimeSinceStartupAsDouble < deadline)
+                    yield return null;
+                Assert.That(Get(coarse, "SummarySubmitted"), Is.False);
+            }
+            else
+            {
+                while (!(bool)Get(near, "OutcomeReady") && Time.realtimeSinceStartupAsDouble < deadline)
+                    yield return null;
+                Assert.That(Get(near, "OutcomeReady"), Is.True);
+            }
+        }
+
         [Test]
         public void ReleasedSoleRecordCannotLeaveADispatchableLane()
         {
@@ -312,7 +364,7 @@ namespace VoxelEngine.Rendering.Tests.EditMode
                 // Configure a smaller instance of the production mirror before any consumer acquires
                 // it. The renderer must stream 4,096 authoritative mixed bricks through 1,024 slots.
                 Coordinator.GetField("s_Mirror", BindingFlags.Static | BindingFlags.NonPublic)
-                    .SetValue(null, new GpuVoxelBrickMirror(1024));
+                    .SetValue(null, new GpuVoxelBrickMirror(1024, retainKnownEmpty: false));
             }
             int core = pressure ? 16 : 8, edge = core + 2;
             _first = GpuSurfaceExtractionContext.TryCreate(core, 2, 1024, edge);
@@ -373,12 +425,17 @@ namespace VoxelEngine.Rendering.Tests.EditMode
                     if (retire)
                     {
                         ComputeBuffer requests = (ComputeBuffer)Get(lane, "SummaryRequests");
+                        ComputeBuffer missing = (ComputeBuffer)Get(lane, "SummaryMissing");
+                        ComputeBuffer blockReferences = (ComputeBuffer)Get(lane, "SummaryBlockReferences");
                         _first.Dispose();
                         using var replacement = VoxelEngineBootstrap.CreateStorage(1, 1);
                         GpuSurfaceMirrorCoordinator.PrepareFrame(replacement.Reads, replacement.Changes, Time.frameCount + 1, 1.0);
                         Assert.That(requests.IsValid(), Is.True, "Retirement must not free an in-flight request buffer.");
+                        Assert.That(blockReferences.IsValid(), Is.True);
                         while (requests.IsValid() && Time.realtimeSinceStartupAsDouble < deadline) yield return null;
                         Assert.That(requests.IsValid(), Is.False);
+                        Assert.That(missing.IsValid(), Is.False, "Missing-source feedback belongs to the same submission lifetime.");
+                        Assert.That(blockReferences.IsValid(), Is.False, "Block metadata belongs to the same submission lifetime.");
                         Assert.That(GpuSurfaceMirrorCoordinator.ActiveRegionCount, Is.Zero);
                         yield break;
                     }
