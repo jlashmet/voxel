@@ -209,7 +209,6 @@ namespace VoxelEngine.Rendering.Runtime
         /// arena; tests/debugging may lower it to exercise real backpressure without reallocating
         /// GPU buffers or changing the arena's committed byte size.
         /// </summary>
-        public static int SolidArenaMaxActiveLeases = int.MaxValue;
 
         /// <summary>
         /// Overrides the surface geometry arena's byte budget when positive. Diagnostic: the

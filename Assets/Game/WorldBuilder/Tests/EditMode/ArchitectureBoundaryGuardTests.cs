@@ -148,8 +148,8 @@ namespace VoxelEngine.Tests.EditMode
                 Path.Combine("RenderFeature", "VoxelRenderBridge.cs"),
                 Path.Combine("RenderFeature", "VoxelRenderPass.cs"),
                 Path.Combine("SurfaceExtraction", "VoxelSurfaceScheduler.cs"),
-                Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"),
-                Path.Combine("SurfaceExtraction", "CpuWaterSurfaceChunkCache.cs"),
+                Path.Combine("SurfaceExtraction", "GpuSolidChunkCache.cs"),
+                Path.Combine("SurfaceExtraction", "GpuWaterSurfaceChunkCache.cs"),
                 Path.Combine("SurfaceExtraction", "SurfaceBrickDiscoveryJob.cs"),
             };
             string[] physicalStorageTokens = { "RegionTable", "BrickPool", "BrickRef", "VoxelAccess" };
@@ -168,11 +168,11 @@ namespace VoxelEngine.Tests.EditMode
             }
 
             string transvoxel = File.ReadAllText(Path.Combine(
-                renderingRoot, "SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
+                renderingRoot, "SurfaceExtraction", "GpuSolidChunkCache.cs"));
             if (transvoxel.IndexOf("VoxelMipSampler", StringComparison.Ordinal) >= 0)
-                violations.Add("SurfaceExtraction/CpuTransvoxelChunkCache.cs -> VoxelMipSampler");
+                violations.Add("SurfaceExtraction/GpuSolidChunkCache.cs -> VoxelMipSampler");
             if (transvoxel.IndexOf("VoxelDimensions.", StringComparison.Ordinal) >= 0)
-                violations.Add("SurfaceExtraction/CpuTransvoxelChunkCache.cs -> VoxelDimensions.");
+                violations.Add("SurfaceExtraction/GpuSolidChunkCache.cs -> VoxelDimensions.");
 
             Assert.IsEmpty(violations,
                 "Rendering's authoritative read path must consume Storage through Storage.Api " +

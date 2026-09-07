@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "runSeconds": 18,
+  "gpuCutover": "required",
+  "capture": {
+    "width": 1600,
+    "height": 900,
+    "intervalSeconds": 2,
+    "minimumFrames": 6,
+    "evidenceAfterSeconds": 2
+  },
+  "timeline": {},
+  "assertions": {
+    "requiredLogPatterns": [
+      "SOLIDGPU_MINIMAL cpu-input-ok:",
+      "SOLIDGPU_MINIMAL authored:",
+      "SOLIDGPU_MINIMAL success:"
+    ],
+    "forbiddenLogPatterns": [
+      "SOLIDGPU_MINIMAL failure:",
+      "NullReferenceException",
+      "MissingReferenceException",
+      "Shader error"
+    ]
+  }
+}

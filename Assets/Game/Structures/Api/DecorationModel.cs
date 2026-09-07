@@ -272,6 +272,7 @@ namespace Game.Structures.Api
 
         public GeneratedPropId(ulong value) => Value = value == 0 ? 1UL : value;
 
+        public bool IsWellFormed => Value != 0UL;
         public bool Equals(GeneratedPropId other) => Value == other.Value;
         public override bool Equals(object obj) => obj is GeneratedPropId other && Equals(other);
         public override int GetHashCode() => unchecked((int)(Value ^ (Value >> 32)));

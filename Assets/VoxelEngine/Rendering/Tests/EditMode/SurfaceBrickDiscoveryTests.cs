@@ -275,7 +275,7 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void RepeatedSurfaceDiscoveryDoesNotReinvalidateKnownChunk()
         {
-            using var cache = new CpuTransvoxelChunkCache(sourceStep: 4);
+            using var cache = new GpuSolidChunkCache(sourceStep: 4);
             cache.SetClipmapWindow(int3.zero, radius: 1);
 
             // Interior block: maps to exactly one chunk and does not exercise halo neighbours.
@@ -304,7 +304,7 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void SurfaceDiscoveryOutsideClipmapDoesNotCreateDirtyBuildWork()
         {
-            using var cache = new CpuTransvoxelChunkCache(sourceStep: 4);
+            using var cache = new GpuSolidChunkCache(sourceStep: 4);
             cache.SetClipmapWindow(int3.zero, radius: 1);
 
             // A step-4 chunk spans 32 Storage blocks per axis. This block maps to chunk +10,
@@ -316,6 +316,45 @@ namespace VoxelEngine.Tests.EditMode
                 "Out-of-window discovery must not acquire render residency.");
             Assert.AreEqual(0, cache.DirtyCount,
                 "Out-of-window discovery must not enqueue build work for an unowned chunk.");
+        }
+
+        [TestCase(0, 0)]
+        [TestCase(-4, 3)]
+        public void FirstCameraWindowQueuesNearbyDiscoveryBeforeResidentBackgroundSweep(int x, int z)
+        {
+            int3 centre = new(x, 0, z);
+            int3 distant = centre + new int3(12, 0, 0);
+            int3 neighbour = centre + new int3(1, 0, 0);
+            MakeRegion(distant, int3.zero);
+            MakeRegion(neighbour, int3.zero);
+            MakeRegion(centre, int3.zero);
+            var source = new RegionReadSource(in _table, in _pool, _journal);
+            var cameraObject = new GameObject("Initial discovery priority camera");
+            using var scheduler = new VoxelSurfaceScheduler();
+            try
+            {
+                var camera = cameraObject.AddComponent<Camera>();
+                camera.transform.position = (Vector3)((float3)centre * VoxelGrid.RegionVoxelEdge * 0.1f
+                                                      + new float3(1f));
+                // Observe the production queue before its asynchronous consumer starts. No
+                // discovery is omitted: the distant resident must remain queued behind near work.
+                scheduler.SurfaceDiscoveryBudgetMs = 0;
+                MaterialPaletteView palette = default;
+                SurfaceCatalogueView surfaces = default;
+                CoatingCatalogueView coatings = default;
+                scheduler.Prepare(source, in palette, in surfaces, in coatings,
+                                  null, _journal, camera, 0.1f, 1);
+                var queue = (System.Collections.Generic.Queue<int3>)typeof(VoxelSurfaceScheduler)
+                    .GetField("_surfaceDiscoveryQueue", System.Reflection.BindingFlags.Instance
+                              | System.Reflection.BindingFlags.NonPublic).GetValue(scheduler);
+                CollectionAssert.AreEqual(new[] { centre, neighbour, distant }, queue.ToArray(),
+                    "Initial placement must prioritize the same nearby discovery as camera motion.");
+                scheduler.Prepare(source, in palette, in surfaces, in coatings,
+                                  null, _journal, camera, 0.1f, 2);
+                CollectionAssert.AreEqual(new[] { centre, neighbour, distant }, queue.ToArray(),
+                    "An unchanged camera and repeated resident sweep must not duplicate work.");
+            }
+            finally { Object.DestroyImmediate(cameraObject); }
         }
 
         [Test]

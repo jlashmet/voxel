@@ -74,7 +74,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 // OwningChunk(canonical) pass afterwards repeated three floor divisions for every
                 // discovery record on the player thread.
                 int3 chunk = OwningChunk(worldBricks[i], edge);
-                int shard = CpuTransvoxelChunkCache.ShardForChunk(chunk, count);
+                int shard = GpuSolidChunkCache.ShardForChunk(chunk, count);
                 int3 canonical = chunk * edge + interior;
                 List<int3> bucket = shardBricks[shard];
 

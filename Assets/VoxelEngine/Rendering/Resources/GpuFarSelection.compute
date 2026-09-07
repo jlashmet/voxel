@@ -1,0 +1,72 @@
+#pragma kernel CSSelect
+struct QueryBounds { float4 min; float4 max; };
+StructuredBuffer<QueryBounds> _Bounds;
+RWStructuredBuffer<uint> _PreviousTier;
+RWStructuredBuffer<uint> _Replacement;
+uint _Count;
+float4 _Camera, _Detail, _Horizon, _Caps;
+float4 _QueryMin, _QueryMax;
+float _FocalPixels;
+[numthreads(64,1,1)]
+void CSSelect(uint3 id:SV_DispatchThreadID)
+{
+    if(id.x>=_Count)return;
+    QueryBounds bounds=_Bounds[id.x];
+    uint flags=(uint)bounds.min.w;
+    bool important=(flags&6u)!=0u;
+    float cap=(flags&4u)!=0u?_Caps.z:important?_Caps.y:_Caps.x;
+    float3 center=(bounds.min.xyz+bounds.max.xyz)*0.5;
+    float3 extents=max(0.0,(bounds.max.xyz-bounds.min.xyz)*0.5);
+    float distance=max(0.1,length(center-_Camera.xyz));
+    uint selected=0u;
+    if(!all(bounds.max.xyz>_QueryMin.xyz) || !all(bounds.min.xyz<_QueryMax.xyz))
+    {
+        _Replacement[id.x]|=2u;
+        return; // Spatial queries do not advance tier history for absent candidates.
+    }
+    // The padded resident set is not a larger draw radius. Match the active spatial query.
+    if(distance<=cap && all(bounds.max.xyz>_QueryMin.xyz) && all(bounds.min.xyz<_QueryMax.xyz))
+    {
+        float pixels=2.0*max(extents.x,max(extents.y,extents.z))/distance*_FocalPixels;
+        uint previous=_PreviousTier[id.x];
+        if(previous==1u && pixels>=_Detail.y)selected=1u;
+        else if(previous==2u)
+        {
+            if(pixels>=_Detail.x)selected=1u;
+            else if(pixels>=_Detail.w)selected=2u;
+        }
+        else if(previous==3u)
+        {
+            if(pixels>=_Detail.x)selected=1u;
+            else if(pixels>=_Detail.z)selected=2u;
+            else if(important && pixels>=_Horizon.y)selected=3u;
+        }
+        if(selected==0u)
+        {
+            if(pixels>=_Detail.x)selected=1u;
+            else if(pixels>=_Detail.z)selected=2u;
+            else if(important && pixels>=_Horizon.x)selected=3u;
+        }
+        if(selected==0u && important)selected=3u;
+    }
+    _PreviousTier[id.x]=selected;
+    if(selected==0u)_Replacement[id.x]|=2u;
+}
+
+#pragma kernel CSInherit
+StructuredBuffer<int> _SourceIndices;
+StructuredBuffer<uint> _SourceTier;
+[numthreads(64,1,1)]
+void CSInherit(uint3 id:SV_DispatchThreadID)
+{
+    if(id.x>=_Count)return;
+    int source=_SourceIndices[id.x];
+    _PreviousTier[id.x]=source<0?0u:_SourceTier[source];
+}
+
+#pragma kernel CSClearReplacement
+[numthreads(64,1,1)]
+void CSClearReplacement(uint3 id:SV_DispatchThreadID)
+{
+    if(id.x<_Count)_Replacement[id.x]=0u;
+}

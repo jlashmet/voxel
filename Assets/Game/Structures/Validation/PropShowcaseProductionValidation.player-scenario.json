@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "runSeconds": 12,
+  "capture": {
+    "width": 1280,
+    "height": 720,
+    "intervalSeconds": 3,
+    "minimumFrames": 3,
+    "evidenceAfterSeconds": 1
+  },
+  "timeline": {},
+  "assertions": {
+    "requiredLogPatterns": [
+      "STRUCTURES_PROP_SHOWCASE_VALIDATION start count=529 realized=529",
+      "STRUCTURES_PROP_SHOWCASE_VALIDATION thinDetail=1 effects=2 lights=1 particles=1",
+      "STRUCTURES_PROP_SHOWCASE_VALIDATION mechanisms doorDetailed=1 trapdoorDetailed=1 floorMounted=True",
+      "STRUCTURES_PROP_SHOWCASE_VALIDATION complete procedural=1 thin=1"
+    ],
+    "forbiddenLogPatterns": [
+      "InvalidOperationException",
+      "NullReferenceException",
+      "MissingReferenceException"
+    ]
+  }
+}

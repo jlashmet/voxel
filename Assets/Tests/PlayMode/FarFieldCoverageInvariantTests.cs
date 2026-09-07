@@ -466,18 +466,18 @@ namespace VoxelEngine.Tests.PlayMode
 
             FieldInfo workersField = typeof(VoxelSurfaceScheduler).GetField(
                 "_allWorkers", BindingFlags.NonPublic | BindingFlags.Instance);
-            var workers = workersField?.GetValue(scheduler) as CpuTransvoxelChunkCache[];
+            var workers = workersField?.GetValue(scheduler) as GpuSolidChunkCache[];
             if (workers == null) return result;
 
-            FieldInfo entriesField = typeof(CpuTransvoxelChunkCache).GetField(
+            FieldInfo entriesField = typeof(GpuSolidChunkCache).GetField(
                 "_entries", BindingFlags.NonPublic | BindingFlags.Instance);
             Assert.NotNull(entriesField);
-            foreach (CpuTransvoxelChunkCache worker in workers)
+            foreach (GpuSolidChunkCache worker in workers)
             {
                 var entries = entriesField.GetValue(worker)
-                    as Dictionary<int3, CpuTransvoxelChunkCache.Entry>;
+                    as Dictionary<int3, GpuSolidChunkCache.Entry>;
                 if (entries == null) continue;
-                foreach (CpuTransvoxelChunkCache.Entry entry in entries.Values)
+                foreach (GpuSolidChunkCache.Entry entry in entries.Values)
                 {
                     if (!entry.Ready || entry.IndexCount <= 0) continue;
                     result.Add(entry.WorldBounds(VoxelSize));

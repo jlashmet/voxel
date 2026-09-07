@@ -206,7 +206,7 @@ namespace VoxelEngine.Tests.PlayMode
 
         private static Bounds Step4ChunkBounds(int3 coordinate, float voxelSize)
         {
-            float size = CpuTransvoxelChunkCache.CellsPerAxis * Step4SourceStep * voxelSize;
+            float size = GpuSolidChunkCache.CellsPerAxis * Step4SourceStep * voxelSize;
             Vector3 min = new Vector3(coordinate.x, coordinate.y, coordinate.z) * size;
             return new Bounds(
                 min + Vector3.one * (size * 0.5f),

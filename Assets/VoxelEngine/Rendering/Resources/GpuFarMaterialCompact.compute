@@ -1,0 +1,64 @@
+#pragma kernel CSClear
+#pragma kernel CSEmitPages
+#pragma kernel CSCopyTransforms
+RWStructuredBuffer<uint> _Arguments;
+StructuredBuffer<uint4> _Descriptors;
+StructuredBuffer<uint> _Replacement;
+RWStructuredBuffer<uint4> _Pages;
+uint _MaterialCount, _DescriptorCount;
+[numthreads(64,1,1)]
+void CSClear(uint3 id:SV_DispatchThreadID)
+{
+    if(id.x<_MaterialCount)_Arguments[id.x*4u+1u]=0u;
+}
+[numthreads(64,1,1)]
+void CSEmitPages(uint3 group:SV_GroupID,uint lane:SV_GroupIndex)
+{
+    uint descriptor=group.x+group.y*1024u;
+    if(descriptor>=_DescriptorCount)return;
+    uint4 source=_Descriptors[descriptor*2u];
+    uint4 material=_Descriptors[descriptor*2u+1u];
+    uint pageCount=(source.w+191u)/192u;
+    for(uint local=lane;local<source.y;local+=64u)
+    {
+        uint instance=source.x+local;
+        if(_Replacement[instance]!=0u)continue;
+        uint first;InterlockedAdd(_Arguments[material.x*4u+1u],pageCount,first);
+        for(uint page=0u;page<pageCount;page++)
+        {
+            uint index=page*192u;
+            _Pages[material.y+first+page]=uint4(instance,source.z+index,min(192u,source.w-index),0u);
+        }
+    }
+}
+struct Transform { float4x4 objectToWorld; float4x4 worldToObject; };
+StructuredBuffer<Transform> _CopySource;
+RWStructuredBuffer<Transform> _CopyDestination;
+uint _CopyCount, _CopyStart;
+[numthreads(64,1,1)]
+void CSCopyTransforms(uint3 id:SV_DispatchThreadID)
+{
+    if(id.x<_CopyCount)_CopyDestination[_CopyStart+id.x]=_CopySource[id.x];
+}
+
+#pragma kernel CSClearCount
+#pragma kernel CSCountVisible
+RWStructuredBuffer<uint> _VisibleCount;
+uint _InstanceCount, _IncludeNear;
+groupshared uint s_Visible, s_Near;
+[numthreads(1,1,1)]
+void CSClearCount(uint3 id:SV_DispatchThreadID) { _VisibleCount[0]=0u; if(_IncludeNear!=0u)_VisibleCount[1]=0u; }
+[numthreads(64,1,1)]
+void CSCountVisible(uint3 id:SV_DispatchThreadID,uint lane:SV_GroupIndex)
+{
+    if(lane==0u){s_Visible=0u;s_Near=0u;}
+    GroupMemoryBarrierWithGroupSync();
+    if(id.x<_InstanceCount && _Replacement[id.x]==0u)InterlockedAdd(s_Visible,1u);
+    if(_IncludeNear!=0u && id.x<_InstanceCount && (_Replacement[id.x]&1u)!=0u)InterlockedAdd(s_Near,1u);
+    GroupMemoryBarrierWithGroupSync();
+    if(lane==0u)
+    {
+        InterlockedAdd(_VisibleCount[0],s_Visible);
+        if(_IncludeNear!=0u)InterlockedAdd(_VisibleCount[1],s_Near);
+    }
+}

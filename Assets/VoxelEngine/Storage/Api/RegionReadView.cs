@@ -83,6 +83,23 @@ namespace VoxelEngine.Storage.Api
             _mixedOccupancy = mixedOccupancy;
         }
 
+        /// <summary>
+        /// Copies canonical block metadata in X/Y/Z linear order without voxel expansion.
+        /// -1 is air; other negative values encode uniform material as -value-1; nonnegative
+        /// values identify mixed storage and must not be used as another allocator's addresses.
+        /// The caller owns the copy and validates Version before publishing derived output.
+        /// Invalid ranges leave the destination unchanged.
+        /// </summary>
+        public bool TryCopyBlockReferences(int sourceStart, NativeArray<int> destination,
+            int destinationStart, int count)
+        {
+            if (!IsCreated || !destination.IsCreated || count < 0 || sourceStart < 0
+                || destinationStart < 0 || sourceStart > _encodedBlockRefs.Length - count
+                || destinationStart > destination.Length - count) return false;
+            NativeArray<int>.Copy(_encodedBlockRefs, sourceStart, destination, destinationStart, count);
+            return true;
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool ContainsWorldBlock(int3 worldBlockCoord) =>
             math.all((worldBlockCoord >> VoxelReadGrid.BlocksPerRegionEdgeLog2) == RegionCoord);

@@ -25,7 +25,7 @@ namespace VoxelEngine.Tests.PlayMode
         {
             Assert.AreEqual(-1, VoxelReadGrid.LevelForStride(8),
                 "Step 8 must not turn an any-solid 8^3 storage block into a render sample.");
-            using var cache = new CpuTransvoxelChunkCache(8);
+            using var cache = new GpuSolidChunkCache(8);
             Assert.False(cache.SamplesFromMips,
                 "The castle's outer LOD must never use OR-collapsed Storage occupancy as density.");
             Assert.True(cache.UsesBlockHlod,

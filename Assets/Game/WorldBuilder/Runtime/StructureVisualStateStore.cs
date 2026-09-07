@@ -8,8 +8,10 @@ namespace Game.WorldBuilder.Runtime
     /// Compact in-memory coarse semantic state. Intact is the implicit default; only exceptional
     /// states are retained, so this never becomes a shadow copy of distant voxel contents.
     /// </summary>
-    public sealed class StructureVisualStateStore : IStructureVisualStateStore
+    public sealed class StructureVisualStateStore : IStructureVisualStateStore, IVersionedStructureVisualStateSource
     {
+        public ulong Revision { get; private set; }
+
         private readonly Dictionary<ulong, StructureVisualState> _states = new();
 
         public StructureVisualState Get(ulong structureId)
@@ -24,6 +26,8 @@ namespace Game.WorldBuilder.Runtime
             if (!Enum.IsDefined(typeof(StructureVisualState), state))
                 throw new ArgumentOutOfRangeException(nameof(state));
 
+            if (Get(structureId) == state) return;
+            Revision++;
             if (state == StructureVisualState.Intact)
             {
                 _states.Remove(structureId);
@@ -33,8 +37,18 @@ namespace Game.WorldBuilder.Runtime
             _states[structureId] = state;
         }
 
-        public bool Remove(ulong structureId) => _states.Remove(structureId);
+        public bool Remove(ulong structureId)
+        {
+            if (!_states.Remove(structureId)) return false;
+            Revision++;
+            return true;
+        }
 
-        public void Clear() => _states.Clear();
+        public void Clear()
+        {
+            if (_states.Count == 0) return;
+            _states.Clear();
+            Revision++;
+        }
     }
 }

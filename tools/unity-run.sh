@@ -111,59 +111,16 @@ unity_pid=$!
 
 # Unity spawns helpers (asset import workers, the licensing client, shader compilers), and
 # they are where the memory actually goes, so the ceiling applies to the whole tree.
+PROCESS_TREE_HELPER="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/unity-process-tree.py"
+
 tree_rss_mb() {
-  local root=$1
-  local pids=("$root")
-  local total=0 found=1
-
-  while (( found )); do
-    found=0
-    for pid in "${pids[@]}"; do
-      while read -r child; do
-        [[ -z "$child" ]] && continue
-        if [[ ! " ${pids[*]} " =~ " ${child} " ]]; then
-          pids+=("$child")
-          found=1
-        fi
-      done < <(pgrep -P "$pid" 2>/dev/null || true)
-    done
-  done
-
-  for pid in "${pids[@]}"; do
-    local rss
-    rss=$(ps -o rss= -p "$pid" 2>/dev/null | tr -d ' ')
-    [[ -n "$rss" ]] && total=$(( total + rss ))
-  done
-
-  echo $(( total / 1024 ))
+  python3 "$PROCESS_TREE_HELPER" rss "$1"
 }
 
-# Kill every descendant, deepest-first, before killing Unity itself. A direct `pkill -P`
-# reaches only one generation. Shader/import/licensing helpers can have their own children;
-# if Unity dies first those descendants may be reparented and continue consuming memory after
-# the safety guard reports success.
+# Inspect one bounded process-table snapshot rather than spawning a process substitution for
+# every parent repeatedly. This also avoids Bash 3.2 exhausting descriptors during large builds.
 kill_tree() {
-  local root=$1
-  local pids=("$root")
-  local found=1
-
-  while (( found )); do
-    found=0
-    for pid in "${pids[@]}"; do
-      while read -r child; do
-        [[ -z "$child" ]] && continue
-        if [[ ! " ${pids[*]} " =~ " ${child} " ]]; then
-          pids+=("$child")
-          found=1
-        fi
-      done < <(pgrep -P "$pid" 2>/dev/null || true)
-    done
-  done
-
-  for (( i=${#pids[@]}-1; i>0; i-- )); do
-    kill -9 "${pids[$i]}" 2>/dev/null || true
-  done
-  kill -9 "$root" 2>/dev/null || true
+  python3 "$PROCESS_TREE_HELPER" kill "$1"
 }
 
 # The session id/process-group id is the original launcher pid because the Python wrapper calls
@@ -180,7 +137,12 @@ status_file="${TMPDIR:-/tmp}/unity-run-status"
 : > "$status_file"
 
 while kill -0 "$unity_pid" 2>/dev/null; do
-  rss=$(tree_rss_mb "$unity_pid")
+  if ! rss=$(tree_rss_mb "$unity_pid"); then
+    echo "unity-run: KILLING — process-tree accounting failed" >&2
+    kill_session "$unity_pid"
+    wait "$unity_pid" 2>/dev/null
+    exit 9
+  fi
   (( rss > peak )) && peak=$rss
   elapsed=$(( $(date +%s) - start ))
 

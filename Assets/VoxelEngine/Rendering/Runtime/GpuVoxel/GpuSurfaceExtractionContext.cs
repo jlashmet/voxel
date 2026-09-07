@@ -60,9 +60,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private ulong _stageStorageGeneration;
         private bool _coverageRequested;
         private uint _coverageEpoch;
-        private int _coverageScanCursor;
-        private bool _coverageRoundIncomplete;
-        private bool _coverageReady;
+        private ulong _coverageWorldEpoch;
+        private ulong _extractionWorldEpoch;
+        private uint _requestCoverageRestarts;
         private int _lastCoveragePollFrame = -1;
         private ComputeBuffer _writeVertices;
         private ComputeBuffer _writeIndices;
@@ -80,6 +80,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private SurfaceGeometryLease _countBatchLease;
         private bool _countBatchGeometryPublished;
         private bool _pagedBatchReady;
+        private bool _candidatePending;
         private bool _pagedBatchFailed;
         private int _pagedHandle = -1;
         private double _stageRequestStartedSeconds;
@@ -105,6 +106,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         public ulong ChunksOverflowed { get; private set; }
         public ulong CountReadbackRetryCount { get; private set; }
         public long MirrorCommittedBytes => _mirror.CommittedBytes;
+        internal string CoverageProgress => $"step={_staged.SourceStep} origin={_staged.BrickCacheOrigin} edge={_brickCacheEdge} source=GPU restarts={_requestCoverageRestarts}";
         public bool HasActiveRequest => _stageRequestStartedSeconds > 0.0;
         public double ActiveRequestAgeMs => !HasActiveRequest ? 0.0
             : Math.Max(0.0, (Time.realtimeSinceStartupAsDouble
@@ -262,7 +264,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                     VoxelBrickDelta.MixedAt(coordinate, generation, brick.MixedOffset),
                     mixedVoxels, mixedSurfaceSemantics, mixedBoundarySamples,
                     brick.MixedOffset, hasPayload: true);
-                if (published is GpuBrickPublish.NoSlot or GpuBrickPublish.PayloadMissing
+                if (published is GpuBrickPublish.NoSlot or GpuBrickPublish.DirectoryFull or GpuBrickPublish.PayloadMissing
                     || !_mirror.TryGetSlot(coordinate, out int slot)
                     || !_mirror.Pin(coordinate))
                 {
@@ -301,6 +303,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             ThrowIfDisposed();
             Release();
             ChunksRequested++;
+            _requestCoverageRestarts = 0;
             _stageRequestStartedSeconds = Time.realtimeSinceStartupAsDouble;
             if (!TryCaptureStorageGeneration(out _stageStorageGeneration))
             {
@@ -313,7 +316,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             // Storage/change-journal versions. The persistent mirror represents live Storage, not a
             // historical snapshot, so a bounded recovery can legitimately span later Storage
             // generations. TryAdmitPendingStage refreshes this mirror-only gate on every retry.
-            // CpuTransvoxelChunkCache keeps the renderer generation on the immutable build and
+            // GpuSolidChunkCache keeps the renderer generation on the immutable build and
             // rejects that build before publication when a relevant edit made it stale. This lets
             // recovery converge without ever publishing newer mirror data as an older render build.
             _staged = request;
@@ -342,12 +345,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         {
             if (!_stageAdmissionPending) return _hasStaged;
 
-            // Covers() must gate against the generation the live persistent mirror is currently
-            // trying to represent. Holding the handoff generation forever creates a liveness trap:
-            // one relevant Storage edit makes Covers(oldGeneration) permanently false even after
-            // the demanded blocks have been recovered. Refresh only this mirror generation; the
-            // caller's immutable renderer generation is deliberately unchanged and remains the
-            // authority that can discard this build before publication.
+            // Refresh the host's Storage generation while admission waits. GPU source preparation
+            // owns readiness; the caller's immutable renderer generation and footprint edit epoch
+            // remain the authority that rejects stale output before publication.
             if (!TryCaptureStorageGeneration(out _stageStorageGeneration)) return false;
             if (!BeginPersistentStage(_staged, _stageStorageGeneration)) return false;
 
@@ -369,51 +369,45 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 ChunksRefusedNoSlot++;
                 return false;
             }
-            int coreExtentVoxels = _extractor.CellsPerAxis * request.SourceStep;
-            int3 coreMaxVoxelExclusive =
-                request.ChunkOriginVoxel + new int3(coreExtentVoxels);
-            uint epoch = GpuSurfaceMirrorCoordinator.CoverageEpoch;
-            if (!_coverageRequested || _coverageEpoch != epoch)
-            {
-                if (_coverageRequested)
-                    ReleasePersistentCoverage(_staged);
-                GpuSurfaceMirrorCoordinator.RequestCoverage(
-                    request.BrickCacheOrigin, _brickCacheEdge,
-                    request.ChunkOriginVoxel, coreMaxVoxelExclusive);
-                _coverageRequested = true;
-                _coverageEpoch = epoch;
-                _coverageScanCursor = 0;
-                _coverageRoundIncomplete = false;
-                _coverageReady = false;
-            }
             if (_lastCoveragePollFrame == Time.frameCount) return false;
             _lastCoveragePollFrame = Time.frameCount;
-            if (!_coverageReady)
-            {
-                if (!GpuSurfaceMirrorCoordinator.Covers(
-                        request.BrickCacheOrigin, _brickCacheEdge,
-                        request.ChunkOriginVoxel, coreMaxVoxelExclusive, generation,
-                        ref _coverageScanCursor, ref _coverageRoundIncomplete))
-                    return false;
-                _coverageReady = true;
-            }
+            // GPU source preparation resolves readiness and canonical uniform entries. Fine
+            // demand retains mixed slots; per-submission readers protect only GPU consumers.
             if (!GpuSurfaceMirrorCoordinator.TryBeginExtraction(
-                    request.BrickCacheOrigin, _brickCacheEdge))
+                    request.BrickCacheOrigin, 0, out _extractionWorldEpoch))
                 return false;
             ConfigurePersistentLookupHeader();
             int handle = GpuSurfaceMirrorCoordinator.PrepareChunkHandle(
-                request.ChunkOriginVoxel, request.SourceStep,
-                request.Generation != 0 ? request.Generation : generation);
+                request.ChunkOriginVoxel, request.SourceStep, out ulong renderGeneration);
             if (handle < 0)
             {
                 GpuSurfaceMirrorCoordinator.EndExtraction(
-                    request.BrickCacheOrigin, _brickCacheEdge);
+                    request.BrickCacheOrigin, 0, _extractionWorldEpoch);
                 return false;
+            }
+            // Waiting requests must not pin source slots needed by admitted GPU work.
+            int coreExtentVoxels = _extractor.CellsPerAxis * request.SourceStep;
+            int3 coreMaxVoxelExclusive =
+                request.ChunkOriginVoxel + new int3(coreExtentVoxels);
+            uint epoch = GpuSurfaceMirrorCoordinator.CoverageEpochFor(request.BrickCacheOrigin, _brickCacheEdge);
+            if (!_coverageRequested || _coverageEpoch != epoch)
+            {
+                if (_coverageRequested)
+                {
+                    _requestCoverageRestarts++;
+                    ReleasePersistentCoverage(_staged);
+                }
+                _coverageWorldEpoch = request.SourceStep == 8
+                    ? GpuSurfaceMirrorCoordinator.RequestEditWatch(request.BrickCacheOrigin, _brickCacheEdge)
+                    : GpuSurfaceMirrorCoordinator.RequestCoverage(request.BrickCacheOrigin, _brickCacheEdge,
+                        request.ChunkOriginVoxel, coreMaxVoxelExclusive);
+                _coverageRequested = true;
+                _coverageEpoch = epoch;
             }
             _staged = new GpuChunkExtraction(
                 request.ChunkOriginVoxel, request.BrickCacheOrigin,
                 request.SourceStep, request.VoxelSize, request.TransitionFaceMask,
-                handle, request.Generation != 0 ? request.Generation : generation,
+                handle, renderGeneration,
                 request.ProfileBlocks);
             _hasStaged = true;
             ChunksMirrorReady++;
@@ -498,7 +492,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (counts.IsEmpty)
             {
                 // The count itself completed successfully, so this is not a GPU failure. Return
-                // the authoritative empty result unchanged. CpuTransvoxelChunkCache publishes air
+                // the authoritative empty result unchanged. GpuSolidChunkCache publishes air
                 // atomically without an arena lease and removes any older drawable representation.
                 ChunksEmpty++;
             }
@@ -514,6 +508,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         {
             ThrowIfDisposed();
             if (!_hasStaged) throw new InvalidOperationException("No GPU chunk is staged.");
+            GpuSurfaceMirrorCoordinator.CancelQueuedCountBatches(this);
             unchecked { _countBatchToken++; }
             _countBatchResultReady = false;
             _countBatchFailed = false;
@@ -524,12 +519,23 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private bool TryDispatchPendingCount()
         {
             if (!_countDispatchPending) return true;
+            if (!IsCurrentBatchRequest(_countBatchToken))
+            {
+                FailPagedBatch(_countBatchToken);
+                _countDispatchPending = false;
+                return true;
+            }
             if (!GpuSurfaceMirrorCoordinator.TryDispatchCountBatch(
                     this, _countBatchToken, _extractor, _tables, _staged, Time.frameCount))
                 return false;
             _countDispatchPending = false;
             return true;
         }
+
+        internal bool IsCurrentBatchRequest(uint token) =>
+            !_disposed && _hasStaged && token == _countBatchToken
+            && (!_sharedExtractionActive || _extractionWorldEpoch == GpuSurfaceMirrorCoordinator.ResourceWorldEpoch)
+            && (!_coverageRequested || _coverageEpoch == GpuSurfaceMirrorCoordinator.CoverageEpochFor(_staged.BrickCacheOrigin, _brickCacheEdge));
 
         internal bool CompleteBatchedCount(uint token, in GpuExtractionCounts counts, bool failed,
                                            in SurfaceGeometryLease lease = default,
@@ -553,10 +559,20 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         internal bool CompletePagedBatch(uint token, int handle)
         {
-            if (_disposed || !_hasStaged || token != _countBatchToken || handle < 0) return false;
+            if (!IsCurrentBatchRequest(token) || handle < 0) return false;
             _pagedHandle = handle;
+            _candidatePending = true;
             _pagedBatchReady = true;
             return true;
+        }
+
+        internal ulong ApprovePagedCandidate(int handle, int frame)
+        {
+            if (!_hasStaged || !_candidatePending || handle != _staged.Handle)
+                throw new InvalidOperationException("No current GPU candidate is available for approval.");
+            GpuSurfaceMirrorCoordinator.ResolveCandidate(handle, _staged.Generation, true, frame);
+            _candidatePending = false;
+            return _staged.Generation;
         }
 
         internal bool FailPagedBatch(uint token)
@@ -778,12 +794,19 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         public void Release()
         {
+            GpuSurfaceMirrorCoordinator.CancelQueuedCountBatches(this);
             if (!_hasStaged && !_sharedExtractionActive && !_stageAdmissionPending
                 && !_countDispatchPending && !_writeDispatchPending && !_copyDispatchPending
                 && !_copyQueuedForPublication
                 && !_countBatchLease.IsValid
                 && _legacyPinnedBricks.Count == 0)
                 return;
+            if (_candidatePending)
+            {
+                GpuSurfaceMirrorCoordinator.ResolveCandidate(
+                    _staged.Handle, _staged.Generation, false, Time.frameCount);
+                _candidatePending = false;
+            }
             if (_coverageRequested)
                 ReleasePersistentCoverage(_staged);
             _stageAdmissionPending = false;
@@ -822,7 +845,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             {
                 _sharedExtractionActive = false;
                 GpuSurfaceMirrorCoordinator.EndExtraction(
-                    _staged.BrickCacheOrigin, _brickCacheEdge);
+                    _staged.BrickCacheOrigin, 0, _extractionWorldEpoch);
             }
         }
 
@@ -831,13 +854,12 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             int coreExtentVoxels = _extractor.CellsPerAxis * request.SourceStep;
             int3 coreMaxVoxelExclusive =
                 request.ChunkOriginVoxel + new int3(coreExtentVoxels);
-            GpuSurfaceMirrorCoordinator.ReleaseCoverage(
-                request.BrickCacheOrigin, _brickCacheEdge,
-                request.ChunkOriginVoxel, coreMaxVoxelExclusive);
+            if (request.SourceStep == 8)
+                GpuSurfaceMirrorCoordinator.ReleaseEditWatch(request.BrickCacheOrigin, _brickCacheEdge, _coverageWorldEpoch);
+            else
+                GpuSurfaceMirrorCoordinator.ReleaseCoverage(request.BrickCacheOrigin, _brickCacheEdge,
+                    request.ChunkOriginVoxel, coreMaxVoxelExclusive, _coverageWorldEpoch);
             _coverageRequested = false;
-            _coverageScanCursor = 0;
-            _coverageRoundIncomplete = false;
-            _coverageReady = false;
         }
 
         private void ThrowIfDisposed()

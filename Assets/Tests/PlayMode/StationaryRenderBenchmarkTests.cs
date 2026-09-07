@@ -50,7 +50,7 @@ namespace VoxelEngine.Tests.PlayMode
             string admission = File.ReadAllText(
                 "Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/WaterSurfaceDiscoveryAdmission.cs");
             string cache = File.ReadAllText(
-                "Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuWaterSurfaceChunkCache.cs");
+                "Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/GpuWaterSurfaceChunkCache.cs");
 
             StringAssert.Contains("_water.InvalidateSurfaceBricks(storage, _changedWaterBricks);", scheduler,
                 "authoritative water mutations must remain immediate");
