@@ -66,6 +66,92 @@ namespace Game.Composition.WorldBuilderWorldGen.Runtime
             return new AuthoredFullRunCampaignWorldRealization(generation, npcs, stages);
         }
 
+        /// <summary>
+        /// Replaces full-run macro fallback placements with exact rich-settlement realization facts for
+        /// the overlapping opening identities. Continuation identities remain hierarchy/macro-backed.
+        /// The overlay is semantic only: every NPC/cutscene must already exist in the full campaign, and
+        /// every replacement object comes from the production rich-settlement realizer rather than from
+        /// authored coordinates in campaign composition.
+        /// </summary>
+        public static AuthoredFullRunCampaignWorldRealization OverlayRichOpeningRealization(
+            AuthoredFullRunCampaignWorldRealization fullRun,
+            KentridgeCampaignWorldRealization richOpening)
+        {
+            if (fullRun == null) throw new ArgumentNullException(nameof(fullRun));
+            if (richOpening == null) throw new ArgumentNullException(nameof(richOpening));
+
+            var openingNpcs = new Dictionary<NpcRef, ResolvedNpcWorldPlacement>();
+            for (var i = 0; i < richOpening.Npcs.Count; i++)
+            {
+                ResolvedNpcWorldPlacement placement = richOpening.Npcs[i];
+                if (!openingNpcs.TryAdd(placement.Npc, placement))
+                    throw new InvalidOperationException(
+                        "Rich opening realization contains duplicate NPC '" + placement.Npc + "'.");
+            }
+
+            var matchedNpcs = new HashSet<NpcRef>();
+            var npcs = new ResolvedNpcWorldPlacement[fullRun.Npcs.Count];
+            for (var i = 0; i < fullRun.Npcs.Count; i++)
+            {
+                ResolvedNpcWorldPlacement placement = fullRun.Npcs[i];
+                if (openingNpcs.TryGetValue(placement.Npc, out ResolvedNpcWorldPlacement exact))
+                {
+                    npcs[i] = exact;
+                    matchedNpcs.Add(placement.Npc);
+                }
+                else
+                {
+                    npcs[i] = placement;
+                }
+            }
+            RequireAllMatched("NPC", openingNpcs.Keys, matchedNpcs);
+
+            var openingStages = new Dictionary<CutsceneRef, CutsceneStageRealization>();
+            for (var i = 0; i < richOpening.CutsceneStages.Count; i++)
+            {
+                CutsceneStageRealization stage = richOpening.CutsceneStages[i];
+                if (!openingStages.TryAdd(stage.Cutscene, stage))
+                    throw new InvalidOperationException(
+                        "Rich opening realization contains duplicate cutscene stage '" + stage.Cutscene + "'.");
+            }
+
+            var matchedStages = new HashSet<CutsceneRef>();
+            var stages = new CutsceneStageRealization[fullRun.CutsceneStages.Count];
+            for (var i = 0; i < fullRun.CutsceneStages.Count; i++)
+            {
+                CutsceneStageRealization stage = fullRun.CutsceneStages[i];
+                if (openingStages.TryGetValue(stage.Cutscene, out CutsceneStageRealization exact))
+                {
+                    stages[i] = exact;
+                    matchedStages.Add(stage.Cutscene);
+                }
+                else
+                {
+                    stages[i] = stage;
+                }
+            }
+            RequireAllMatched("cutscene stage", openingStages.Keys, matchedStages);
+
+            return new AuthoredFullRunCampaignWorldRealization(
+                fullRun.Generation,
+                npcs,
+                stages);
+        }
+
+        private static void RequireAllMatched<T>(
+            string kind,
+            IEnumerable<T> expected,
+            HashSet<T> matched)
+        {
+            foreach (T identity in expected)
+            {
+                if (matched.Contains(identity)) continue;
+                throw new InvalidOperationException(
+                    "Rich opening " + kind + " '" + identity +
+                    "' is absent from the authored full-run campaign; semantic overlay would be unsafe.");
+            }
+        }
+
         private static IReadOnlyList<ResolvedNpcWorldPlacement> ResolveNpcs(
             IReadOnlyList<NpcSiteAssignment> assignments,
             AuthoredFullRunPhysicalSiteFacts facts)
