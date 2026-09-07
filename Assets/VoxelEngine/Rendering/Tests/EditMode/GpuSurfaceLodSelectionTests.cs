@@ -32,7 +32,8 @@ namespace VoxelEngine.Rendering.Tests.EditMode
         }
 
         private HashSet<int> Select(List<SurfaceLodNodeKey> drawable, List<SurfaceLodNodeKey> complete, int frame,
-            List<SurfaceLodNodeKey> owned = null, Plane[] planes = null, float voxelSize = 1f)
+            List<SurfaceLodNodeKey> owned = null, Plane[] planes = null, float voxelSize = 1f,
+            Vector4[] bands = null, Vector3 position = default)
         {
             var handles = new List<int>();
             var records = new uint[_arena.HandleCapacity * 8];
@@ -43,7 +44,7 @@ namespace VoxelEngine.Rendering.Tests.EditMode
                 records[i * 8 + 4] = 3; records[i * 8 + 7] = 1;
             }
             _arena.LiveChunkGeometry.SetData(records);
-            _dispatcher.PrepareLod(drawable, handles, complete, frame, owned, planes, voxelSize);
+            _dispatcher.PrepareLod(drawable, handles, complete, frame, owned, planes, voxelSize, bands, position);
             var args = new uint[128 * 4];
             _dispatcher.ActiveIndirectArgs.GetData(args);
             int count = 0;
@@ -54,6 +55,74 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             for (int i = 0; i < count; i++)
                 Assert.That(selected.Add((int)draws[i * 4]), Is.True, "Duplicate GPU-selected handle.");
             return selected;
+        }
+
+        [TestCase(1)] [TestCase(2)] [TestCase(4)] [TestCase(8)]
+        public void GpuBandsPreservePaddedBoundaryEqualityAndSuspension(int step)
+        {
+            int bandIndex = step == 1 ? 0 : step == 2 ? 1 : step == 4 ? 2 : 3;
+            var bands = new Vector4[4];
+            for (int i = 0; i < 4; i++) bands[i] = new Vector4(0, 10000, 0, 0);
+            var key = new SurfaceLodNodeKey(step, new int3(-2, 0, 1));
+            var nodes = new List<SurfaceLodNodeKey> { key };
+            var complete = new List<SurfaceLodNodeKey>();
+            Vector3 centre = new Vector3(-96, 32, 96) * step;
+            float extent = 33 * step;
+            Vector3 position = centre + Vector3.right * (extent + 20);
+            bands[bandIndex] = new Vector4(0, 20, 0, 0);
+            CollectionAssert.AreEquivalent(new[] { 0 }, Select(nodes, complete, 0, nodes, bands: bands, position: position));
+            bands[bandIndex].y = 19;
+            Assert.That(Select(nodes, complete, 1, nodes, bands: bands, position: position), Is.Empty);
+            bands[bandIndex] = new Vector4(2 * extent + 20, 10000, 0, 0);
+            Assert.That(Select(nodes, complete, 2, nodes, bands: bands, position: position), Is.Empty);
+            bands[bandIndex].x -= 1;
+            CollectionAssert.AreEquivalent(new[] { 0 }, Select(nodes, complete, 3, nodes, bands: bands, position: position));
+            bands[bandIndex].z = 1;
+            Assert.That(Select(nodes, complete, 4, nodes, bands: bands, position: position), Is.Empty);
+            Assert.That(_dispatcher.LastLodUploadedNodes, Is.Zero,
+                "Changing camera or bands must not rebuild unchanged candidate metadata.");
+        }
+
+        [Test]
+        public void OutOfBandOwnedChildrenCannotFalselyCompleteParentHandoff()
+        {
+            var parent = new SurfaceLodNodeKey(2, int3.zero);
+            var nodes = new List<SurfaceLodNodeKey> { parent };
+            var complete = new List<SurfaceLodNodeKey>();
+            var owned = new List<SurfaceLodNodeKey>();
+            for (int i = 0; i < 8; i++)
+            {
+                var child = new SurfaceLodNodeKey(1, SurfaceLodHierarchy.ChildCoordinate(parent.Coordinate, i));
+                nodes.Add(child); complete.Add(child); owned.Add(child);
+            }
+            var bands = new[] { new Vector4(0, 1000, 1, 0), new Vector4(0, 1000, 0, 0),
+                new Vector4(0, 1000, 0, 0), new Vector4(0, 1000, 0, 0) };
+            CollectionAssert.AreEquivalent(new[] { 0 }, Select(nodes, complete, 0, owned, bands: bands));
+            bands[0].z = 0;
+            CollectionAssert.AreEquivalent(new[] { 1,2,3,4,5,6,7,8 }, Select(nodes, complete, 1, owned, bands: bands));
+        }
+
+        [Test]
+        public void ReadinessChangesPreserveGpuHandoffWithoutRebuildingStableTopology()
+        {
+            var parent = new SurfaceLodNodeKey(2, int3.zero);
+            var nodes = new List<SurfaceLodNodeKey> { parent };
+            var complete = new List<SurfaceLodNodeKey>();
+            for (int i = 0; i < 8; i++)
+                nodes.Add(new SurfaceLodNodeKey(1, SurfaceLodHierarchy.ChildCoordinate(parent.Coordinate, i)));
+            for (int i = 1; i < 8; i++) complete.Add(nodes[i]);
+            CollectionAssert.AreEquivalent(new[] { 0 }, Select(nodes, complete, 0, nodes));
+            complete.Add(nodes[8]);
+            CollectionAssert.AreEquivalent(new[] { 1,2,3,4,5,6,7,8 }, Select(nodes, complete, 1, nodes));
+            complete.RemoveAt(0);
+            CollectionAssert.AreEquivalent(new[] { 0 }, Select(nodes, complete, 2, nodes));
+            var inputs = (GpuSurfaceLodInputs)typeof(GpuSurfaceDrawDispatcher)
+                .GetField("_lodInputs", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                .GetValue(_dispatcher);
+            Assert.That(inputs.TopologyBuildCount, Is.EqualTo(1));
+            nodes.Add(new SurfaceLodNodeKey(1, new int3(10, 0, 0)));
+            CollectionAssert.AreEquivalent(new[] { 0, 9 }, Select(nodes, complete, 3, nodes));
+            Assert.That(inputs.TopologyBuildCount, Is.EqualTo(2), "Membership changes must still rebuild valid topology.");
         }
 
         [Test] public void PartialThenCompleteThenEditedChildrenPreserveAtomicHandoff()

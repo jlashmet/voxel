@@ -206,6 +206,15 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private readonly Dictionary<int3, double> _queuedAtSeconds = new();
         private ulong _versionCounter;
         private readonly List<Entry> _visible = new();
+        private readonly List<GpuPendingVisibility> _gpuPendingVisibility = new();
+        private readonly struct GpuPendingVisibility
+        {
+            internal readonly int3 Coordinate;
+            internal readonly ulong Desired;
+            internal readonly bool HasDesired, HasReady;
+            internal GpuPendingVisibility(int3 coordinate, ulong desired, bool hasDesired, bool hasReady)
+            { Coordinate = coordinate; Desired = desired; HasDesired = hasDesired; HasReady = hasReady; }
+        }
         private readonly Plane[] _frustumPlanes = new Plane[6];
 
         private BuildState _build;
@@ -780,6 +789,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _gpuBandGeometry.Disable();
             _collectGpuCandidates = false;
             _visible.Clear();
+            _gpuPendingVisibility.Clear();
             MissingVisibleCount = 0;
             LastVisibilityKnownCount = 0;
             LastVisibilityInBandCount = 0;
@@ -794,6 +804,39 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _collectGpuCandidates = gpuCandidates;
             (_collectGpuCandidates ? _gpuBandGeometry : _visibilityGeometry).Prepare(planes, position, voxelSize,
                 MinViewDistanceMetres, MaxViewDistanceMetres, RingSuspended);
+        }
+
+        // Candidate metadata is camera-independent. Only unsettled build urgency and host
+        // eviction ages need refreshing while the GPU classifies the cached render candidates.
+        internal void RefreshGpuBuildDemand(Plane[] planes, Vector3 cameraPosition, float voxelSize, int frame)
+        {
+            MissingVisibleCount = 0;
+            LastVisibilityFrustumCount = 0;
+            foreach (var pending in _gpuPendingVisibility)
+            {
+                Bounds bounds = ChunkWorldBounds(pending.Coordinate, voxelSize);
+                if (!WithinRingBand(bounds, cameraPosition))
+                {
+                    if (_dirty.Contains(pending.Coordinate)) ParkDirty(pending.Coordinate);
+                    continue;
+                }
+                bool building = CurrentBuildCoversDesiredGeneration(pending.Coordinate,
+                    pending.HasDesired, pending.Desired);
+                if (!building) MarkDirty(pending.Coordinate);
+                if (!GeometryUtility.TestPlanesAABB(planes, bounds)) continue;
+                LastVisibilityFrustumCount++;
+                if (!building) PromoteVisibleDirty(pending.Coordinate);
+                if (!pending.HasReady) MissingVisibleCount++;
+            }
+            foreach (var entry in _visible)
+                if (WithinRingBand(ChunkWorldBounds(entry.Coordinate, voxelSize), cameraPosition))
+                    entry.LastUsedFrame = frame;
+        }
+
+        internal void RefreshGpuResidentAges(int previousFrame, int frame)
+        {
+            foreach (var entry in _visible)
+                if (entry.LastUsedFrame == previousFrame) entry.LastUsedFrame = frame;
         }
 
         public readonly struct CoordinateVisibility
@@ -833,9 +876,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 // Authoritative discovery is shared across LODs. Keep the known/version state,
                 // but never let a chunk owned wholly by another ring remain active build demand.
                 if (_dirty.Contains(coordinate)) ParkDirty(coordinate);
-                return default;
+                if (!_collectGpuCandidates) return default;
             }
-            LastVisibilityInBandCount++;
+            else LastVisibilityInBandCount++;
 
             bool hasDesired = _desiredVersions.TryGetValue(coordinate, out ulong desired);
             bool currentGenerationInFlight = CurrentBuildCoversDesiredGeneration(
@@ -845,17 +888,20 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             bool currentEmpty = _emptyVersions.TryGetValue(coordinate, out ulong emptyVersion)
                              && (!hasDesired || emptyVersion >= desired);
 
+            if (_collectGpuCandidates && !currentReady && !currentEmpty)
+                _gpuPendingVisibility.Add(new GpuPendingVisibility(coordinate, desired, hasDesired, ready));
+
             // This traversal covers the ring's dense active-slot list. Activate build demand for
             // every in-band chunk before the frustum test so geometry is prefetched around the
             // viewer, while still excluding the thousands of known chunks owned by other LODs.
-            if (!currentReady && !currentEmpty && !currentGenerationInFlight)
+            if (geometry != 0 && !currentReady && !currentEmpty && !currentGenerationInFlight)
                 MarkDirty(coordinate);
 
             if (_collectGpuCandidates && (!ready || entry.IsGpuPaged))
             {
                 // The GPU classifies settled candidates. CPU frustum work remains only for
                 // missing/stale source demand, where it controls bounded build urgency.
-                if (!currentReady && !currentEmpty
+                if (geometry != 0 && !currentReady && !currentEmpty
                     && GeometryUtility.TestPlanesAABB(frustumPlanes, ChunkWorldBounds(coordinate, voxelSize)))
                 {
                     LastVisibilityFrustumCount++;
@@ -864,7 +910,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 }
                 if (ready)
                 {
-                    entry.LastUsedFrame = frame;
+                    if (geometry != 0) entry.LastUsedFrame = frame;
                     _visible.Add(entry);
                 }
                 return new CoordinateVisibility(ready, currentReady || currentEmpty, true);

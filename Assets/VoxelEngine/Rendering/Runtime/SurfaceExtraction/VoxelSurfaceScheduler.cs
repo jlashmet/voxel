@@ -1737,8 +1737,26 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             return true;
         }
 
-        private readonly Plane[] _gpuCandidatePlanes = new Plane[6];
-        private Vector3 _gpuCandidatePosition;
+        private readonly Plane[] _gpuDemandPlanes = new Plane[6];
+        private Vector3 _gpuDemandPosition;
+        private int _gpuDemandFrame;
+
+        private bool GpuDemandQueryUnchanged(Camera camera)
+        {
+            if (!_gpuDemandPosition.Equals(camera.transform.position)) return false;
+            for (int p = 0; p < 6; p++)
+                if (!_gpuDemandPlanes[p].normal.Equals(_visibilityFrustumPlanes[p].normal)
+                    || !_gpuDemandPlanes[p].distance.Equals(_visibilityFrustumPlanes[p].distance)) return false;
+            return true;
+        }
+
+        private void CaptureGpuDemandQuery(Camera camera, int frame)
+        {
+            _gpuDemandPosition = camera.transform.position;
+            _gpuDemandFrame = frame;
+            for (int p = 0; p < 6; p++) _gpuDemandPlanes[p] = _visibilityFrustumPlanes[p];
+        }
+
         private float _gpuCandidateVoxelSize;
         private bool _hasGpuCandidateSnapshot;
         private ulong[] _gpuCandidateDemand, _gpuCandidateReady, _gpuCandidateSlots;
@@ -1749,11 +1767,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private bool GpuCandidateInputsUnchanged(Camera camera, float voxelSize)
         {
             if (!_hasGpuCandidateSnapshot || camera == null
-                || !_gpuCandidatePosition.Equals(camera.transform.position)
                 || !_gpuCandidateVoxelSize.Equals(voxelSize)) return false;
-            for (int p = 0; p < 6; p++)
-                if (!_gpuCandidatePlanes[p].normal.Equals(_visibilityFrustumPlanes[p].normal)
-                    || !_gpuCandidatePlanes[p].distance.Equals(_visibilityFrustumPlanes[p].distance)) return false;
             for (int r = 0; r < _rings.Length; r++)
                 if (_gpuCandidateSlots[r] != _rings[r].SlotMembershipVersion) return false;
             for (int i = 0; i < _allWorkers.Length; i++)
@@ -1767,7 +1781,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             return true;
         }
 
-        private void CaptureGpuCandidateInputs(Camera camera, float voxelSize)
+        private void CaptureGpuCandidateInputs(Camera camera, float voxelSize, int frame)
         {
             if (_gpuDrawDispatcher == null || camera == null || !_gpuLodSelectionActive)
             { _hasGpuCandidateSnapshot = false; return; }
@@ -1776,9 +1790,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _gpuCandidateKnown ??= new int[_allWorkers.Length];
             _gpuCandidateBands ??= new Vector4[_allWorkers.Length];
             _gpuCandidateSlots ??= new ulong[_rings.Length];
-            _gpuCandidatePosition = camera.transform.position;
             _gpuCandidateVoxelSize = voxelSize;
-            for (int p = 0; p < 6; p++) _gpuCandidatePlanes[p] = _visibilityFrustumPlanes[p];
             for (int r = 0; r < _rings.Length; r++) _gpuCandidateSlots[r] = _rings[r].SlotMembershipVersion;
             for (int i = 0; i < _allWorkers.Length; i++)
             {
@@ -1789,6 +1801,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     w.RingSuspended ? 1f : 0f, 0f);
             }
             _hasGpuCandidateSnapshot = true;
+            CaptureGpuDemandQuery(camera, frame);
             _gpuCandidateRefreshes++;
         }
 
@@ -1796,15 +1809,35 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         {
             _lastVisibilityTraversalMs = 0;
             _lastVisibilitySelectionMs = 0;
-            if (TryReuseVisibility(camera, voxelSize, frame)) return;
+            if (_gpuDrawDispatcher == null && TryReuseVisibility(camera, voxelSize, frame)) return;
             if (_gpuDrawDispatcher != null && camera != null)
             {
                 GeometryUtility.CalculateFrustumPlanes(camera, _visibilityFrustumPlanes);
                 if (GpuCandidateInputsUnchanged(camera, voxelSize))
                 {
                     double reusedStart = Time.realtimeSinceStartupAsDouble;
+                    if (GpuDemandQueryUnchanged(camera))
+                    {
+                        for (int i = 0; i < _allWorkers.Length; i++)
+                            _allWorkers[i].RefreshGpuResidentAges(_gpuDemandFrame, frame);
+                        _gpuDemandFrame = frame;
+                    }
+                    else
+                    {
+                        int missing = 0;
+                        Vector3 position = camera.transform.position;
+                        for (int i = 0; i < _allWorkers.Length; i++)
+                        {
+                            _allWorkers[i].RefreshGpuBuildDemand(_visibilityFrustumPlanes, position, voxelSize, frame);
+                            missing += _allWorkers[i].MissingVisibleCount;
+                        }
+                        _lastMissingVisibleCount = missing;
+                        CaptureGpuDemandQuery(camera, frame);
+                    }
+                    _lastVisibilityTraversalMs = ElapsedMs(reusedStart);
+                    double waterStart = Time.realtimeSinceStartupAsDouble;
                     _water.CollectVisible(camera, voxelSize);
-                    _lastVisibilityWaterMs = ElapsedMs(reusedStart);
+                    _lastVisibilityWaterMs = ElapsedMs(waterStart);
                     double dispatchStart = Time.realtimeSinceStartupAsDouble;
                     PrepareGpuDraws(frame);
                     _lastVisibilityDispatchMs = ElapsedMs(dispatchStart);
@@ -1921,18 +1954,32 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             for (int i = 0; i < _allWorkers.Length; i++)
                 missingVisible += _allWorkers[i].MissingVisibleCount;
             _lastMissingVisibleCount = missingVisible;
-            CaptureGpuCandidateInputs(camera, voxelSize);
+            CaptureGpuCandidateInputs(camera, voxelSize, frame);
 
             TrackReappearances(frame);
             LastVisibilityMainThreadMs = ElapsedMs(visibilityStart);
             _visibilityTiming.Add(LastVisibilityMainThreadMs);
         }
 
+        private readonly Vector4[] _gpuDrawBands = new Vector4[4];
+
         private void PrepareGpuDraws(int frame)
         {
             if (_gpuLodSelectionActive)
+            {
+                for (int r = 0; r < _rings.Length; r++)
+                {
+                    var worker = _rings[r].Workers[0];
+                    int step = _rings[r].SourceStep;
+                    int band = step == 1 ? 0 : step == 2 ? 1 : step == 4 ? 2 : 3;
+                    _gpuDrawBands[band] = new Vector4(worker.MinViewDistanceMetres,
+                        worker.MaxViewDistanceMetres, worker.RingSuspended ? 1f : 0f, 0f);
+                }
                 _gpuDrawDispatcher.PrepareLod(_gpuDrawableNodes, _visibleGpuHandles,
-                    _lodCurrentCompleteNodes, frame, _gpuOwnedNodes, _visibilityFrustumPlanes, _replacementVoxelSize);
+                    _lodCurrentCompleteNodes, frame, _gpuOwnedNodes, _visibilityFrustumPlanes,
+                    _replacementVoxelSize, _gpuDrawBands,
+                    _replacementCamera != null ? _replacementCamera.transform.position : Vector3.zero);
+            }
             else _gpuDrawDispatcher?.Prepare(_visibleGpuHandles, frame);
         }
 

@@ -27,6 +27,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         internal readonly Node[] Nodes;
         internal int Count => _keys.Count;
         internal uint Version { get; private set; }
+        internal uint TopologyBuildCount { get; private set; }
 
         internal GpuSurfaceLodInputs(int capacity) { Nodes = new Node[capacity]; }
 
@@ -38,8 +39,23 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (Version != 0 && Matches(drawable, _previousDrawable)
                 && Matches(complete, _previousComplete) && Matches(handles, _previousHandles)
                 && Matches(owned, _previousOwned)) return;
-            _indices.Clear();
-            _keys.Clear();
+            bool rebuildTopology = Version == 0 || owned.Count == 0
+                || !Matches(owned, _previousOwned) || !ContainsAll(drawable) || !ContainsAll(complete);
+            if (rebuildTopology)
+            {
+                _indices.Clear();
+                _keys.Clear();
+                TopologyBuildCount++;
+            }
+            else
+            {
+                // Membership is unchanged. Readiness/handle updates do not change any edge,
+                // so keep parent/child indices and clear only last frame's presentation state.
+                for (int i = 0; i < Count; i++)
+                {
+                    Node n = Nodes[i]; n.Flags &= 4u; n.Handle = -1; Nodes[i] = n;
+                }
+            }
             for (int i = 0; i < drawable.Count; i++)
             {
                 int index = AddAncestors(drawable[i]);
@@ -50,11 +66,13 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 int index = AddAncestors(complete[i]);
                 Node n = Nodes[index]; n.Flags |= 2u; Nodes[index] = n;
             }
+            if (rebuildTopology)
             for (int i = 0; i < owned.Count; i++)
             {
                 int index = AddAncestors(owned[i]);
                 Node n = Nodes[index]; n.Flags |= 4u; Nodes[index] = n;
             }
+            if (rebuildTopology)
             for (int i = 0; i < Count; i++)
             {
                 SurfaceLodNodeKey key = _keys[i];
@@ -75,6 +93,13 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             Copy(handles, _previousHandles); Copy(owned, _previousOwned);
             Version++;
             if (Version == 0) Version = 1;
+        }
+
+        private bool ContainsAll(IReadOnlyList<SurfaceLodNodeKey> keys)
+        {
+            for (int i = 0; i < keys.Count; i++)
+                if (!_indices.ContainsKey(keys[i])) return false;
+            return true;
         }
 
         private int AddAncestors(SurfaceLodNodeKey key)

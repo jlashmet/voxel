@@ -1,3 +1,10 @@
+GPU band checkpoint: production render-band and frustum classification now execute together on
+GPU. CPU candidate lists persist across camera/projection movement; hierarchy edges persist across
+readiness/handle changes. CPU still refreshes cached missing-build urgency and resident ages, and
+rebuilds topology for membership changes.502 owned Rendering tests and production module pass;
+Showcase231/201FPS,walking traversal .977ms,414 missing/55 arena failures. This is an intermediate
+migration, not full CPU retirement or400FPS/visual acceptance. Evidence is in tasks.md.
+
 # CPU rendering backend removal ledger
 
 **SceneIssue:** `20260902-171853-000-GpuRendererProductionRestoration`  

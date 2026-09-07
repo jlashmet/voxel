@@ -118,6 +118,45 @@ namespace VoxelEngine.Tests.EditMode
             }
         }
 
+        [Test]
+        public void CachedGpuCandidatesRefreshMissingDemandAndResidentAgeAcrossBandMotion()
+        {
+            using var worker = new GpuSolidChunkCache();
+            worker.MaxViewDistanceMetres = 10;
+            var planes = new[] { new Plane(Vector3.right, 1000), new Plane(Vector3.left, 1000),
+                new Plane(Vector3.up, 1000), new Plane(Vector3.down, 1000),
+                new Plane(Vector3.forward, 1000), new Plane(Vector3.back, 1000) };
+            int3 pending = new int3(10, 0, 0);
+            var known = Field<HashSet<int3>>(worker, "_known"); known.Add(int3.zero); known.Add(pending);
+            var desired = Field<Dictionary<int3, ulong>>(worker, "_desiredVersions"); desired[pending] = 1;
+            var entries = Field<Dictionary<int3, GpuSolidChunkCache.Entry>>(worker, "_entries");
+            var entry = new GpuSolidChunkCache.Entry(int3.zero, 32, 1);
+            entry.PublishGpuPaged(4); entry.SourceVersion = 1; entries.Add(int3.zero, entry);
+            try
+            {
+                worker.BeginVisibilityCollection(planes, Vector3.zero, 0.1f, true);
+                Assert.That(worker.CollectVisibleCoordinate(int3.zero, planes, Vector3.zero, 0.1f, 1).GpuCandidate, Is.True);
+                Assert.That(worker.CollectVisibleCoordinate(pending, planes, Vector3.zero, 0.1f, 1).GpuCandidate, Is.True,
+                    "Out-of-band metadata remains available for GPU camera reclassification.");
+                Assert.That(worker.DirtyCount, Is.Zero);
+                worker.RefreshGpuBuildDemand(planes, new Vector3(worker.VoxelsPerAxis, 0, 0), 0.1f, 2);
+                Assert.That(worker.MissingVisibleCount, Is.EqualTo(1));
+                Assert.That(worker.DirtyCount, Is.EqualTo(1));
+                Assert.That(entry.LastUsedFrame, Is.EqualTo(1), "Out-of-band cache entries must not become artificially hot.");
+                worker.RefreshGpuBuildDemand(planes, Vector3.zero, 0.1f, 3);
+                Assert.That(worker.MissingVisibleCount, Is.Zero);
+                Assert.That(worker.DirtyCount, Is.Zero);
+                Assert.That(desired[pending], Is.EqualTo(1));
+                Assert.That(entry.LastUsedFrame, Is.EqualTo(3));
+                worker.RefreshGpuResidentAges(3, 5);
+                Assert.That(entry.LastUsedFrame, Is.EqualTo(5));
+                worker.RefreshGpuResidentAges(4, 6);
+                Assert.That(entry.LastUsedFrame, Is.EqualTo(5), "Only the previous in-band set may retain its age.");
+                Assert.That(worker.Visible.Count, Is.EqualTo(1), "Demand refresh must not duplicate cached candidates.");
+            }
+            finally { entries.Clear(); entry.Dispose(); }
+        }
+
         private static T Field<T>(object owner, string name) =>
             (T)owner.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic).GetValue(owner);
     }

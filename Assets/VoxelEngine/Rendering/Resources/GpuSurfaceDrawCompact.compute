@@ -134,6 +134,9 @@ int _LodNodeCount;
 int _LodHandleCapacity;
 int _LodSourceStep;
 int _LodFrustumEnabled;
+int _LodBandsEnabled;
+float4 _LodBands[4]; // min metres, max metres, suspended, reserved
+float3 _LodCameraPosition;
 float _LodVoxelSize;
 float4 _LodFrustumPlanes[6];
 
@@ -142,6 +145,18 @@ void CSClassifyLodCandidates(uint3 id : SV_DispatchThreadID)
 {
     if(id.x>=(uint)_LodNodeCount)return;
     LodNode node=_LodNodes[id.x];
+    bool inBand=true;
+    if(_LodBandsEnabled!=0)
+    {
+        uint bandIndex=node.step==1?0u:node.step==2?1u:node.step==4?2u:3u;
+        float4 band=_LodBands[bandIndex];
+        float3 delta=abs(node.boundsVoxel.xyz*_LodVoxelSize-_LodCameraPosition);
+        float extent=node.boundsVoxel.w*_LodVoxelSize;
+        float3 nearest=max(0.0,delta-extent);
+        float3 farthest=delta+extent;
+        inBand=band.z==0.0 && max(nearest.x,max(nearest.y,nearest.z))<=band.y
+            && (band.x<=0.0 || max(farthest.x,max(farthest.y,farthest.z))>band.x);
+    }
     bool inFrustum=true;
     if(_LodFrustumEnabled!=0)
     {
@@ -154,8 +169,8 @@ void CSClassifyLodCandidates(uint3 id : SV_DispatchThreadID)
                 inFrustum=false;
         }
     }
-    uint flags=node.flags&3u;
-    if(!inFrustum)
+    uint flags=inBand?(node.flags&3u):0u;
+    if(inBand && !inFrustum)
     {
         flags&=~1u;
         if((node.flags&4u)!=0u)flags|=2u; // owned off-camera children cannot block handoff

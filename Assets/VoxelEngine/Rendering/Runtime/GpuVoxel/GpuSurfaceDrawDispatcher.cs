@@ -80,7 +80,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                                  IReadOnlyList<int> handles,
                                  IReadOnlyList<SurfaceLodNodeKey> complete, int frame,
                                  IReadOnlyList<SurfaceLodNodeKey> owned = null,
-                                 Plane[] planes = null, float voxelSize = 1f)
+                                 Plane[] planes = null, float voxelSize = 1f,
+                                 Vector4[] bands = null, Vector3 cameraPosition = default)
         {
             if (_disposed) throw new ObjectDisposedException(nameof(GpuSurfaceDrawDispatcher));
             if (handles.Count > _arena.HandleCapacity) throw new ArgumentOutOfRangeException(nameof(handles));
@@ -114,6 +115,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 _shader.SetBuffer(kernel, "_LodSelected", _lodSelected[slot]);
                 _shader.SetBuffer(kernel, IdLiveGeometry, _arena.LiveChunkGeometry);
             }
+            if (bands != null && bands.Length != 4) throw new ArgumentException("Four LOD bands are required.", nameof(bands));
+            _shader.SetInt("_LodBandsEnabled", bands != null ? 1 : 0);
+            if (bands != null) _shader.SetVectorArray("_LodBands", bands);
+            _shader.SetVector("_LodCameraPosition", cameraPosition);
             _shader.SetInt("_LodFrustumEnabled", planes != null ? 1 : 0);
             if (planes != null)
             {
