@@ -6,6 +6,7 @@ using Game.GameplayReplication.Api;
 using Game.Sessions.Api;
 using Game.Sessions.Runtime;
 using VoxelEngine.Net.Api;
+using VoxelEngine.Net.Runtime.Protocol;
 using VoxelEngine.Net.Runtime.Server;
 
 namespace Game.Composition.Kentridge.Playable
@@ -50,7 +51,7 @@ namespace Game.Composition.Kentridge.Playable
             _session = session ?? throw new ArgumentNullException(nameof(session));
             _inner = inner ?? throw new ArgumentNullException(nameof(inner));
             _gameplayRevision = gameplayRevision ?? throw new ArgumentNullException(nameof(gameplayRevision));
-            _nowSeconds = nowSeconds ?? (() => Environment.TickCount64 * 0.001d);
+            _nowSeconds = nowSeconds ?? DefaultNowSeconds;
         }
 
         public IContinuityQuery Continuity => _continuity;
@@ -169,6 +170,8 @@ namespace Game.Composition.Kentridge.Playable
             if (KentridgeSessionAdmissionCodec.TryEncodeReply(result, networkPlayerId, reply, out int written))
                 _server.TrySendSessionAdmissionReply(connectionId, reply.Slice(0, written));
         }
+
+        private static double DefaultNowSeconds() => Environment.TickCount64 * 0.001d;
 
         public void Dispose()
         {
