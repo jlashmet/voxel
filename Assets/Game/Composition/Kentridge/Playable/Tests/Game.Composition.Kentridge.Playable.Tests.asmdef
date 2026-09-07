@@ -4,6 +4,8 @@
   "references": [
     "Game.Characters.Api",
     "Game.Characters.Runtime",
+    "Game.Combat.Api",
+    "Game.Combat.Runtime",
     "Game.Composition.EncounterRealization",
     "Game.Composition.Kentridge.Playable",
     "Game.Composition.Kentridge.Playable.Validation",
@@ -16,6 +18,8 @@
     "Game.SessionPresentation.Api",
     "Game.Sessions.Api",
     "Game.Sessions.Runtime",
+    "Game.Vitality.Api",
+    "Game.Vitality.Runtime",
     "Game.WorldBuilder.Api",
     "Game.WorldObjects.Api",
     "Game.WorldObjects.Runtime",
