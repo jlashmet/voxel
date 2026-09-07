@@ -50,7 +50,7 @@ Pinned reference Git blob: `6d87b08d4c7c9bddc1705c0f34343aa79bc18423`.
 - [x] Isolate iteration-7 high-window depth-ordering defect: opaque `FillArch` repair extended to `frontZ-4` while replacement carve began at `frontZ-1`, hiding the glass behind plaster.
 - [x] Implement iteration-8 correction to carve through the full repair depth, clear duplicate crest layers from `ridge+1`, and extend/increase the swept-eave hook.
 - [x] Validate iteration-8 correction with feature `ef132fadc51c93ec520e611254d65949a4691b48`, exact request `6d825d7de506287a253fd229687f29d6eb6f53d9`, run `34148998318`, and direct target/front-left/rear-right inspection. The corrected openings/crest and closed rear shell are mechanically proven, but visual quality remains prototype/blockout quality.
-- [ ] Iteration 9: replace the demonstrated straight oversized portrait-gable profile with a narrow concave swept production profile while holding camera/light/material/site fixed; validate target/front-left silhouette and preserve the closed side/rear shell in audit evidence.
+- [ ] Iteration 9/9b: complete the demonstrated narrow concave swept portrait-gable profile while holding camera/light/material/site fixed; eliminate the roof/plaster interface seam and preserve the closed side/rear shell in audit evidence.
 - [ ] Match final roof pitch/rise, ridge direction, transverse shoulder height, swept-eave silhouette, fascia/edge depth, intersections, and chimney relationship closely.
 - [ ] Remove/verify absence of roof overlap, z-fighting, holes, and unsupported roof pieces across multiple frames.
 - [x] Dormer roof: N/A from the pinned reference.
@@ -112,12 +112,16 @@ Pinned reference Git blob: `6d87b08d4c7c9bddc1705c0f34343aa79bc18423`.
 - [x] Inspect the exact pinned reference and iteration-8 target/front-left/rear-right captures from artifact `single-test-34148998318`.
 - [x] Reject iteration 8 as **prototype/blockout quality** despite corrected openings/crest/shell. Largest demonstrated structural mismatch: the outer portrait-gable roof remains a very large straight triangular plane rather than the reference's narrow concave/swept silhouette; front-left evidence confirms authored geometry rather than camera perspective.
 
-### Iteration 9 — selected discriminating correction
-- [ ] Replace only the shallow straight portrait-gable outer profile with a row-by-row concave swept production profile; hold camera, light, material, site, shoulder roof, side/rear shell, and opening layout fixed.
-- [ ] Keep the attic/front shell opaque and supported while narrowing the profile nonlinearly and flaring the first eave rows outward/downward.
-- [ ] Add a focused regression proving the destructive clear is shallow/front-only, the profile narrows nonlinearly, and final embedded upper-opening carving happens after the rebuild.
-- [ ] Run the final iteration-9 feature head through exact-SHA targeted CI without replacing a queued/running request.
-- [ ] Inspect exact iteration-9 target/front-left/rear-right frames. If the target/front-left silhouette is still straight under unchanged camera/materials, reject the geometry hypothesis before any broad presentation change.
+### Iteration 9 — exact failed result and 9b repair
+- [x] Replace only the shallow straight portrait-gable outer profile with a row-by-row concave swept production profile; hold camera, light, material, site, shoulder roof, side/rear shell, and opening layout fixed.
+- [x] Add a focused regression proving the destructive clear is shallow/front-only, the profile narrows nonlinearly, and final embedded upper-opening carving happens after the rebuild.
+- [x] Run feature `34ed16f6c845e7a7436ed02fd7ecb1f7ba8a61d0` with exact request `22ed95b36c074f65ab3d41329866cc38a728b352` / run `34153598913`; the run completed **failed** in full WorldBuilder module validation.
+- [x] Inspect diagnostic-only exact reference plus t=10/t=20/t=30 frames from failed artifact `single-test-34153598913`. The unchanged-camera experiment materially narrows/sweeps the profile, supporting the geometry hypothesis, but black one-voxel roof/plaster separation seams remain and visual quality is still **prototype/blockout quality**; rear shell remains closed.
+- [x] Isolate the mechanical failure: the older swept-tip regression used `FindIndex` on only `x/z` and bound to an earlier pre-audit duplicate coordinate (`1188`) rather than the intended late finish-pass operation after rear-shell index `1506`; the requested concave-profile test itself was not the failing case.
+- [x] Implement iteration 9b production seam closure by making plaster meet both roof inner edges exactly and placing timber bargboard across the shared joint; strengthen the focused regression to prove both interfaces have no gap.
+- [x] Tighten the older swept-tip regression to search only after the rear-shell checkpoint, preserving rather than lowering its post-audit invariant.
+- [ ] Re-run the **same** focused concave-profile regression on the final 9b feature SHA through exact-SHA targeted CI; never replace it while queued/running.
+- [ ] Inspect exact iteration-9b target/front-left/rear-right frames and verify the roof/plaster seams are closed before selecting any broader visual change.
 
 ### Final visual checks — required before closure
 - [ ] Overall silhouette very close to reference.
