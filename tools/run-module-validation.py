@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Execute a convention-derived module validation plan."""
 from __future__ import annotations
-import argparse, json, os, subprocess, time, xml.etree.ElementTree as ET
+import argparse, hashlib, json, os, subprocess, time, xml.etree.ElementTree as ET
 from pathlib import Path
 
 # This suite intentionally remains process-isolated. The full master workflow
@@ -172,9 +172,12 @@ def _safe_output_token(value: str) -> str:
 
 
 def _player_output_root(root: Path, item: dict) -> Path:
-    # A module may own several standalone scenes. Key evidence by module + scene so later targets
-    # cannot overwrite an earlier scene's screenshots/logs inside the same exact-SHA artifact.
-    return root / "Players" / _safe_output_token(item["module"] + "-" + item["scene"])
+    # Preserve readable module/scene names and distinguish scenarios and paths that
+    # sanitize identically, so later players cannot overwrite earlier evidence.
+    identity = json.dumps([item["module"], item["scene"], item.get("scenario", "")], separators=(",", ":"))
+    digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16]
+    label = _safe_output_token(item["module"] + "-" + item["scene"])
+    return root / "Players" / f"{label}-{digest}"
 
 
 def main(argv=None) -> int:
@@ -249,7 +252,7 @@ def main(argv=None) -> int:
         subprocess.run(["python3", "tools/player-validation.py", "--unity", ns.unity,
                         "--scene", item["scene"], "--scenario", item["scenario"],
                         "--output", str(out)], check=True, env=player_env)
-        summary["players"].append({**item, "seconds": round(time.monotonic() - started, 2)})
+        summary["players"].append({**item, "output": str(out), "seconds": round(time.monotonic() - started, 2)})
     summary["totalSeconds"] = round(time.monotonic() - started_all, 2)
     (root / "module-validation-summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(summary, sort_keys=True))

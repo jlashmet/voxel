@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
@@ -14,6 +15,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         NoSlot = 3,
         Stale = 4,
         PayloadMissing = 5,
+        DirectoryFull = 6,
     }
 
     /// <summary>
@@ -41,8 +43,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             GpuBrickBufferLayout.MaterialWordsPerBrick
           + GpuBrickBufferLayout.SurfaceWordsPerBrick
           + GpuBrickBufferLayout.BoundaryWordsPerBrick + 1;
+        // Host orchestration indexes the same GPU entries. This is not voxel authority: it
+        // avoids probing a tombstone-filled GPU hash layout to prove a CPU lookup is absent.
+        private readonly Dictionary<int3, int> _directoryIndexByCoordinate = new();
         private const uint DirectoryOccupied = 1u;
-        private const uint DirectoryTombstone = 2u;
         private const string DirectoryUpdaterResourcePath = "VoxelBrickDirectoryUpdater";
         private const int ThreadGroupSize = 64;
 
@@ -90,14 +94,21 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private NativeArray<uint> _payloadDeltaStaging;
         private readonly bool[] _dirtySlots;
         private readonly bool[] _dirtyDirectoryEntries;
-        private int _dirtyMin = int.MaxValue;
-        private int _dirtyMax = -1;
-        private int _directoryDirtyMin = int.MaxValue;
-        private int _directoryDirtyMax = -1;
+        private readonly int[] _dirtySlotIndices;
+        private readonly int[] _dirtyDirectoryIndices;
+        private int _dirtySlotCount;
+        private int _dirtyDirectoryCount;
+        internal ulong DirectoryFlushEntryChecks { get; private set; }
         private bool _disposed;
+        internal bool IsDisposed => _disposed;
+        private bool _clearPending;
+        internal bool IsClearPending => _clearPending;
 
         public int SlotCapacity { get; }
         public int DirectoryCapacity { get; }
+        internal int DirectoryLiveCapacity => DirectoryCapacity * 3 / 4;
+        private int _maximumDirectoryProbeCount;
+        internal int MaximumDirectoryProbeCount => Math.Max(1, _maximumDirectoryProbeCount);
         public int DirectoryMask => DirectoryCapacity - 1;
         public int DirectoryWordOffset { get; }
         public int ResidentBricks => _slots.ResidentCount;
@@ -107,9 +118,11 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         public ulong UploadedBytes { get; private set; }
         public ulong SkippedAlreadyResident { get; private set; }
         public ulong RefusedNoSlot => _slots.RefusedCount;
+        internal ulong EvictionCandidateChecks => _slots.EvictionCandidateChecks;
         public ulong RejectedStale => _slots.StaleCount;
         public ulong Evictions => _slots.EvictionCount;
         public ulong DirectoryRefusals { get; private set; }
+        internal ulong DirectoryProbeChecks { get; private set; }
         public ulong DirectoryUploadBytes { get; private set; }
         public ulong DirectoryUploadBatches { get; private set; }
         public ulong PayloadUploadBytes { get; private set; }
@@ -121,19 +134,42 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         public ComputeBuffer Occupancy => FlushAndGet(_occupancy);
         public ComputeBuffer Metadata => FlushAndGet(_metadata);
 
-        public GpuVoxelBrickMirror(int slotCapacity)
+        internal static long BytesForLayout(int slots, int directoryEntries) =>
+            (long)slots * (GpuBrickBufferLayout.BytesPerMixedBrick + BrickMetadata.Stride)
+            + (long)directoryEntries * DirectoryWordsPerEntry * sizeof(uint)
+            + (long)DirectoryDeltaCapacity * DirectoryDeltaWords * sizeof(uint)
+            + (long)PayloadDeltaCapacity * PayloadDeltaWords * sizeof(uint);
+
+        internal static (int Slots, int DirectoryEntries) SharedLayout(int previousSlots)
         {
-            if (slotCapacity <= 0) throw new ArgumentOutOfRangeException(nameof(slotCapacity));
+            // Two coarse 66^3 source footprints plus near-ring demands need more directory
+            // keys than mixed payload slots. Reserve key capacity within the old GPU allocation,
+            // exchanging payload slots for directory entries rather than raising its byte ceiling.
+            const int directory = 1 << 20;
+            long previousBytes = BytesForLayout(previousSlots,
+                NextPowerOfTwo(Math.Max(1024, previousSlots * 4)));
+            long available = previousBytes - BytesForLayout(0, directory);
+            int slots = (int)(available / (GpuBrickBufferLayout.BytesPerMixedBrick + BrickMetadata.Stride));
+            if (slots < 1) throw new ArgumentOutOfRangeException(nameof(previousSlots));
+            return (Math.Min(slots, GpuBrickBufferLayout.MaximumAddressableSlots), directory);
+        }
+
+        private readonly bool _retainKnownEmpty;
+
+        public GpuVoxelBrickMirror(int slotCapacity, int directoryCapacity = 0, bool retainKnownEmpty = false)
+        {
+            _retainKnownEmpty = retainKnownEmpty;
+            if (slotCapacity <= 0 || slotCapacity > GpuBrickBufferLayout.MaximumAddressableSlots)
+                throw new ArgumentOutOfRangeException(nameof(slotCapacity));
 
             SlotCapacity = slotCapacity;
-            DirectoryCapacity = NextPowerOfTwo(Math.Max(1024, slotCapacity * 4));
+            DirectoryCapacity = directoryCapacity == 0
+                ? NextPowerOfTwo(Math.Max(1024, slotCapacity * 4)) : directoryCapacity;
+            if (DirectoryCapacity < 1024 || (DirectoryCapacity & (DirectoryCapacity - 1)) != 0
+                || DirectoryCapacity > int.MaxValue / DirectoryWordsPerEntry)
+                throw new ArgumentOutOfRangeException(nameof(directoryCapacity));
             DirectoryWordOffset = slotCapacity * GpuBrickBufferLayout.MaterialWordsPerBrick;
-            long directoryBytes = (long)DirectoryCapacity * DirectoryWordsPerEntry * sizeof(uint);
-            long payloadDeltaBytes =
-                (long)PayloadDeltaCapacity * PayloadDeltaWords * sizeof(uint);
-            CommittedBytes = GpuBrickBufferLayout.CommittedBytes(slotCapacity) + directoryBytes
-                           + (long)DirectoryDeltaCapacity * DirectoryDeltaWords * sizeof(uint)
-                           + payloadDeltaBytes;
+            CommittedBytes = BytesForLayout(slotCapacity, DirectoryCapacity);
             _slots = new GpuBrickSlotTable(slotCapacity);
 
             _directoryUpdater = Resources.Load<ComputeShader>(DirectoryUpdaterResourcePath);
@@ -186,6 +222,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
             _dirtySlots = new bool[slotCapacity];
             _dirtyDirectoryEntries = new bool[DirectoryCapacity];
+            _dirtySlotIndices = new int[slotCapacity];
+            _dirtyDirectoryIndices = new int[DirectoryCapacity];
 
             // ComputeBuffer contents are not specified on allocation. Clear the hash states once on
             // the GPU so an uninitialised word can never masquerade as a live directory entry.
@@ -205,13 +243,19 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         public void Clear()
         {
             ThrowIfDisposed();
+            if (_submissionLifetime != null && _submissionLifetime.HasUsers)
+            {
+                _clearPending = true;
+                return;
+            }
+            _clearPending = false;
             _slots.Clear();
+            _directoryIndexByCoordinate.Clear();
+            _maximumDirectoryProbeCount = 0;
             Array.Clear(_dirtySlots, 0, _dirtySlots.Length);
             Array.Clear(_dirtyDirectoryEntries, 0, _dirtyDirectoryEntries.Length);
-            _dirtyMin = int.MaxValue;
-            _dirtyMax = -1;
-            _directoryDirtyMin = int.MaxValue;
-            _directoryDirtyMax = -1;
+            _dirtySlotCount = 0;
+            _dirtyDirectoryCount = 0;
             for (int i = 0; i < _directoryStaging.Length; i++)
                 _directoryStaging[i] = 0u;
             ClearGpuDirectory();
@@ -236,6 +280,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         {
             ThrowIfDisposed();
 
+            if (_clearPending)
+                throw new InvalidOperationException("Mirror clear is waiting for submitted readers.");
             GpuBrickAdmission admission = _slots.TryAdmit(in delta, out int slot);
             switch (admission)
             {
@@ -244,19 +290,18 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 case GpuBrickAdmission.Full:
                     return GpuBrickPublish.NoSlot;
                 case GpuBrickAdmission.NoPayload:
-                    // Absence from a ready region is the canonical GPU representation of empty.
-                    // Uniform bricks still need one compact directory entry; empty bricks do not.
-                    if (delta.Content == VoxelBrickContent.Empty)
+                    // Production readiness distinguishes known air from an unuploaded source.
+                    // Legacy dense fixtures may still supply independent CPU coverage proof.
+                    if (delta.Content == VoxelBrickContent.Empty && !_retainKnownEmpty)
                     {
                         RemoveLookup(delta.Coordinate);
                         return GpuBrickPublish.MetadataOnly;
                     }
-                    if (!PublishLookup(delta, -1)) return GpuBrickPublish.NoSlot;
+                    if (!PublishLookup(delta, -1)) return GpuBrickPublish.DirectoryFull;
                     return GpuBrickPublish.MetadataOnly;
                 case GpuBrickAdmission.Resident:
-                    if (!_slots.TryGetSlot(delta.Coordinate, out slot)
-                        || !PublishLookup(delta, slot))
-                        return GpuBrickPublish.NoSlot;
+                    if (!_slots.TryGetSlot(delta.Coordinate, out slot)) return GpuBrickPublish.NoSlot;
+                    if (!PublishLookup(delta, slot)) return GpuBrickPublish.DirectoryFull;
                     SkippedAlreadyResident++;
                     return GpuBrickPublish.AlreadyResident;
             }
@@ -282,7 +327,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (!PublishLookup(delta, slot))
             {
                 _slots.Release(delta.Coordinate);
-                return GpuBrickPublish.NoSlot;
+                return GpuBrickPublish.DirectoryFull;
             }
 
             UploadedBricks++;
@@ -301,6 +346,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         {
             ThrowIfDisposed();
 
+            if (_clearPending)
+                throw new InvalidOperationException("Mirror clear is waiting for submitted readers.");
             GpuBrickAdmission admission = _slots.TryAdmit(in delta, out int slot);
             switch (admission)
             {
@@ -309,17 +356,16 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 case GpuBrickAdmission.Full:
                     return GpuBrickPublish.NoSlot;
                 case GpuBrickAdmission.NoPayload:
-                    if (delta.Content == VoxelBrickContent.Empty)
+                    if (delta.Content == VoxelBrickContent.Empty && !_retainKnownEmpty)
                     {
                         RemoveLookup(delta.Coordinate);
                         return GpuBrickPublish.MetadataOnly;
                     }
-                    if (!PublishLookup(delta, -1)) return GpuBrickPublish.NoSlot;
+                    if (!PublishLookup(delta, -1)) return GpuBrickPublish.DirectoryFull;
                     return GpuBrickPublish.MetadataOnly;
                 case GpuBrickAdmission.Resident:
-                    if (!_slots.TryGetSlot(delta.Coordinate, out slot)
-                        || !PublishLookup(delta, slot))
-                        return GpuBrickPublish.NoSlot;
+                    if (!_slots.TryGetSlot(delta.Coordinate, out slot)) return GpuBrickPublish.NoSlot;
+                    if (!PublishLookup(delta, slot)) return GpuBrickPublish.DirectoryFull;
                     SkippedAlreadyResident++;
                     return GpuBrickPublish.AlreadyResident;
             }
@@ -341,7 +387,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (!PublishLookup(delta, slot))
             {
                 _slots.Release(delta.Coordinate);
-                return GpuBrickPublish.NoSlot;
+                return GpuBrickPublish.DirectoryFull;
             }
 
             UploadedBricks++;
@@ -352,19 +398,35 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         public void Remove(int3 coordinate)
         {
             ThrowIfDisposed();
+            if (_clearPending)
+                throw new InvalidOperationException("Mirror clear is waiting for submitted readers.");
             _slots.Release(coordinate);
             RemoveLookup(coordinate);
         }
 
+        // Low bits2..7 are outside kind/material/slot fields. Existing readers still see the
+        // immutable source value, while new GPU coverage requests wait for its replacement.
+        internal const uint SourcePendingBit = 1u << 2;
+
+        internal void InvalidateReadiness(int3 coordinate)
+        {
+            ThrowIfDisposed();
+            if (!_directoryIndexByCoordinate.TryGetValue(coordinate, out int index)) return;
+            _directoryStaging[index * DirectoryWordsPerEntry + 3] |= SourcePendingBit;
+            MarkDirectoryDirty(index);
+        }
+
         private bool PublishLookup(in VoxelBrickDelta delta, int slot)
         {
-            int index = FindDirectoryIndex(delta.Coordinate, forInsert: true);
+            int index = _directoryIndexByCoordinate.TryGetValue(delta.Coordinate, out int existing)
+                ? existing : FindFreeDirectoryIndex(delta.Coordinate);
             if (index < 0)
             {
                 DirectoryRefusals++;
                 return false;
             }
 
+            _directoryIndexByCoordinate[delta.Coordinate] = index;
             int word = index * DirectoryWordsPerEntry;
             _directoryStaging[word + 0] = unchecked((uint)delta.Coordinate.x);
             _directoryStaging[word + 1] = unchecked((uint)delta.Coordinate.y);
@@ -378,41 +440,68 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         private void RemoveLookup(int3 coordinate)
         {
-            int index = FindDirectoryIndex(coordinate, forInsert: false);
-            if (index < 0) return;
-            _directoryStaging[index * DirectoryWordsPerEntry + 4] = DirectoryTombstone;
-            MarkDirectoryDirty(index);
+            if (!_directoryIndexByCoordinate.TryGetValue(coordinate, out int hole)) return;
+            _directoryIndexByCoordinate.Remove(coordinate);
+            _directoryStaging[hole * DirectoryWordsPerEntry + 4] = 0u;
+            MarkDirectoryDirty(hole);
+            // Backward-shift deletion preserves each remaining key's linear probe chain.
+            // Payload slots and logical source values do not move. Flush publishes the final
+            // directory through the same ordered graphics queue as its readers, never mid-query.
+            int scan = (hole + 1) & DirectoryMask;
+            for (int inspected = 0; inspected < DirectoryCapacity - 1; inspected++)
+            {
+                if (!TryReadDirectoryCoordinate(scan, out int3 key)) break;
+                int home = (int)(HashCoordinate(key) & (uint)DirectoryMask);
+                if (((hole - home) & DirectoryMask) < ((scan - home) & DirectoryMask))
+                {
+                    for (int word = 0; word < DirectoryWordsPerEntry; word++)
+                        _directoryStaging[hole * DirectoryWordsPerEntry + word] =
+                            _directoryStaging[scan * DirectoryWordsPerEntry + word];
+                    _directoryIndexByCoordinate[key] = hole;
+                    MarkDirectoryDirty(hole);
+                    _directoryStaging[scan * DirectoryWordsPerEntry + 4] = 0u;
+                    MarkDirectoryDirty(scan);
+                    hole = scan;
+                }
+                scan = (scan + 1) & DirectoryMask;
+            }
         }
 
         private void MarkDirectoryDirty(int index)
         {
+            if (_dirtyDirectoryEntries[index]) return;
             _dirtyDirectoryEntries[index] = true;
-            if (index < _directoryDirtyMin) _directoryDirtyMin = index;
-            if (index > _directoryDirtyMax) _directoryDirtyMax = index;
+            _dirtyDirectoryIndices[_dirtyDirectoryCount++] = index;
         }
 
-        private int FindDirectoryIndex(int3 coordinate, bool forInsert)
+        internal bool TryReadDirectoryCoordinate(int index, out int3 coordinate)
         {
-            int firstTombstone = -1;
+            int word = index * DirectoryWordsPerEntry;
+            coordinate = new int3(unchecked((int)_directoryStaging[word]),
+                unchecked((int)_directoryStaging[word + 1]), unchecked((int)_directoryStaging[word + 2]));
+            return _directoryStaging[word + 4] == DirectoryOccupied;
+        }
+
+        private int FindFreeDirectoryIndex(int3 coordinate)
+        {
+            // Keep insertion chains bounded under churn; pressure reclamation may remove cold
+            // uniform or mixed keys before retrying, without changing the allocated byte budget.
+            if (_directoryIndexByCoordinate.Count >= DirectoryLiveCapacity) return -1;
+            // The host index already proves this key absent, so the first tombstone is safe
+            // to reuse without scanning the rest of the table for a duplicate.
             int index = (int)(HashCoordinate(coordinate) & (uint)DirectoryMask);
             for (int probe = 0; probe < DirectoryCapacity; probe++)
             {
+                DirectoryProbeChecks++;
                 int candidate = (index + probe) & DirectoryMask;
-                int word = candidate * DirectoryWordsPerEntry;
-                uint state = _directoryStaging[word + 4];
-                if (state == 0u)
-                    return forInsert ? (firstTombstone >= 0 ? firstTombstone : candidate) : -1;
-                if (state == DirectoryTombstone)
+                uint state = _directoryStaging[candidate * DirectoryWordsPerEntry + 4];
+                if (state != DirectoryOccupied)
                 {
-                    if (forInsert && firstTombstone < 0) firstTombstone = candidate;
-                    continue;
-                }
-                if (unchecked((int)_directoryStaging[word + 0]) == coordinate.x
-                    && unchecked((int)_directoryStaging[word + 1]) == coordinate.y
-                    && unchecked((int)_directoryStaging[word + 2]) == coordinate.z)
+                    _maximumDirectoryProbeCount = Math.Max(_maximumDirectoryProbeCount, probe + 1);
                     return candidate;
+                }
             }
-            return forInsert ? firstTombstone : -1;
+            return -1;
         }
 
         public static uint HashCoordinate(int3 coordinate)
@@ -456,9 +545,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         private void MarkDirty(int slot)
         {
+            if (_dirtySlots[slot]) return;
             _dirtySlots[slot] = true;
-            if (slot < _dirtyMin) _dirtyMin = slot;
-            if (slot > _dirtyMax) _dirtyMax = slot;
+            _dirtySlotIndices[_dirtySlotCount++] = slot;
         }
 
         private ComputeBuffer FlushAndGet(ComputeBuffer buffer)
@@ -470,6 +559,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         internal void FlushPendingUploads()
         {
+            if (_clearPending) return;
             FlushPayloadSlots();
             FlushDirectoryDeltas();
         }
@@ -482,12 +572,12 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         /// </summary>
         private void FlushPayloadSlots()
         {
-            if (_dirtyMax < _dirtyMin) return;
+            if (_dirtySlotCount == 0) return;
 
             int batchCount = 0;
-            for (int slot = _dirtyMin; slot <= _dirtyMax; slot++)
+            for (int dirty = 0; dirty < _dirtySlotCount; dirty++)
             {
-                if (!_dirtySlots[slot]) continue;
+                int slot = _dirtySlotIndices[dirty];
                 _dirtySlots[slot] = false;
                 PackPayloadDelta(batchCount, slot);
                 batchCount++;
@@ -500,8 +590,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             }
 
             if (batchCount > 0) DispatchPayloadBatch(batchCount);
-            _dirtyMin = int.MaxValue;
-            _dirtyMax = -1;
+            _dirtySlotCount = 0;
         }
 
         private void PackPayloadDelta(int batchIndex, int slot)
@@ -556,12 +645,13 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         /// </summary>
         private void FlushDirectoryDeltas()
         {
-            if (_directoryDirtyMax < _directoryDirtyMin) return;
+            if (_dirtyDirectoryCount == 0) return;
 
             int batchCount = 0;
-            for (int entry = _directoryDirtyMin; entry <= _directoryDirtyMax; entry++)
+            for (int dirty = 0; dirty < _dirtyDirectoryCount; dirty++)
             {
-                if (!_dirtyDirectoryEntries[entry]) continue;
+                int entry = _dirtyDirectoryIndices[dirty];
+                DirectoryFlushEntryChecks++;
                 _dirtyDirectoryEntries[entry] = false;
 
                 int destination = batchCount * DirectoryDeltaWords;
@@ -582,8 +672,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             }
 
             if (batchCount > 0) DispatchDirectoryBatch(batchCount);
-            _directoryDirtyMin = int.MaxValue;
-            _directoryDirtyMax = -1;
+            _dirtyDirectoryCount = 0;
         }
 
         private void DispatchDirectoryBatch(int count)
@@ -625,10 +714,31 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (_disposed) throw new ObjectDisposedException(nameof(GpuVoxelBrickMirror));
         }
 
+        private GpuSubmissionLifetime _submissionLifetime;
+
+        internal void RetainSubmission()
+        {
+            if (_disposed) throw new ObjectDisposedException(nameof(GpuVoxelBrickMirror));
+            if (_clearPending) throw new InvalidOperationException("Cannot submit from a mirror awaiting clear.");
+            (_submissionLifetime ??= new GpuSubmissionLifetime(ReleaseResources)).Retain();
+        }
+
+        internal void ReleaseSubmission()
+        {
+            _submissionLifetime.Release();
+            if (!_disposed && _clearPending && !_submissionLifetime.HasUsers) Clear();
+        }
+
         public void Dispose()
         {
             if (_disposed) return;
             _disposed = true;
+            if (_submissionLifetime == null) ReleaseResources();
+            else _submissionLifetime.Dispose();
+        }
+
+        private void ReleaseResources()
+        {
             _materials?.Release();
             _surfaceSemantics?.Release();
             _boundarySamples?.Release();
@@ -644,6 +754,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (_directoryDeltaStaging.IsCreated) _directoryDeltaStaging.Dispose();
             if (_payloadDeltaStaging.IsCreated) _payloadDeltaStaging.Dispose();
             _slots.Clear();
+            _directoryIndexByCoordinate.Clear();
+            _maximumDirectoryProbeCount = 0;
         }
     }
 }

@@ -1,0 +1,416 @@
+using System;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using NUnit.Framework;
+using UnityEngine;
+using UnityEngine.Rendering;
+using VoxelEngine.Rendering.Runtime.GpuVoxel;
+
+namespace VoxelEngine.Rendering.Tests.EditMode
+{
+    public sealed class GpuSurfaceDrawDispatcherScaleTests
+    {
+        private const int VisibleCount = 600;
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct GeometryRecord
+        {
+            public uint GenerationLow;
+            public uint GenerationHigh;
+            public uint Bank;
+            public uint VertexCount;
+            public uint IndexCount;
+            public uint VertexPageCount;
+            public uint IndexPageCount;
+            public uint Ready;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct DrawMetadata
+        {
+            public uint Handle;
+            public uint IndexCount;
+            public uint Bank;
+            public uint Padding;
+        }
+
+        private ComputeShader _arenaShader;
+        private ComputeShader _drawShader;
+        private GpuSurfacePageArena _arena;
+        private GpuSurfaceDrawDispatcher _dispatcher;
+
+        [SetUp]
+        public void SetUp()
+        {
+            Assert.That(SystemInfo.supportsComputeShaders, Is.True);
+            _arenaShader = UnityEngine.Object.Instantiate(
+                Resources.Load<ComputeShader>("GpuSurfacePageArena"));
+            _drawShader = UnityEngine.Object.Instantiate(
+                Resources.Load<ComputeShader>("GpuSurfaceDrawCompact"));
+            Assert.That(_arenaShader, Is.Not.Null);
+            Assert.That(_drawShader, Is.Not.Null);
+            _arena = new GpuSurfacePageArena(
+                _arenaShader,
+                GpuSurfacePageArena.VertexPageSize * 4,
+                GpuSurfacePageArena.IndexPageSize * 4,
+                handleCapacity: 1024);
+            _dispatcher = new GpuSurfaceDrawDispatcher(_drawShader, _arena);
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            // Reading the tiny args buffer drains the test's compute dispatches before disposal.
+            if (_dispatcher?.ActiveIndirectArgs != null)
+            {
+                var drain = new uint[GpuSurfaceDrawDispatcher.BucketCount * 4];
+                _dispatcher.ActiveIndirectArgs.GetData(drain);
+            }
+            _dispatcher?.Dispose();
+            _arena?.Dispose();
+            if (_drawShader != null) UnityEngine.Object.DestroyImmediate(_drawShader);
+            if (_arenaShader != null) UnityEngine.Object.DestroyImmediate(_arenaShader);
+            _dispatcher = null;
+            _arena = null;
+            _drawShader = null;
+            _arenaShader = null;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct RasterVertex
+        {
+            public Vector3 Position, Normal;
+            public uint Material, Active;
+        }
+
+        // A narrow raster-addressing fixture, not art or visual acceptance. It uses the shipped
+        // vertex shader and real page lookup/compaction; debug coverage only bypasses lighting.
+        [TestCase(-2, false)]
+        [TestCase(-1, false)]
+        [TestCase(0, false)]
+        [TestCase(1, true)]
+        [TestCase(0, true)]
+        [TestCase(1, false)]
+        public void SeparateBucketsRasterizeTheirOwnPagedGeometry(int waterPass, bool spray)
+        {
+            var records = new GeometryRecord[_arena.HandleCapacity];
+            var vertices = new RasterVertex[3 * GpuSurfacePageArena.VertexPageSize];
+            var indices = new uint[3 * GpuSurfacePageArena.IndexPageSize];
+            var vertexPages = new uint[_arena.VertexPageTable.count];
+            var indexPages = new uint[_arena.IndexPageTable.count];
+            var visible = new List<int> { 0, 1, 2 };
+            for (int handle = 0; handle < 3; handle++)
+            {
+                float x = (handle - 1) * 0.65f;
+                int v = handle * GpuSurfacePageArena.VertexPageSize;
+                vertices[v] = new RasterVertex { Position = new Vector3(x - 0.2f, -0.3f, 0), Normal = Vector3.back };
+                vertices[v+1] = new RasterVertex { Position = new Vector3(x, 0.3f, 0), Normal = Vector3.back };
+                vertices[v+2] = new RasterVertex { Position = new Vector3(x + 0.2f, -0.3f, 0), Normal = Vector3.back };
+                for (int corner = 0; corner < 3; corner++)
+                {
+                    vertices[v + corner].Material = spray ? 0x08000010u : 11u;
+                    vertices[v + corner].Active = corner == 1 ? 2u : corner == 2 ? 1u : 0u;
+                }
+                uint count = 3u << handle;
+                for (int i = 0; i < count; i++)
+                    indices[handle * GpuSurfacePageArena.IndexPageSize + i] = (uint)(i % 3);
+                vertexPages[(handle * 2 + (handle & 1)) * GpuSurfacePageArena.MaxVertexPagesPerChunk] = (uint)handle;
+                indexPages[(handle * 2 + (handle & 1)) * GpuSurfacePageArena.MaxIndexPagesPerChunk] = (uint)handle;
+                records[handle] = new GeometryRecord { GenerationLow = 1, Bank = (uint)(handle & 1), VertexCount = 3,
+                    IndexCount = count, VertexPageCount = 1, IndexPageCount = 1, Ready = 1 };
+            }
+            _arena.Vertices.SetData(vertices);
+            _arena.Indices.SetData(indices);
+            _arena.VertexPageTable.SetData(vertexPages);
+            _arena.IndexPageTable.SetData(indexPages);
+            _arena.LiveChunkGeometry.SetData(records);
+            _dispatcher.Prepare(visible, 1);
+            var material = new Material(Shader.Find(waterPass < 0
+                ? "Hidden/VoxelEngine/SmoothSurface" : "Hidden/VoxelEngine/WaterSurface"));
+            var target = new RenderTexture(192, 64, 24, RenderTextureFormat.ARGB32);
+            var pixels = new Texture2D(192, 64, TextureFormat.RGBA32, false);
+            var commands = new CommandBuffer();
+            RenderTexture previous = RenderTexture.active;
+            try
+            {
+                target.Create();
+                material.SetInteger("_WaterPagedDraw", 1);
+                if (waterPass >= 0)
+                {
+                    var colours = new Vector4[32];
+                    var motion = new Vector4[32];
+                    var cascade = new Vector4[32];
+                    for (int i = 0; i < 32; i++)
+                    {
+                        colours[i] = new Vector4(0.2f, 0.6f, 0.8f, 1f);
+                        motion[i] = new Vector4(waterPass == 1 ? 3f : 1f, 1f, 0f, 1f);
+                        cascade[i] = Vector4.one;
+                    }
+                    material.SetVectorArray("_WaterShallow", colours);
+                    material.SetVectorArray("_WaterDeep", colours);
+                    material.SetVectorArray("_WaterMotion", motion);
+                    material.SetVectorArray("_WaterCascade", cascade);
+                    material.SetVector("_CameraPosition", new Vector4(0, 0, -2, 1));
+                    material.SetVector("_SunDirection", new Vector4(0, 1, -1, 0));
+                }
+                material.SetFloat("_DebugCoverage", 1);
+                material.SetInteger("_CutawayEnabled", 0);
+                material.SetBuffer("_PagedSurfaceVertices", _arena.Vertices);
+                material.SetBuffer("_PagedSurfaceIndices", _arena.Indices);
+                material.SetBuffer("_PagedVertexPageTable", _arena.VertexPageTable);
+                material.SetBuffer("_PagedIndexPageTable", _arena.IndexPageTable);
+                material.SetBuffer("_PagedDrawMetadata", _dispatcher.ActiveDrawMetadata);
+                material.SetBuffer("_PagedDrawBucketState", _dispatcher.ActiveBucketState);
+                material.SetInteger("_PagedVertexPageSize", GpuSurfacePageArena.VertexPageSize);
+                material.SetInteger("_PagedIndexPageSize", GpuSurfacePageArena.IndexPageSize);
+                material.SetInteger("_PagedMaxVertexPagesPerChunk", GpuSurfacePageArena.MaxVertexPagesPerChunk);
+                material.SetInteger("_PagedMaxIndexPagesPerChunk", GpuSurfacePageArena.MaxIndexPagesPerChunk);
+                commands.SetRenderTarget(target);
+                commands.ClearRenderTarget(true, true, Color.clear);
+                var projection = GL.GetGPUProjectionMatrix(Matrix4x4.Ortho(-1, 1, -1, 1, -1, 1), true);
+                commands.SetViewProjectionMatrices(Matrix4x4.identity, projection);
+                commands.SetGlobalMatrix("unity_MatrixVP", projection);
+                if (waterPass == -2)
+                {
+                    var indexed = _dispatcher.GetIndexedDraw();
+                    indexed.Record(commands, _dispatcher.ActiveDrawMetadata, _dispatcher.ActiveBucketState);
+                    commands.SetKeyword(material, new LocalKeyword(material.shader, "VOXEL_HARDWARE_INDEXED"), true);
+                    commands.DrawProceduralIndirect(indexed.Indices, Matrix4x4.identity, material, 0,
+                        MeshTopology.Triangles, indexed.Arguments);
+                }
+                else
+                for (int bucket = 0; bucket < GpuSurfaceDrawDispatcher.BucketCount; bucket++)
+                {
+                    commands.SetGlobalInteger("_PagedDrawBucket", bucket);
+                    commands.DrawProceduralIndirect(Matrix4x4.identity, material, Math.Max(0, waterPass),
+                        MeshTopology.Triangles, _dispatcher.ActiveIndirectArgs, bucket * 16);
+                }
+                Graphics.ExecuteCommandBuffer(commands);
+                RenderTexture.active = target;
+                pixels.ReadPixels(new Rect(0, 0, 192, 64), 0, 0);
+                pixels.Apply();
+                for (int handle = 0; handle < 3; handle++)
+                {
+                    int x = Mathf.RoundToInt(((handle - 1) * 0.65f + 1f) * 96f);
+                    int covered = 0;
+                    for (int px = x - 12; px <= x + 12; px++)
+                    for (int py = 20; py < 44; py++)
+                        if (pixels.GetPixel(px, py).a > 0.001f) covered++;
+                    bool rejectedByPass = waterPass >= 0 && ((waterPass == 1) != spray);
+                    if (rejectedByPass)
+                        Assert.That(covered, Is.Zero, "Body and spray passes must reject each other's geometry.");
+                    else
+                        Assert.That(covered, Is.GreaterThan(10),
+                            $"Pass {waterPass}, bucket for handle {handle} did not rasterize its own triangle.");
+                    if (waterPass < 0)
+                        Assert.That(pixels.GetPixel(x, 32).a, Is.GreaterThan(0.9f),
+                            $"Solid bucket for handle {handle} did not rasterize its own triangle.");
+                }
+                Assert.That(pixels.GetPixel(3, 3).a, Is.LessThan(0.1f));
+                if (waterPass >= 0)
+                {
+                    // Compare GPU bucket compaction with the production water cache's
+                    // direct-handle indirect layout. Neither path uploads CPU draw counts.
+                    Color32[] pagedPixels = pixels.GetPixels32();
+                    var directShader = UnityEngine.Object.Instantiate(Resources.Load<ComputeShader>("GpuWaterDrawArguments"));
+                    using var directArgs = new ComputeBuffer(_arena.HandleCapacity * 4, 4, ComputeBufferType.IndirectArguments);
+                    try
+                    {
+                        int kernel = directShader.FindKernel("CSWaterDrawArguments");
+                        directShader.SetBuffer(kernel, "_LiveChunkGeometry", _arena.LiveChunkGeometry);
+                        directShader.SetBuffer(kernel, "_WaterDrawArguments", directArgs);
+                        directShader.SetInt("_WaterHandleCapacity", _arena.HandleCapacity);
+                        directShader.Dispatch(kernel, (_arena.HandleCapacity + 63) / 64, 1, 1);
+                        commands.Clear();
+                        commands.SetRenderTarget(target);
+                        commands.ClearRenderTarget(true, true, Color.clear);
+                        commands.SetViewProjectionMatrices(Matrix4x4.identity, projection);
+                        commands.SetGlobalMatrix("unity_MatrixVP", projection);
+                        material.SetInteger("_WaterPagedDraw", 2);
+                        material.SetBuffer("_WaterLiveGeometry", _arena.LiveChunkGeometry);
+                        for (int handle = 0; handle < 3; handle++)
+                        {
+                            var properties = new MaterialPropertyBlock();
+                            properties.SetInteger("_WaterDrawHandle", handle);
+                            commands.DrawProceduralIndirect(Matrix4x4.identity, material, waterPass,
+                                MeshTopology.Triangles, directArgs, handle * 16, properties);
+                        }
+                        Graphics.ExecuteCommandBuffer(commands);
+                        pixels.ReadPixels(new Rect(0, 0, 192, 64), 0, 0);
+                        pixels.Apply();
+                        CollectionAssert.AreEqual(pagedPixels, pixels.GetPixels32(),
+                            "Direct-handle water addressing changed body/spray raster output.");
+                    }
+                    finally { UnityEngine.Object.DestroyImmediate(directShader); }
+                }
+            }
+            finally
+            {
+                RenderTexture.active = previous;
+                commands.Release();
+                target.Release();
+                UnityEngine.Object.DestroyImmediate(target);
+                UnityEngine.Object.DestroyImmediate(pixels);
+                UnityEngine.Object.DestroyImmediate(material);
+            }
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void IndexedStreamPreservesNoncontiguousPagesAcrossBankChangeAndRemoval(bool directSelection)
+        {
+            var records = new GeometryRecord[_arena.HandleCapacity];
+            var indices = new uint[_arena.Indices.count];
+            var vertexPages = new uint[_arena.VertexPageTable.count];
+            var indexPages = new uint[_arena.IndexPageTable.count];
+            // First chunk crosses an index-page boundary inside a triangle and maps both
+            // local vertex pages to nonadjacent physical pages. Second chunk uses bank one.
+            indexPages[0] = 3; indexPages[1] = 1;
+            vertexPages[0] = 2; vertexPages[1] = 0;
+            int bankOne = 3 * GpuSurfacePageArena.MaxIndexPagesPerChunk;
+            indexPages[bankOne] = 0; vertexPages[bankOne] = 3;
+            var expected = new uint[3006];
+            for (int i = 0; i < 3000; i++)
+            {
+                uint local = (uint)(i % 1500);
+                indices[(i < 2048 ? 3 : 1) * 2048 + i % 2048] = local;
+                expected[i] = (local < 1024 ? 2048u : 0u) + local % 1024;
+            }
+            for (int i = 0; i < 6; i++) { indices[i] = (uint)(i % 3); expected[3000+i] = 3072u+(uint)(i%3); }
+            records[0] = new GeometryRecord { GenerationLow=1, IndexCount=3000, VertexCount=1500,
+                VertexPageCount=2, IndexPageCount=2, Ready=1 };
+            records[1] = new GeometryRecord { GenerationLow=2, Bank=1, IndexCount=6, VertexCount=3,
+                VertexPageCount=1, IndexPageCount=1, Ready=1 };
+            _arena.Indices.SetData(indices); _arena.VertexPageTable.SetData(vertexPages);
+            _arena.IndexPageTable.SetData(indexPages); _arena.LiveChunkGeometry.SetData(records);
+            var indexed = _dispatcher.GetIndexedDraw();
+            using var commands = new CommandBuffer();
+            var args = new uint[5];
+            using var selected = new ComputeBuffer(_arena.HandleCapacity,4);
+            var mask = new uint[_arena.HandleCapacity]; mask[0]=1; mask[1]=1;
+            selected.SetData(mask);
+            for (int cycle=0; cycle<3; cycle++)
+            {
+                if (cycle==1)
+                {
+                    records[0].Ready=0;
+                    records[1].Bank=0; records[1].GenerationLow++;
+                    indexPages[1024]=0; vertexPages[1024]=1;
+                    _arena.IndexPageTable.SetData(indexPages); _arena.VertexPageTable.SetData(vertexPages);
+                    _arena.LiveChunkGeometry.SetData(records);
+                }
+                if (cycle==2) { records[1].Ready=0; _arena.LiveChunkGeometry.SetData(records); }
+                _dispatcher.Prepare(new [] { 0, 1 },cycle);
+                commands.Clear();
+                indexed.Record(commands,_dispatcher.ActiveDrawMetadata,_dispatcher.ActiveBucketState,
+                    directSelection ? selected : null);
+                Graphics.ExecuteCommandBuffer(commands);
+                indexed.Arguments.GetData(args);
+                CollectionAssert.AreEqual(new uint[] { cycle==0 ? 3006u : cycle==1 ? 6u : 0u, 1, 0, 0, 0 }, args);
+                if (cycle==2) continue;
+                var actual=new uint[args[0]]; indexed.Indices.GetData(actual,0,0,actual.Length);
+                if (cycle==1) CollectionAssert.AreEqual(new uint[] {1024,1025,1026,1024,1025,1026},actual);
+                else
+                {
+                    // Chunk reservation order is unspecified; triangle corner order is not.
+                    var want=new List<string>(); var got=new List<string>();
+                    for(int i=0;i<actual.Length;i+=3)
+                    {
+                        want.Add($"{expected[i]},{expected[i+1]},{expected[i+2]}");
+                        got.Add($"{actual[i]},{actual[i+1]},{actual[i+2]}");
+                    }
+                    CollectionAssert.AreEquivalent(want,got);
+                }
+            }
+        }
+
+        [Test]
+        public void SixHundredVisibleHandlesSurviveBucketPrefixAndScatterExactlyOnce()
+        {
+            var records = new GeometryRecord[_arena.HandleCapacity];
+            var visible = new List<int>(VisibleCount);
+            var expectedCounts = new uint[_arena.HandleCapacity];
+            for (int handle = 0; handle < VisibleCount; handle++)
+            {
+                // Spread the workload across many logarithmic buckets instead of validating a
+                // degenerate single-bucket fixture. Counts stay triangle-aligned but otherwise
+                // vary enough to exercise nonzero GPU metadata prefixes.
+                uint exponent = (uint)(4 + handle % 13);
+                uint lower = 1u << (int)exponent;
+                uint quarter = Math.Max(1u, lower / 4u);
+                uint raw = lower + (uint)(handle % 4) * quarter + (uint)(handle % 17);
+                uint indexCount = Math.Max(3u, raw - raw % 3u);
+                records[handle] = new GeometryRecord
+                {
+                    GenerationLow = (uint)(handle + 1),
+                    GenerationHigh = 0u,
+                    Bank = (uint)(handle & 1),
+                    VertexCount = indexCount / 2u + 8u,
+                    IndexCount = indexCount,
+                    VertexPageCount = 1u,
+                    IndexPageCount = 1u,
+                    Ready = 1u,
+                };
+                expectedCounts[handle] = indexCount;
+                visible.Add(handle);
+            }
+            _arena.LiveChunkGeometry.SetData(records);
+
+            _dispatcher.Prepare(visible, frame: 7);
+
+            var args = new uint[GpuSurfaceDrawDispatcher.BucketCount * 4];
+            var metadata = new DrawMetadata[_arena.HandleCapacity];
+            var bucketState = new uint[GpuSurfaceDrawDispatcher.BucketCount * 4];
+            _dispatcher.ActiveBucketState.GetData(bucketState);
+            _dispatcher.ActiveIndirectArgs.GetData(args);
+            _dispatcher.ActiveDrawMetadata.GetData(metadata);
+
+            int totalInstances = 0;
+            int expectedStart = 0;
+            var seen = new bool[_arena.HandleCapacity];
+            int nonEmptyBuckets = 0;
+            for (int bucket = 0; bucket < GpuSurfaceDrawDispatcher.BucketCount; bucket++)
+            {
+                int word = bucket * 4;
+                uint maxIndexCount = args[word + 0];
+                int instanceCount = unchecked((int)args[word + 1]);
+                uint startVertex = args[word + 2];
+                int startInstance = unchecked((int)bucketState[word + 2]);
+                Assert.That(args[word + 3], Is.Zero, "Metadata offsets must not depend on API base-instance semantics.");
+                Assert.That(startVertex, Is.Zero);
+                Assert.That(startInstance, Is.EqualTo(expectedStart),
+                    $"bucket {bucket} did not point at its scattered metadata prefix");
+                if (instanceCount > 0)
+                {
+                    nonEmptyBuckets++;
+                    Assert.That(maxIndexCount, Is.GreaterThan(0u));
+                }
+
+                for (int i = 0; i < instanceCount; i++)
+                {
+                    DrawMetadata draw = metadata[startInstance + i];
+                    Assert.That(draw.Handle, Is.LessThan((uint)VisibleCount));
+                    int handle = unchecked((int)draw.Handle);
+                    Assert.That(seen[handle], Is.False,
+                        $"handle {handle} was scattered more than once");
+                    seen[handle] = true;
+                    Assert.That(draw.IndexCount, Is.EqualTo(expectedCounts[handle]));
+                    Assert.That(draw.Bank, Is.EqualTo((uint)(handle & 1)));
+                    Assert.That(draw.IndexCount, Is.LessThanOrEqualTo(maxIndexCount));
+                    Assert.That((ulong)maxIndexCount * 2, Is.LessThan((ulong)draw.IndexCount * 3),
+                        "A half-power bucket must bound padded vertex work without clipping live indices.");
+                }
+
+                totalInstances += instanceCount;
+                expectedStart += instanceCount;
+            }
+
+            Assert.That(nonEmptyBuckets, Is.GreaterThan(8),
+                "Fixture must exercise many GPU bucket metadata offsets.");
+            Assert.That(totalInstances, Is.EqualTo(VisibleCount));
+            Assert.That(expectedStart, Is.EqualTo(VisibleCount));
+            for (int handle = 0; handle < VisibleCount; handle++)
+                Assert.That(seen[handle], Is.True, $"handle {handle} disappeared during compaction");
+        }
+    }
+}

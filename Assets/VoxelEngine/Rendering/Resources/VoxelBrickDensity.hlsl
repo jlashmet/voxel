@@ -220,17 +220,18 @@ uint HashBrickCoordinate(int3 coordinate)
     return h;
 }
 
+uint _PersistentDirectoryProbeCount;
+
 uint PersistentBrickEntry(int3 coordinate)
 {
     uint wordOffset = _BrickCache[1] >> 2;
     uint mask = _BrickCache[2] >> 2;
     uint start = HashBrickCoordinate(coordinate) & mask;
 
-    // The CPU directory inserts with the identical linear-probe rule. Ready regions contain every
-    // logical brick, including empty/uniform ones, so normal lookups terminate after very few probes;
-    // the full bound exists only to make collision handling exact rather than probabilistic.
+    uint limit = _PersistentDirectoryProbeCount == 0u ? mask + 1u
+        : min(_PersistentDirectoryProbeCount, mask + 1u);
     [loop]
-    for (uint probe = 0u; probe <= mask; probe++)
+    for (uint probe = 0u; probe < limit; probe++)
     {
         uint slot = (start + probe) & mask;
         uint word = wordOffset + slot * DIRECTORY_WORDS_PER_ENTRY;

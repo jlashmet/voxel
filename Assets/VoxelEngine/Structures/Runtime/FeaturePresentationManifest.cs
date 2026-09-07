@@ -9,7 +9,7 @@ namespace VoxelEngine.Structures.Runtime
     /// Horizontal sector membership keeps queries bounded while full 3D bake bounds remain the
     /// final intersection test. The manifest owns no world truth and may be rebuilt at any time.
     /// </summary>
-    public sealed class FeaturePresentationManifest : IFeaturePresentationSource
+    public sealed class FeaturePresentationManifest : IVersionedFeaturePresentationSource
     {
         public const int DefaultSectorSizeVoxels = 2560;
 
@@ -24,6 +24,7 @@ namespace VoxelEngine.Structures.Runtime
         }
 
         public int Count => _entries.Count;
+        public ulong Revision { get; private set; }
 
         public void Upsert(FeaturePresentationBake bake)
         {
@@ -32,6 +33,7 @@ namespace VoxelEngine.Structures.Runtime
             if (_entries.TryGetValue(bake.SourceId, out Entry previous))
                 RemoveMembership(bake.SourceId, previous.Sectors);
 
+            Revision++;
             Sector[] sectors = ResolveSectors(bake);
             _entries[bake.SourceId] = new Entry(bake, sectors);
             for (int i = 0; i < sectors.Length; i++)
@@ -48,6 +50,7 @@ namespace VoxelEngine.Structures.Runtime
         public bool Remove(ulong sourceId)
         {
             if (!_entries.TryGetValue(sourceId, out Entry entry)) return false;
+            Revision++;
             RemoveMembership(sourceId, entry.Sectors);
             return _entries.Remove(sourceId);
         }

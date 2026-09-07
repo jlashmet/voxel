@@ -9,6 +9,7 @@
         "VoxelEngine.Simulation.Runtime",
         "VoxelEngine.Composition",
         "VoxelEngine.Terrain.Api",
+        "VoxelEngine.Rendering.Api",
         "VoxelEngine.Rendering.Runtime",
         "VoxelEngine.Net.Api",
         "VoxelEngine.Net.Runtime",
@@ -54,7 +55,8 @@
         "VoxelEngine.Characters.Runtime",
         "Game.Structures.Api",
         "Game.Structures.Runtime",
-        "Game.Materials.Api"
+        "Game.Materials.Api",
+        "VoxelEngine.Rendering.Tests.RuntimeSupport"
     ],
     "includePlatforms": ["Editor"],
     "excludePlatforms": [],

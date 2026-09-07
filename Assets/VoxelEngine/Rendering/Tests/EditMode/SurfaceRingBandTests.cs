@@ -62,8 +62,8 @@ namespace VoxelEngine.Tests.EditMode
             // vastly more world for the same 64³ lattice.
             foreach (int step in new[] { 1, 2, 4, 8, 16 })
             {
-                using var cache = new CpuTransvoxelChunkCache(step);
-                Assert.AreEqual(CpuTransvoxelChunkCache.CellsPerAxis * step, cache.VoxelsPerAxis,
+                using var cache = new GpuSolidChunkCache(step);
+                Assert.AreEqual(GpuSolidChunkCache.CellsPerAxis * step, cache.VoxelsPerAxis,
                     $"Step {step} must span {step}x the base chunk.");
                 Assert.AreEqual(step, cache.SourceStep);
             }
@@ -75,11 +75,11 @@ namespace VoxelEngine.Tests.EditMode
             // Chunk coordinates and brick decomposition are shifts; a non-power-of-two stride
             // would silently misalign a ring against the brick grid.
             Assert.Throws<System.ArgumentOutOfRangeException>(
-                () => new CpuTransvoxelChunkCache(3));
+                () => new GpuSolidChunkCache(3));
             Assert.Throws<System.ArgumentOutOfRangeException>(
-                () => new CpuTransvoxelChunkCache(0));
+                () => new GpuSolidChunkCache(0));
             Assert.Throws<System.ArgumentOutOfRangeException>(
-                () => new CpuTransvoxelChunkCache(-2));
+                () => new GpuSolidChunkCache(-2));
         }
 
         [Test]
@@ -88,18 +88,18 @@ namespace VoxelEngine.Tests.EditMode
             // Step 8 keeps exact COW Storage inputs but no longer runs exact Transvoxel. It
             // compresses those inputs into spatial 4^3 HLOD subcells; coarser experimental rings
             // beyond step 8 may still consume the conventional mip pyramid.
-            using (var fine = new CpuTransvoxelChunkCache(1))
+            using (var fine = new GpuSolidChunkCache(1))
                 Assert.IsFalse(fine.SamplesFromMips, "Step 1 must read voxels.");
-            using (var fine2 = new CpuTransvoxelChunkCache(4))
+            using (var fine2 = new GpuSolidChunkCache(4))
                 Assert.IsFalse(fine2.SamplesFromMips, "Step 4 is still sub-brick.");
-            using (var coarse = new CpuTransvoxelChunkCache(8))
+            using (var coarse = new GpuSolidChunkCache(8))
             {
                 Assert.IsFalse(coarse.SamplesFromMips,
                     "Step 8 must not use conservative any-solid block summaries as render density.");
                 Assert.IsTrue(coarse.UsesBlockHlod,
                     "Step 8 must derive its coarse mesh from feature-preserving exact block inputs.");
             }
-            using (var coarser = new CpuTransvoxelChunkCache(16))
+            using (var coarser = new GpuSolidChunkCache(16))
                 Assert.IsTrue(coarser.SamplesFromMips);
         }
 
@@ -130,7 +130,7 @@ namespace VoxelEngine.Tests.EditMode
             // A ring's chunk must be a whole number of bricks or its mip samples straddle cells.
             foreach (int step in new[] { 8, 16 })
             {
-                using var cache = new CpuTransvoxelChunkCache(step);
+                using var cache = new GpuSolidChunkCache(step);
                 Assert.AreEqual(0, cache.VoxelsPerAxis % VoxelDimensions.BrickEdge,
                     $"Step {step} chunk must be a whole number of bricks.");
                 Assert.AreEqual(cache.VoxelsPerAxis / VoxelDimensions.BrickEdge,
@@ -142,7 +142,7 @@ namespace VoxelEngine.Tests.EditMode
         // Band partitioning
         // -------------------------------------------------------------------------
 
-        private static CpuTransvoxelChunkCache Ring(int step, float inner, float outer) =>
+        private static GpuSolidChunkCache Ring(int step, float inner, float outer) =>
             new(step) { MinViewDistanceMetres = inner, MaxViewDistanceMetres = outer };
 
         [Test]
@@ -202,7 +202,7 @@ namespace VoxelEngine.Tests.EditMode
 
             foreach (var ring in layout)
             {
-                float chunkMetres = CpuTransvoxelChunkCache.CellsPerAxis * ring.step * voxelSize;
+                float chunkMetres = GpuSolidChunkCache.CellsPerAxis * ring.step * voxelSize;
                 Assert.GreaterOrEqual(ring.outer - ring.inner, chunkMetres,
                     $"Step {ring.step} chunks are {chunkMetres} m but its band is only "
                   + $"{ring.outer - ring.inner} m deep.");
@@ -218,7 +218,7 @@ namespace VoxelEngine.Tests.EditMode
             float previous = 0f;
             foreach (int step in new[] { 1, 2, 4, 8 })
             {
-                float chunkMetres = CpuTransvoxelChunkCache.CellsPerAxis * step * voxelSize;
+                float chunkMetres = GpuSolidChunkCache.CellsPerAxis * step * voxelSize;
                 Assert.Greater(chunkMetres, previous);
                 previous = chunkMetres;
             }
@@ -400,7 +400,7 @@ namespace VoxelEngine.Tests.EditMode
         {
             // Air dominates any view volume. If an empty result held a resident slot, real
             // geometry would be evicted to make room for nothing.
-            using var cache = new CpuTransvoxelChunkCache(1) { MaxResidentChunks = 8 };
+            using var cache = new GpuSolidChunkCache(1) { MaxResidentChunks = 8 };
             Assert.AreEqual(0, cache.ResidentCount,
                 "A cache that has built nothing holds nothing.");
         }

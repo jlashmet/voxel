@@ -65,6 +65,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         /// <summary>Requests refused because every slot was pinned.</summary>
         public ulong RefusedCount { get; private set; }
 
+        internal ulong EvictionCandidateChecks { get; private set; }
+
         /// <summary>Deltas dropped for describing an older generation than the slot already holds.</summary>
         public ulong StaleCount { get; private set; }
 
@@ -214,9 +216,13 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             }
 
             slot = -1;
+            // Coordinator-managed mirrors pin every resident slot and reclaim explicitly.
+            // The maintained count already proves that an LRU walk cannot find a victim.
+            if (PinnedCount == Capacity) return false;
             long coldest = long.MaxValue;
             for (int i = 0; i < _slots.Length; i++)
             {
+                EvictionCandidateChecks++;
                 if (!_slots[i].Occupied || _slots[i].Pinned) continue;
                 if (_slots[i].LastTouched >= coldest) continue;
                 coldest = _slots[i].LastTouched;

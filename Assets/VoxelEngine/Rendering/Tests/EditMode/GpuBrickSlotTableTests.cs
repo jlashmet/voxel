@@ -18,6 +18,35 @@ namespace VoxelEngine.Tests.EditMode
             VoxelBrickDelta.MixedAt(new int3(x, 0, 0), generation, slot);
 
         [Test]
+        public void FullyPinnedMirrorRejectsWithoutScanningAndRecoversAfterReleaseOrUnpin()
+        {
+            const int capacity = 40270;
+            var table = new GpuBrickSlotTable(capacity);
+            for (int i = 0; i < capacity; i++)
+            {
+                Assert.That(table.TryAdmit(Mixed(i), out _), Is.EqualTo(GpuBrickAdmission.Admitted));
+                table.Pin(new int3(i, 0, 0));
+            }
+            for (int i = 0; i < 32; i++)
+                Assert.That(table.TryAdmit(Mixed(capacity + i), out int denied),
+                    Is.EqualTo(GpuBrickAdmission.Full));
+            Assert.That(table.EvictionCandidateChecks, Is.Zero,
+                "The pin count proves exhaustion; retries must not walk the resident mirror.");
+            Assert.That(table.PinnedCount, Is.EqualTo(capacity));
+            Assert.That(table.RefusedCount, Is.EqualTo(32));
+            int3 first = int3.zero;
+            Assert.That(table.Release(first), Is.True);
+            Assert.That(table.TryAdmit(Mixed(capacity), out _), Is.EqualTo(GpuBrickAdmission.Admitted));
+            Assert.That(table.EvictionCandidateChecks, Is.Zero);
+            table.Pin(new int3(capacity, 0, 0));
+            Assert.That(table.Unpin(new int3(1, 0, 0)), Is.True);
+            Assert.That(table.TryAdmit(Mixed(capacity + 1), out _), Is.EqualTo(GpuBrickAdmission.Admitted));
+            Assert.That(table.TryGetSlot(new int3(1, 0, 0), out _), Is.False);
+            Assert.That(table.EvictionCount, Is.EqualTo(1));
+            Assert.That(table.PinnedCount, Is.EqualTo(capacity - 1));
+        }
+
+        [Test]
         public void MixedBrickTakesASlotAndIsFoundByCoordinate()
         {
             var table = new GpuBrickSlotTable(4);

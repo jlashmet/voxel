@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using VoxelEngine.Rendering.Tests.RuntimeSupport;
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
@@ -20,38 +21,20 @@ namespace VoxelEngine.Tests.PlayMode
             const float voxelSize = 0.25f;
             var brickBases = new NativeArray<int3>(1, Allocator.Temp,
                 NativeArrayOptions.ClearMemory);
-            var snapshot = new NativeArray<byte>(WaterBrickMeshBatchJob.SnapshotStride,
+            var snapshot = new NativeArray<byte>(GpuWaterExtractionFixture.SnapshotStride,
                 Allocator.Temp, NativeArrayOptions.ClearMemory);
-            var mask = new NativeArray<byte>(WaterBrickMeshBatchJob.FaceArea, Allocator.Temp,
-                NativeArrayOptions.ClearMemory);
             var vertices = new NativeList<SmoothSurfaceVertex>(256, Allocator.Temp);
             var indices = new NativeList<uint>(384, Allocator.Temp);
-            var overflow = new NativeArray<int>(1, Allocator.Temp,
-                NativeArrayOptions.ClearMemory);
 
             try
             {
                 // Independent one-voxel-wide vertical ribbon. Material 7 is intentionally arbitrary:
                 // shared extraction only receives the semantic water mask, never a game material ID.
                 for (int y = 2; y <= 5; y++)
-                    snapshot[3 + y * WaterBrickMeshBatchJob.Edge
-                               + 3 * WaterBrickMeshBatchJob.Edge * WaterBrickMeshBatchJob.Edge] = water;
+                    snapshot[3 + y * GpuWaterExtractionFixture.Edge
+                               + 3 * GpuWaterExtractionFixture.Edge * GpuWaterExtractionFixture.Edge] = water;
 
-                var job = new WaterBrickMeshBatchJob
-                {
-                    BrickBaseVoxels = brickBases,
-                    SnapshotMaterials = snapshot,
-                    WaterMaterialMask = 1u << water,
-                    BatchCount = 1,
-                    VoxelSize = voxelSize,
-                    MaskScratch = mask,
-                    Vertices = vertices,
-                    Indices = indices,
-                    Overflow = overflow,
-                };
-                job.Execute();
-
-                Assert.That(overflow[0], Is.Zero);
+                GpuWaterExtractionFixture.Extract(brickBases, snapshot, 1u << water, voxelSize, vertices, indices);
                 Assert.That(vertices.Length, Is.GreaterThan(0));
                 int verticalCount = 0;
                 int lipCount = 0;
@@ -125,18 +108,15 @@ namespace VoxelEngine.Tests.PlayMode
             {
                 brickBases.Dispose();
                 snapshot.Dispose();
-                mask.Dispose();
                 vertices.Dispose();
                 indices.Dispose();
-                overflow.Dispose();
             }
         }
 
         [Test]
         public void WaterfallBodyPunchesRealCoverageWhileStillWaterRemainsContinuous()
         {
-            var arena = new SurfaceGeometryArena(1024, 2048, 8);
-            var entry = new CpuWaterSurfaceChunkCache.Entry(int3.zero, arena);
+            var entry = new GpuWaterRasterFixture();
             var vertices = new NativeList<SmoothSurfaceVertex>(4, Allocator.Temp);
             var indices = new NativeList<uint>(6, Allocator.Temp);
             Material material = null;
@@ -150,10 +130,7 @@ namespace VoxelEngine.Tests.PlayMode
                 AddBodyQuad(vertices, GameMaterialIds.Water);
                 AddQuadIndices(indices);
 
-                int byteBudget = vertices.Length * SmoothSurfaceVertex.Stride
-                               + indices.Length * sizeof(uint)
-                               + SurfaceGeometryArena.ArgsWordsPerDraw * sizeof(uint);
-                Assert.That(entry.AdvanceUpload(vertices, indices, byteBudget, out _), Is.True);
+                entry.SetGeometry(vertices, indices);
 
                 Shader shader = Shader.Find("Hidden/VoxelEngine/WaterSurface");
                 Assert.That(shader, Is.Not.Null);
@@ -172,7 +149,7 @@ namespace VoxelEngine.Tests.PlayMode
 
                 vertices.Clear();
                 AddBodyQuad(vertices, GameMaterialIds.Cascade);
-                Assert.That(entry.AdvanceUpload(vertices, indices, byteBudget, out _), Is.True);
+                entry.SetGeometry(vertices, indices);
                 int waterfallPixels = RenderAndCountVisiblePixels(
                     entry, material, commandBuffer, target, readback);
 
@@ -195,7 +172,6 @@ namespace VoxelEngine.Tests.PlayMode
                 if (material != null) Object.DestroyImmediate(material);
                 vertices.Dispose();
                 indices.Dispose();
-                arena.Dispose();
                 VoxelMaterialPresentationInstaller.Apply(GameMaterialRenderingDefinitions.Create());
             }
         }
@@ -203,8 +179,7 @@ namespace VoxelEngine.Tests.PlayMode
         [Test]
         public void SprayTaggedArenaGeometryRasterizesOnlyForWaterfallProfile()
         {
-            var arena = new SurfaceGeometryArena(1024, 2048, 8);
-            var entry = new CpuWaterSurfaceChunkCache.Entry(int3.zero, arena);
+            var entry = new GpuWaterRasterFixture();
             var vertices = new NativeList<SmoothSurfaceVertex>(4, Allocator.Temp);
             var indices = new NativeList<uint>(6, Allocator.Temp);
             Material material = null;
@@ -221,12 +196,7 @@ namespace VoxelEngine.Tests.PlayMode
                 AddSprayQuad(vertices, GameMaterialIds.Cascade, sprayFlags);
                 AddQuadIndices(indices);
 
-                int byteBudget = vertices.Length * SmoothSurfaceVertex.Stride
-                               + indices.Length * sizeof(uint)
-                               + SurfaceGeometryArena.ArgsWordsPerDraw * sizeof(uint);
-                Assert.That(entry.AdvanceUpload(vertices, indices, byteBudget, out _), Is.True);
-                Assert.That(entry.HasSpray, Is.True,
-                    "Publishing spray-tagged canonical geometry must enable only that entry's spray pass.");
+                entry.SetGeometry(vertices, indices);
 
                 Shader shader = Shader.Find("Hidden/VoxelEngine/WaterSurface");
                 Assert.That(shader, Is.Not.Null);
@@ -247,8 +217,7 @@ namespace VoxelEngine.Tests.PlayMode
 
                 vertices.Clear();
                 AddSprayQuad(vertices, GameMaterialIds.Water, sprayFlags);
-                Assert.That(entry.AdvanceUpload(vertices, indices, byteBudget, out _), Is.True);
-                Assert.That(entry.HasSpray, Is.True);
+                entry.SetGeometry(vertices, indices);
                 int stillPixels = RenderAndCountVisiblePixels(
                     entry, material, commandBuffer, target, readback);
                 Assert.That(stillPixels, Is.Zero,
@@ -268,17 +237,14 @@ namespace VoxelEngine.Tests.PlayMode
                 if (material != null) Object.DestroyImmediate(material);
                 vertices.Dispose();
                 indices.Dispose();
-                arena.Dispose();
                 VoxelMaterialPresentationInstaller.Apply(GameMaterialRenderingDefinitions.Create());
             }
         }
 
         [Test]
-        public void SecondWaterEntryBindsExplicitArenaOffsets()
+        public void SecondWaterHandleBindsExplicitPagedIdentityAndIndirectArguments()
         {
-            var arena = new SurfaceGeometryArena(1024, 2048, 8);
-            Assert.That(arena.TryAcquire(3, 3, out SurfaceGeometryLease blocker), Is.True);
-            var entry = new CpuWaterSurfaceChunkCache.Entry(int3.zero, arena);
+            var entry = new GpuWaterRasterFixture();
             var vertices = new NativeList<SmoothSurfaceVertex>(3, Allocator.Temp);
             var indices = new NativeList<uint>(3, Allocator.Temp);
             Material material = null;
@@ -297,12 +263,7 @@ namespace VoxelEngine.Tests.PlayMode
                 indices.Add(1u);
                 indices.Add(2u);
 
-                int byteBudget = vertices.Length * SmoothSurfaceVertex.Stride
-                               + indices.Length * sizeof(uint)
-                               + SurfaceGeometryArena.ArgsWordsPerDraw * sizeof(uint);
-                Assert.That(entry.AdvanceUpload(vertices, indices, byteBudget, out _), Is.True);
-                Assert.That(entry.HasSpray, Is.False,
-                    "Ordinary water entries must not pay the extra spray draw without spray-tagged geometry.");
+                entry.SetGeometry(vertices, indices);
 
                 Shader shader = Shader.Find("Hidden/VoxelEngine/WaterSurface");
                 Assert.That(shader, Is.Not.Null);
@@ -310,26 +271,23 @@ namespace VoxelEngine.Tests.PlayMode
                 var properties = new MaterialPropertyBlock();
                 entry.Draw(commandBuffer, material, properties);
 
-                Assert.That(properties.GetInt(Shader.PropertyToID("_SurfaceVertexBase")),
-                            Is.EqualTo(256),
-                    "The second independently aligned vertex lease must be explicit draw state.");
-                Assert.That(properties.GetInt(Shader.PropertyToID("_SurfaceIndexBase")),
-                            Is.EqualTo(512));
-
-                var args = new uint[arena.ArgsRecordCapacity * SurfaceGeometryArena.ArgsWordsPerDraw];
-                arena.Args.GetData(args);
-                Assert.That(args[SurfaceGeometryArena.ArgsWordsPerDraw + 3], Is.EqualTo(0u),
-                    "startInstance must stay neutral because Metal does not deliver it as SV_InstanceID here.");
+                Assert.That(properties.GetInteger(Shader.PropertyToID("_WaterDrawHandle")), Is.EqualTo(1),
+                    "The second handle must be explicit draw state, independent of Metal base-instance behavior.");
+                Assert.That(properties.GetInteger(Shader.PropertyToID("_WaterPagedDraw")), Is.EqualTo(2));
+                uint[] args = entry.ReadArguments();
+                Assert.That(args[0], Is.EqualTo(3));
+                Assert.That(args[1], Is.EqualTo(1));
+                Assert.That(args[2], Is.Zero);
+                Assert.That(args[3], Is.Zero,
+                    "startInstance stays neutral; the vertex shader selects the explicit water handle.");
             }
             finally
             {
                 entry.Dispose();
-                arena.Release(in blocker);
                 commandBuffer.Release();
                 if (material != null) Object.DestroyImmediate(material);
                 vertices.Dispose();
                 indices.Dispose();
-                arena.Dispose();
             }
         }
 
@@ -411,7 +369,7 @@ namespace VoxelEngine.Tests.PlayMode
         }
 
         private static int RenderAndCountVisiblePixels(
-            CpuWaterSurfaceChunkCache.Entry entry, Material material,
+            GpuWaterRasterFixture entry, Material material,
             CommandBuffer commandBuffer, RenderTexture target, Texture2D readback)
         {
             commandBuffer.Clear();

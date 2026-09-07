@@ -21,6 +21,7 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
             #pragma target 4.5
             #pragma vertex Vert
             #pragma fragment Frag
+            #pragma multi_compile_local _ VOXEL_HARDWARE_INDEXED
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
             struct SurfaceVertex
@@ -31,16 +32,6 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
                 uint active;
             };
 
-            StructuredBuffer<SurfaceVertex> _SurfaceVertices;
-            StructuredBuffer<uint> _SurfaceIndices;
-            struct SurfaceDrawMetadata
-            {
-                uint indexStart;
-                uint vertexStart;
-                uint indexCount;
-                uint padding;
-            };
-            StructuredBuffer<SurfaceDrawMetadata> _SurfaceDrawMetadata;
             struct PagedDrawMetadata
             {
                 uint handle;
@@ -49,18 +40,16 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
                 uint padding;
             };
             StructuredBuffer<PagedDrawMetadata> _PagedDrawMetadata;
+            StructuredBuffer<uint> _PagedDrawBucketState;
+            uint _PagedDrawBucket;
             StructuredBuffer<SurfaceVertex> _PagedSurfaceVertices;
             StructuredBuffer<uint> _PagedSurfaceIndices;
             StructuredBuffer<uint> _PagedVertexPageTable;
             StructuredBuffer<uint> _PagedIndexPageTable;
-            uint _SurfacePagedDraw;
             uint _PagedVertexPageSize;
             uint _PagedIndexPageSize;
             uint _PagedMaxVertexPagesPerChunk;
             uint _PagedMaxIndexPagesPerChunk;
-            uint _SurfaceDrawBase;
-            uint _SurfaceIndexBase;
-            uint _SurfaceVertexBase;
             float4 _BaseColor;
             float4 _MaterialAlbedo[32];
             float4 _MaterialSampling[32];
@@ -108,19 +97,12 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
             Varyings Vert(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
             {
                 Varyings output;
-                PagedDrawMetadata pagedDraw;
-                SurfaceDrawMetadata cpuDraw;
-                uint indexCount = 0u;
-                if (_SurfacePagedDraw != 0u)
-                {
-                    pagedDraw = _PagedDrawMetadata[instanceID];
-                    indexCount = pagedDraw.indexCount;
-                }
-                else
-                {
-                    cpuDraw = _SurfaceDrawMetadata[_SurfaceDrawBase + instanceID];
-                    indexCount = cpuDraw.indexCount;
-                }
+                #if defined(VOXEL_HARDWARE_INDEXED)
+                uint physicalVertex = vertexID;
+                #else
+                uint metadataStart = _PagedDrawBucketState[_PagedDrawBucket * 4u + 2u];
+                PagedDrawMetadata pagedDraw = _PagedDrawMetadata[metadataStart + instanceID];
+                uint indexCount = pagedDraw.indexCount;
                 if (vertexID >= indexCount)
                 {
                     output.positionCS = float4(0.0, 0.0, 0.0, 0.0);
@@ -131,28 +113,19 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
                     output.blendCoverage = 0.0;
                     return output;
                 }
-                SurfaceVertex vertex;
-                if (_SurfacePagedDraw != 0u)
-                {
-                    uint indexPage = vertexID / _PagedIndexPageSize;
-                    uint indexTable = (pagedDraw.handle * 2u + pagedDraw.bank)
-                                    * _PagedMaxIndexPagesPerChunk + indexPage;
-                    uint physicalIndex = _PagedIndexPageTable[indexTable] * _PagedIndexPageSize
-                                       + vertexID % _PagedIndexPageSize;
-                    uint localVertex = _PagedSurfaceIndices[physicalIndex];
-                    uint vertexPage = localVertex / _PagedVertexPageSize;
-                    uint vertexTable = (pagedDraw.handle * 2u + pagedDraw.bank)
-                                     * _PagedMaxVertexPagesPerChunk + vertexPage;
-                    uint physicalVertex = _PagedVertexPageTable[vertexTable] * _PagedVertexPageSize
-                                        + localVertex % _PagedVertexPageSize;
-                    vertex = _PagedSurfaceVertices[physicalVertex];
-                }
-                else
-                {
-                    vertex = _SurfaceVertices[
-                        cpuDraw.vertexStart
-                      + _SurfaceIndices[cpuDraw.indexStart + vertexID]];
-                }
+                uint indexPage = vertexID / _PagedIndexPageSize;
+                uint indexTable = (pagedDraw.handle * 2u + pagedDraw.bank)
+                                * _PagedMaxIndexPagesPerChunk + indexPage;
+                uint physicalIndex = _PagedIndexPageTable[indexTable] * _PagedIndexPageSize
+                                   + vertexID % _PagedIndexPageSize;
+                uint localVertex = _PagedSurfaceIndices[physicalIndex];
+                uint vertexPage = localVertex / _PagedVertexPageSize;
+                uint vertexTable = (pagedDraw.handle * 2u + pagedDraw.bank)
+                                 * _PagedMaxVertexPagesPerChunk + vertexPage;
+                uint physicalVertex = _PagedVertexPageTable[vertexTable] * _PagedVertexPageSize
+                                + localVertex % _PagedVertexPageSize;
+                #endif
+                SurfaceVertex vertex = _PagedSurfaceVertices[physicalVertex];
                 output.positionCS = TransformWorldToHClip(vertex.position);
                 output.positionWS = vertex.position;
                 output.normalNS = normalize(vertex.normal);
@@ -189,13 +162,21 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
             {
                 float layer = sampling.x;
                 float scale = surface.x;
-                float3 face = SampleAlbedoLayer(layer, SurfaceUV(normal, hitVoxel) * scale);
+                float projection = saturate(sampling.z);
+                // Catalogue projection modes are normally endpoints. Preserve fractional blends,
+                // but do not sample the unused projection for ordinary face/triplanar materials.
+                [branch]
+                if (projection <= 0.0)
+                    return SampleAlbedoLayer(layer, SurfaceUV(normal, hitVoxel) * scale);
                 float3 weights = pow(abs(normal), 4.0);
                 weights /= max(weights.x + weights.y + weights.z, 0.0001);
                 float3 triplanar = SampleAlbedoLayer(layer, hitVoxel.zy * scale) * weights.x
                                  + SampleAlbedoLayer(layer, hitVoxel.xz * scale) * weights.y
                                  + SampleAlbedoLayer(layer, hitVoxel.xy * scale) * weights.z;
-                return lerp(face, triplanar, saturate(sampling.z));
+                [branch]
+                if (projection >= 1.0) return triplanar;
+                float3 face = SampleAlbedoLayer(layer, SurfaceUV(normal, hitVoxel) * scale);
+                return lerp(face, triplanar, projection);
             }
 
             float3 SampleSurfaceNormal(float4 sampling, float4 surface,
@@ -244,11 +225,16 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
                 float4 variation = _MaterialVariation[material];
                 float3 albedo = _MaterialAlbedo[material].rgb;
 
-                float3 mappedNormal = SampleSurfaceNormal(sampling, surface,
-                                                          faceNormal, hitVoxel);
                 float normalStrength = surface.y;
                 normalStrength *= 1.0 - smoothstep(18.0, 64.0, hitDistance);
-                response.normal = normalize(lerp(faceNormal, mappedNormal, normalStrength));
+                response.normal = normalize(faceNormal);
+                [branch]
+                if (normalStrength != 0.0)
+                {
+                    float3 mappedNormal = SampleSurfaceNormal(sampling, surface,
+                                                              faceNormal, hitVoxel);
+                    response.normal = normalize(lerp(faceNormal, mappedNormal, normalStrength));
+                }
 
                 float3 textured = SampleMaterialAlbedo(sampling, surface,
                                                        hitVoxel, response.normal);

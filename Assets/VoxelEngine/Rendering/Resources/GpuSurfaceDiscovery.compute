@@ -1,0 +1,44 @@
+#pragma kernel CSClearRegionMap
+#pragma kernel CSIndexRegions
+#pragma kernel CSQueryDiscovery
+
+#include "GpuSurfaceDiscovery.hlsl"
+StructuredBuffer<int4> _DiscoveryQueries;
+RWStructuredBuffer<uint> _DiscoveryResults;
+uint _DiscoveryQueryCount;
+
+[numthreads(64,1,1)]
+void CSClearRegionMap(uint3 id:SV_DispatchThreadID)
+{
+    if(id.x<_DiscoveryMapCapacity)_DiscoveryMap[id.x]=0u;
+}
+
+[numthreads(64,1,1)]
+void CSIndexRegions(uint3 id:SV_DispatchThreadID)
+{
+    if(id.x>=_DiscoveryRegionCount)return;
+    uint base=id.x*20u;
+    int3 region=int3(_DiscoveryWords[base],_DiscoveryWords[base+1u],_DiscoveryWords[base+2u]);
+    uint slot=RegionHash(region);
+    for(uint probe=0u;probe<_DiscoveryMapCapacity;probe++)
+    {
+        uint prior;
+        InterlockedCompareExchange(_DiscoveryMap[slot],0u,id.x+1u,prior);
+        if(prior==0u)return;
+        slot=(slot+1u)&(_DiscoveryMapCapacity-1u);
+    }
+}
+
+[numthreads(64,1,1)]
+void CSQueryDiscovery(uint3 id:SV_DispatchThreadID)
+{
+    if(id.x>=_DiscoveryQueryCount)return;
+    int4 query=_DiscoveryQueries[id.x];
+    bool empty=query.w==1 || query.w==2 || query.w==4 || query.w==8;
+    int3 min=query.xyz*query.w;
+    for(int z=0;empty && z<query.w;z++)
+    for(int y=0;empty && y<query.w;y++)
+    for(int x=0;empty && x<query.w;x++)
+        empty=DiscoveryCellState(min+int3(x,y,z))==1u;
+    _DiscoveryResults[id.x]=empty?1u:0u;
+}

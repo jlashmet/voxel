@@ -119,6 +119,7 @@ namespace VoxelEngine.Tests.EditMode
             shader.SetBuffer(kernel, "_PersistentLookupHeader", header);
             shader.SetBuffer(kernel, "_ResolvedBrickCacheRequests", requestBuffer);
             shader.SetBuffer(kernel, "_ResolvedBrickCacheWrite", resolved);
+            shader.SetInt("_PersistentDirectoryProbeCount", directoryCapacity);
             shader.SetInt("_ResolvedBrickCacheEdge", edge);
             shader.SetInt("_ResolvedBrickCacheRequestCount", requests.Length);
             shader.Dispatch(kernel, (sliceLength + 63) / 64, requests.Length, 1);

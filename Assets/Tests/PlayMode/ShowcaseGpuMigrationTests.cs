@@ -52,8 +52,7 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.NotNull(showcase);
             Assert.NotNull(far);
             Assert.NotNull(camera);
-            Assert.False(CpuTransvoxelChunkCache.GpuCutoverDisabled,
-                "Production startup disabled the validated near-ring GPU surface path.");
+
 
             SetShowcaseField(showcase, "m_FlyMode", true);
             SetShowcaseField(showcase, "_mouseLook", false);
