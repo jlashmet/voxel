@@ -48,6 +48,51 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             if (_arenaShader != null) UnityEngine.Object.DestroyImmediate(_arenaShader);
         }
 
+        [TestCase(1)]
+        [TestCase(2)]
+        [TestCase(4)]
+        [TestCase(8)]
+        public void DeniedAdmissionRetainsNoSourceDemandOrEditWatch(int step)
+        {
+            using var storage = VoxelEngineBootstrap.CreateStorage(1, 1);
+            storage.Residency.EnsureRegionResident(int3.zero);
+            var previousSource = Runtime.VoxelRenderBridge.Source;
+            var previousChanges = Runtime.VoxelRenderBridge.Changes;
+            var world = new Runtime.VoxelWorldView { Storage = storage.Reads,
+                SurfaceCatalogueView = VoxelEngine.Storage.Runtime.SurfaceCatalogue.CreateBuiltIns(),
+                CoatingCatalogueView = VoxelEngine.Storage.Runtime.CoatingCatalogue.CreateBuiltIns() };
+            int held = 0; ulong epoch = 0;
+            try
+            {
+                Runtime.VoxelRenderBridge.Source = () => world;
+                Runtime.VoxelRenderBridge.Changes = storage.Changes;
+                Assert.That(GpuSurfaceMirrorCoordinator.PrepareFromBridge(storage.Reads.Version), Is.True);
+                for (; held < GpuSurfaceMirrorCoordinator.MaxConcurrentExtractionChains; held++)
+                    Assert.That(GpuSurfaceMirrorCoordinator.TryBeginExtraction(int3.zero, 0, out epoch), Is.True);
+                var request = new GpuChunkExtraction(int3.zero, int3.zero, step, 0.1f);
+                var admit = typeof(GpuSurfaceExtractionContext).GetMethod("BeginPersistentStage", Fields);
+                Assert.That(admit.Invoke(_first, new object[] { request, storage.Reads.Version }), Is.False);
+                Assert.That(GpuSurfaceMirrorCoordinator.DemandFootprintCount, Is.Zero);
+                Assert.That(Get(_first, "_coverageRequested"), Is.False,
+                    "A waiting request must not retain sources or register an edit watch.");
+                GpuSurfaceMirrorCoordinator.EndExtraction(int3.zero, 0, epoch); held--;
+                typeof(GpuSurfaceExtractionContext).GetField("_lastCoveragePollFrame", Fields).SetValue(_first, -1);
+                Assert.That(admit.Invoke(_first, new object[] { request, storage.Reads.Version }), Is.True);
+                Assert.That(Get(_first, "_coverageRequested"), Is.True);
+                Assert.That(GpuSurfaceMirrorCoordinator.DemandFootprintCount, Is.EqualTo(step == 8 ? 0 : 1));
+                _first.Release();
+                Assert.That(GpuSurfaceMirrorCoordinator.DemandFootprintCount, Is.Zero);
+                Assert.That(GpuSurfaceMirrorCoordinator.ActiveExtractions, Is.EqualTo(held));
+            }
+            finally
+            {
+                _first.Release();
+                while (held-- > 0) GpuSurfaceMirrorCoordinator.EndExtraction(int3.zero, 0, epoch);
+                Runtime.VoxelRenderBridge.Source = previousSource;
+                Runtime.VoxelRenderBridge.Changes = previousChanges;
+            }
+        }
+
         private static IEnumerator PrepareSources(object lane)
         {
             var advance = lane.GetType().GetMethod("AdvanceSummaryPreparation", Fields);

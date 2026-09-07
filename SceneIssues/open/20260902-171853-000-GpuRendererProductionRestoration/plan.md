@@ -40,8 +40,12 @@ Not400FPS or complete readiness; mixed-slot pressure remains307,479 no-slot atte
 ## Next experiment and fix
 
 H1: waiting requests protect too much mixed source data. BeginPersistentStage registers full fine
-demand before TryBeginExtraction can refuse admission. Move demand after admission; test denied
-requests retain nothing, then measure whether admitted footprints need mixed-slot arbitration.
+demand before TryBeginExtraction can refuse admission. Demand now starts only after extraction/handle admission. Four regression cases fail before
+and pass after; all492 Rendering tests pass. Module48s/seven captures passes with zero missing,
+frame p95/p99 .821/.995ms and262.4MB. Showcase180s/12 captures passes harness but regresses coverage:290/173FPS,519 missing,
+coarse publications3,oldest29.3s; no-slot256,528. Higher static FPS is not accepted with less
+finished content. Admission ordering alone is insufficient; next isolate competing admitted
+fine footprints with a bounded-pressure GPU regression and preserve completed dense slot IDs.
 H2: camera-driven visibility/hierarchy CPU work limits walking (~1.73ms traversal plus periodic
 rebuild). Migrate that next. Static FPS barely changed despite recovery often0ms: profile draw
 cost separately;128 procedural buckets/manual indexed fetch may matter, but indexed-draw savings

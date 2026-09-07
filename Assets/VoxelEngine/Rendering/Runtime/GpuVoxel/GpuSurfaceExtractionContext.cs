@@ -369,6 +369,23 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 ChunksRefusedNoSlot++;
                 return false;
             }
+            if (_lastCoveragePollFrame == Time.frameCount) return false;
+            _lastCoveragePollFrame = Time.frameCount;
+            // GPU source preparation resolves readiness and canonical uniform entries. Fine
+            // demand retains mixed slots; per-submission readers protect only GPU consumers.
+            if (!GpuSurfaceMirrorCoordinator.TryBeginExtraction(
+                    request.BrickCacheOrigin, 0, out _extractionWorldEpoch))
+                return false;
+            ConfigurePersistentLookupHeader();
+            int handle = GpuSurfaceMirrorCoordinator.PrepareChunkHandle(
+                request.ChunkOriginVoxel, request.SourceStep, out ulong renderGeneration);
+            if (handle < 0)
+            {
+                GpuSurfaceMirrorCoordinator.EndExtraction(
+                    request.BrickCacheOrigin, 0, _extractionWorldEpoch);
+                return false;
+            }
+            // Waiting requests must not pin source slots needed by admitted GPU work.
             int coreExtentVoxels = _extractor.CellsPerAxis * request.SourceStep;
             int3 coreMaxVoxelExclusive =
                 request.ChunkOriginVoxel + new int3(coreExtentVoxels);
@@ -386,22 +403,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                         request.ChunkOriginVoxel, coreMaxVoxelExclusive);
                 _coverageRequested = true;
                 _coverageEpoch = epoch;
-            }
-            if (_lastCoveragePollFrame == Time.frameCount) return false;
-            _lastCoveragePollFrame = Time.frameCount;
-            // GPU source preparation resolves readiness and canonical uniform entries. Fine
-            // demand retains mixed slots; per-submission readers protect only GPU consumers.
-            if (!GpuSurfaceMirrorCoordinator.TryBeginExtraction(
-                    request.BrickCacheOrigin, 0, out _extractionWorldEpoch))
-                return false;
-            ConfigurePersistentLookupHeader();
-            int handle = GpuSurfaceMirrorCoordinator.PrepareChunkHandle(
-                request.ChunkOriginVoxel, request.SourceStep, out ulong renderGeneration);
-            if (handle < 0)
-            {
-                GpuSurfaceMirrorCoordinator.EndExtraction(
-                    request.BrickCacheOrigin, 0, _extractionWorldEpoch);
-                return false;
             }
             _staged = new GpuChunkExtraction(
                 request.ChunkOriginVoxel, request.BrickCacheOrigin,
