@@ -8,18 +8,16 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 {
     /// <summary>
     /// Bounds immutable source ownership for GPU surface requests against the shared mirror.
-    ///
     /// Waiting workers own no source residency. Exact steps retain their whole packed-entry
     /// footprint because mixed entries contain live mirror-slot indices until count/write finishes.
-    /// Step 8 copies HLOD summaries instead, so it needs only the whole-request edit watch while its
-    /// bounded source slices are prepared. Different source steps do not overlap: a worst-case
-    /// step-4 exact footprint is 34^3 blocks, leaving too little of the shared mixed mirror for an
-    /// unrelated exact/coarse recovery footprint. Fine steps 1/2 may batch two requests safely.
+    /// Step 8 copies HLOD summaries, so it keeps only the request edit watch while bounded slices
+    /// are prepared. Different source steps do not overlap; fine steps 1/2 may batch two owners.
     /// </summary>
     internal static class GpuSurfaceSourceAdmission
     {
         private static readonly HashSet<GpuSurfaceExtractionContext> s_Owners = new();
         private static readonly Dictionary<GpuSurfaceExtractionContext, int> s_Waiters = new();
+        private static readonly List<GpuSurfaceExtractionContext> s_DeadWaiters = new();
         private static int s_ActiveStep;
         private static ulong s_WorldEpoch;
         private static int s_PreferredStep;
@@ -27,7 +25,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         internal static int ActiveCount => s_Owners.Count;
         internal static int ActiveStep => s_ActiveStep;
-        internal static int WaitingCount => s_Waiters.Count;
+        internal static int WaitingCount { get { PruneInactiveWaiters(); return s_Waiters.Count; } }
 
         internal static bool TryAcquire(GpuSurfaceExtractionContext owner,
                                         in GpuChunkExtraction request,
@@ -39,8 +37,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             coverageWorldEpoch = 0;
 
             ulong world = GpuSurfaceMirrorCoordinator.ResourceWorldEpoch;
-            if (s_WorldEpoch != world)
-                ResetForWorld(world);
+            if (s_WorldEpoch != world) ResetForWorld(world);
+            PruneInactiveWaiters();
 
             if (s_Owners.Contains(owner))
                 throw new InvalidOperationException("GPU source admission owner was acquired twice.");
@@ -49,6 +47,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             int capacity = MaximumOwners(step);
             if (s_Owners.Count != 0)
             {
+                // Once another LOD is waiting, drain the current mode instead of replenishing it.
+                // This prevents continuous near work from starving coarse ownership indefinitely.
                 bool otherStepWaiting = HasWaitingStepOtherThan(s_ActiveStep);
                 if (s_ActiveStep != step || s_Owners.Count >= capacity || otherStepWaiting)
                 {
@@ -58,8 +58,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             }
             else if (s_PreferredStep != 0 && s_PreferredStep != step)
             {
-                // Reserve a few frames for the mode that was already waiting. If that waiter was
-                // cancelled, clear the preference immediately instead of manufacturing a stall.
                 if (HasWaitingStep(s_PreferredStep) && Time.frameCount <= s_PreferredUntilFrame)
                 {
                     s_Waiters[owner] = step;
@@ -81,11 +79,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 : GpuSurfaceMirrorCoordinator.RequestCoverage(request.BrickCacheOrigin, brickCacheEdge,
                     request.ChunkOriginVoxel, coreMaxVoxelExclusive);
             return true;
-        }
-
-        internal static void CancelWaiting(GpuSurfaceExtractionContext owner)
-        {
-            if (owner != null) s_Waiters.Remove(owner);
         }
 
         internal static void Release(GpuSurfaceExtractionContext owner,
@@ -125,8 +118,18 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _ => throw new ArgumentOutOfRangeException(nameof(step)),
         };
 
+        private static void PruneInactiveWaiters()
+        {
+            s_DeadWaiters.Clear();
+            foreach (var pair in s_Waiters)
+                if (!pair.Key.HasActiveRequest) s_DeadWaiters.Add(pair.Key);
+            for (int i = 0; i < s_DeadWaiters.Count; i++) s_Waiters.Remove(s_DeadWaiters[i]);
+            s_DeadWaiters.Clear();
+        }
+
         private static int WaitingStepMask()
         {
+            PruneInactiveWaiters();
             int mask = 0;
             foreach (int step in s_Waiters.Values) mask |= StepBit(step);
             return mask;
@@ -154,10 +157,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         private static void ResetForWorld(ulong world)
         {
-            // The coordinator already discarded the prior world's demand/edit maps. Old contexts
-            // may still call Release later; their ownership is intentionally forgotten here.
+            // Coordinator world reset already discarded the prior world's demand/edit maps.
             s_Owners.Clear();
             s_Waiters.Clear();
+            s_DeadWaiters.Clear();
             s_ActiveStep = 0;
             s_PreferredStep = 0;
             s_PreferredUntilFrame = 0;
