@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Unity.Mathematics;
 using UnityEngine;
 using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
+using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 {
