@@ -12,8 +12,9 @@ namespace Game.Structures.Runtime
     public sealed class GuildHouseArchitectureProvider : IArchitectureProvider
     {
         public const string ProviderKey = "guild-house";
-        private const int DefaultWidth = 128;
-        private const int DefaultDepth = 128;
+        private const int MinimumDefaultDimension = 112;
+        private const int DefaultDimensionStep = 8;
+        private const int DefaultDimensionVariants = 5;
         private const int MinimumFloorHeight = 24;
         private const int MaximumFloorHeight = 48;
         private const int MaximumStoreys = 4;
@@ -139,6 +140,7 @@ namespace Game.Structures.Runtime
             if (!TryValidateParameters(
                     in request.Parameters,
                     in house,
+                    request.Seed,
                     out int width,
                     out int depth,
                     out int rooms,
@@ -171,6 +173,7 @@ namespace Game.Structures.Runtime
         private static bool TryValidateParameters(
             in ArchitectureGenerationParameters parameters,
             in GuildHouseDescriptor house,
+            uint seed,
             out int width,
             out int depth,
             out int rooms,
@@ -178,8 +181,12 @@ namespace Game.Structures.Runtime
             out int floorHeight,
             out string error)
         {
-            width = parameters.Width == 0 ? DefaultWidth : parameters.Width;
-            depth = parameters.Depth == 0 ? DefaultDepth : parameters.Depth;
+            width = parameters.Width == 0
+                ? SeededDefaultDimension(seed, 0xA341316Cu)
+                : parameters.Width;
+            depth = parameters.Depth == 0
+                ? SeededDefaultDimension(seed, 0xC8013EA4u)
+                : parameters.Depth;
             rooms = parameters.RoomCount == 0 ? house.PreferredRooms : parameters.RoomCount;
             storeys = parameters.StoreyCount;
             floorHeight = parameters.FloorHeight;
@@ -235,6 +242,21 @@ namespace Game.Structures.Runtime
 
             error = string.Empty;
             return true;
+        }
+
+        private static int SeededDefaultDimension(uint seed, uint salt)
+        {
+            unchecked
+            {
+                uint x = seed ^ salt;
+                x ^= x >> 16;
+                x *= 0x7FEB352Du;
+                x ^= x >> 15;
+                x *= 0x846CA68Bu;
+                x ^= x >> 16;
+                return MinimumDefaultDimension +
+                    (int)(x % DefaultDimensionVariants) * DefaultDimensionStep;
+            }
         }
 
         private static bool TryResolveHouse(string key, out GuildHouseDescriptor house)
