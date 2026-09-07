@@ -1,16 +1,21 @@
 using System;
 using Game.Characters.Api;
+using Game.Combat.Api;
+using Game.Combat.Runtime;
+using Game.Composition.Kentridge.Playable;
 using Game.Encounters.Api;
+using Game.Input.Api;
+using Game.Vitality.Api;
+using Game.Vitality.Runtime;
 using Game.WorldBuilder.Api;
 using UnityEngine;
 
 namespace Game.Composition.Kentridge.Playable.Validation
 {
     /// <summary>
-    /// Focused standalone-player consumer for the Kentridge WorldBuilder-to-encounter bridge.
-    /// Test-only setup supplies deterministic authored WorldBuilder facts; all realization work is
-    /// performed by the same KentridgeForestEncounterRealization production adapter used by the
-    /// playable slice.
+    /// Focused standalone-player consumer for the Kentridge WorldBuilder-to-encounter bridge and its
+    /// authored forest combat tuning. Test-only input supplies Primary intent; realization, Combat,
+    /// Vitality, player command handling, and enemy AI use the same production paths as the playable slice.
     /// </summary>
     [DefaultExecutionOrder(-1000)]
     public sealed class KentridgeEncounterRealizationValidation : MonoBehaviour
@@ -28,8 +33,11 @@ namespace Game.Composition.Kentridge.Playable.Validation
             try
             {
                 RunValidation();
-                _status = "PASS  WorldBuilder macro placement -> encounter anchor + 3 bandit formation bindings";
-                Debug.Log(SuccessMarker + " anchor=(180,0,-170) participants=3");
+                _status = "PASS  WorldBuilder encounter realization + player-input forest combat balance";
+                Debug.Log(
+                    SuccessMarker +
+                    " anchor=(180,0,-170) participants=3 combatWinner=Player playerVitality=" +
+                    KentridgeForestCombatTuning.PlayerInitialVitality);
             }
             catch (Exception exception)
             {
@@ -78,6 +86,90 @@ namespace Game.Composition.Kentridge.Playable.Validation
             RequirePosition(result.Realization.Characters[0].Position, new CharacterVector3(174.6f, 0f, -170.8f), "left");
             RequirePosition(result.Realization.Characters[1].Position, new CharacterVector3(180.8f, 0f, -168.8f), "centre");
             RequirePosition(result.Realization.Characters[2].Position, new CharacterVector3(185.8f, 0f, -169.9f), "right");
+            ValidateForestCombatBalance();
+        }
+
+        private static void ValidateForestCombatBalance()
+        {
+            CharacterId playerCharacter = CharacterId.FromStableKey("validation", "forest-player");
+            var enemyCharacters = new[]
+            {
+                CharacterId.FromStableKey("validation", "forest-bandit-left"),
+                CharacterId.FromStableKey("validation", "forest-bandit-centre"),
+                CharacterId.FromStableKey("validation", "forest-bandit-right")
+            };
+
+            var vitality = new VitalityRegistry();
+            RequireVitality(
+                vitality,
+                playerCharacter,
+                KentridgeForestCombatTuning.InitialVitality(CombatTeam.Player));
+            for (int i = 0; i < enemyCharacters.Length; i++)
+                RequireVitality(
+                    vitality,
+                    enemyCharacters[i],
+                    KentridgeForestCombatTuning.InitialVitality(CombatTeam.Enemy));
+
+            var participants = new CombatParticipant[enemyCharacters.Length + 1];
+            for (int i = 0; i < enemyCharacters.Length; i++)
+                participants[i] = CombatParticipant.FromCharacter(enemyCharacters[i], CombatTeam.Enemy);
+            CombatParticipant player = CombatParticipant.FromCharacter(playerCharacter, CombatTeam.Player);
+            participants[participants.Length - 1] = player;
+
+            var combat = new CombatService(vitality);
+            combat.BeginCombat(new CombatEncounterRequest("kentridge-validation-forest", participants));
+            var input = new PrimaryInputReader();
+            var playerInput = new CombatInputController(combat, input, new LocalPlayerId(0), player.Id);
+            var enemyAi = new CombatAiBattleDriver(combat, KentridgeForestCombatTuning.BattleSeed);
+
+            int playerActions = 0;
+            int watchdog = 0;
+            while (combat.IsActive && watchdog++ < 64)
+            {
+                CombatParticipant active = FindParticipant(combat, combat.ActiveParticipant);
+                if (active.Team == CombatTeam.Player)
+                {
+                    CombatCommandResult action = playerInput.Tick(1f);
+                    if (!action.Succeeded)
+                        throw new InvalidOperationException(
+                            "Kentridge player Primary action was rejected: " + action.RejectReason);
+                    playerActions++;
+                }
+                else
+                {
+                    enemyAi.Step();
+                }
+            }
+
+            if (combat.IsActive)
+                throw new InvalidOperationException("Kentridge forest combat exceeded the validation action watchdog.");
+            if (!combat.WinningTeam.HasValue || combat.WinningTeam.Value != CombatTeam.Player)
+                throw new InvalidOperationException(
+                    "Kentridge forest combat tuning did not resolve to the player team; winner=" +
+                    (combat.WinningTeam.HasValue ? combat.WinningTeam.Value.ToString() : "none") + ".");
+            if (playerActions <= 0)
+                throw new InvalidOperationException("Kentridge forest combat completed without a player Primary action.");
+            if (!combat.TryGetHitPoints(player.Id, out int remainingVitality) || remainingVitality <= 0)
+                throw new InvalidOperationException("Kentridge forest combat winner has no remaining authoritative vitality.");
+        }
+
+        private static CombatParticipant FindParticipant(CombatService combat, CombatParticipantId id)
+        {
+            for (int i = 0; i < combat.ActiveParticipants.Count; i++)
+            {
+                CombatParticipant participant = combat.ActiveParticipants[i];
+                if (participant.Id.Equals(id)) return participant;
+            }
+
+            throw new InvalidOperationException(
+                "Active participant '" + id + "' is absent from the Kentridge validation combat.");
+        }
+
+        private static void RequireVitality(VitalityRegistry vitality, CharacterId character, int maximum)
+        {
+            if (!vitality.Register(VitalitySnapshot.Alive(character, maximum)))
+                throw new InvalidOperationException(
+                    "Could not register Kentridge validation vitality for '" + character + "'.");
         }
 
         private static void RequirePosition(CharacterVector3 actual, CharacterVector3 expected, string role)
@@ -104,6 +196,12 @@ namespace Game.Composition.Kentridge.Playable.Validation
         private void OnGUI()
         {
             GUI.Box(new Rect(24f, 24f, Mathf.Max(320f, Screen.width - 48f), 82f), _status);
+        }
+
+        private sealed class PrimaryInputReader : IPlayerInputReader
+        {
+            public PlayerInputSnapshot Read(LocalPlayerId player) =>
+                new PlayerInputSnapshot(0f, 0f, 0f, 0f, true, false, false, false);
         }
     }
 }
