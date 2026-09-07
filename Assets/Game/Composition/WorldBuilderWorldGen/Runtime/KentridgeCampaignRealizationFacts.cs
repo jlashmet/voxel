@@ -1,5 +1,6 @@
 using System;
 using MountingForce.WorldGen;
+using MountingForce.WorldGen.Voxel;
 
 namespace Game.Composition.WorldBuilderWorldGen.Runtime
 {
@@ -19,6 +20,20 @@ namespace Game.Composition.WorldBuilderWorldGen.Runtime
         {
             SiteFacts = siteFacts ?? throw new ArgumentNullException(nameof(siteFacts));
             HiddenSpaceFacts = hiddenSpaceFacts;
+        }
+
+        /// <summary>
+        /// Builds the voxel realization handoff from the exact settlement retained by the authored
+        /// campaign generation plan. Callers never need to unwrap or independently rebuild the
+        /// WorldBuilder backend plan, so campaign semantics and physical realization cannot drift.
+        /// </summary>
+        public static KentridgeCampaignRealizationFacts FromVoxelGeneration(
+            KentridgeCampaignGenerationPlan generation,
+            int baseRegionY)
+        {
+            if (generation == null) throw new ArgumentNullException(nameof(generation));
+            return new KentridgeCampaignRealizationFacts(
+                new KentridgeVoxelSiteRealizationFacts(generation.Settlement, baseRegionY));
         }
     }
 
