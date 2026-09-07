@@ -110,7 +110,16 @@ namespace Game.WorldObjects.Runtime
             var binding = new CharacterBinding("steam", senderSteamId.ToString(CultureInfo.InvariantCulture));
             if (!_characters.TryResolve(binding, out actorId))
                 return WorldInteractionResult.Reject(WorldInteractionFailure.UnknownActor);
+            return Process(actorId);
+        }
 
+        /// <summary>
+        /// Execute the same authoritative world-interaction path for an already authenticated durable
+        /// character identity. Multiplayer composition resolves transport identity before entering this
+        /// owner, so it must not manufacture an unrelated platform binding just to reuse interaction.
+        /// </summary>
+        public WorldInteractionResult Process(CharacterId actorId)
+        {
             CharacterSnapshot actor;
             if (!_characters.TryGet(actorId, out actor))
                 return WorldInteractionResult.Reject(WorldInteractionFailure.UnknownActor);
