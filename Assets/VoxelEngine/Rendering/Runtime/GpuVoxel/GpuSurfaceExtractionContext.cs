@@ -371,8 +371,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             }
             if (_lastCoveragePollFrame == Time.frameCount) return false;
             _lastCoveragePollFrame = Time.frameCount;
-            // GPU source preparation resolves readiness and canonical uniform entries. Fine
-            // demand retains mixed slots; per-submission readers protect only GPU consumers.
+            // GPU source preparation owns source residency in bounded ranges. The whole request
+            // retains only an edit/version watch; submitted portions add active readers until GPU
+            // completion, so overlapping waiting requests cannot pin the shared mirror.
             if (!GpuSurfaceMirrorCoordinator.TryBeginExtraction(
                     request.BrickCacheOrigin, 0, out _extractionWorldEpoch))
                 return false;
@@ -385,10 +386,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                     request.BrickCacheOrigin, 0, _extractionWorldEpoch);
                 return false;
             }
-            // Waiting requests must not pin source slots needed by admitted GPU work.
-            int coreExtentVoxels = _extractor.CellsPerAxis * request.SourceStep;
-            int3 coreMaxVoxelExclusive =
-                request.ChunkOriginVoxel + new int3(coreExtentVoxels);
+            // Waiting requests must not pin source slots needed by admitted GPU work. Count-batch
+            // source preparation owns temporary RequestSourceRange leases for only the active slice.
             uint epoch = GpuSurfaceMirrorCoordinator.CoverageEpochFor(request.BrickCacheOrigin, _brickCacheEdge);
             if (!_coverageRequested || _coverageEpoch != epoch)
             {
@@ -397,10 +396,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                     _requestCoverageRestarts++;
                     ReleasePersistentCoverage(_staged);
                 }
-                _coverageWorldEpoch = request.SourceStep == 8
-                    ? GpuSurfaceMirrorCoordinator.RequestEditWatch(request.BrickCacheOrigin, _brickCacheEdge)
-                    : GpuSurfaceMirrorCoordinator.RequestCoverage(request.BrickCacheOrigin, _brickCacheEdge,
-                        request.ChunkOriginVoxel, coreMaxVoxelExclusive);
+                _coverageWorldEpoch = GpuSurfaceMirrorCoordinator.RequestEditWatch(
+                    request.BrickCacheOrigin, _brickCacheEdge);
                 _coverageRequested = true;
                 _coverageEpoch = epoch;
             }
@@ -851,14 +848,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         private void ReleasePersistentCoverage(in GpuChunkExtraction request)
         {
-            int coreExtentVoxels = _extractor.CellsPerAxis * request.SourceStep;
-            int3 coreMaxVoxelExclusive =
-                request.ChunkOriginVoxel + new int3(coreExtentVoxels);
-            if (request.SourceStep == 8)
-                GpuSurfaceMirrorCoordinator.ReleaseEditWatch(request.BrickCacheOrigin, _brickCacheEdge, _coverageWorldEpoch);
-            else
-                GpuSurfaceMirrorCoordinator.ReleaseCoverage(request.BrickCacheOrigin, _brickCacheEdge,
-                    request.ChunkOriginVoxel, coreMaxVoxelExclusive, _coverageWorldEpoch);
+            GpuSurfaceMirrorCoordinator.ReleaseEditWatch(
+                request.BrickCacheOrigin, _brickCacheEdge, _coverageWorldEpoch);
             _coverageRequested = false;
         }
 
