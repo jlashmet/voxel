@@ -6,20 +6,20 @@ Complete the authored Kentridge -> Rorik/Moordell/Rossdam/Logan route, exactly-o
 
 ## Selected production path
 
-`KentridgePlayableSlice` now enters through `KentridgePlayableFullRunBootstrap`. The bootstrap preserves the opening-only Kentridge planner for exact rich pub/hidden-space realization, overlays those opening semantic identities onto hierarchy-aware `AuthoredFullRunKentridgeComposition`, and boots `AuthoredFullRunCampaignContent` against the recovered multi-settlement physical plan. The shipped scene asserts `IsFullRun` and emits `KENTRIDGE_AUTHORED_FULL_RUN_READY`; the normal Kentridge player scenario requires that marker.
+`KentridgePlayableSlice` enters through `KentridgePlayableFullRunBootstrap`: exact rich opening geometry is overlaid by semantic identity onto hierarchy-aware `AuthoredFullRunKentridgeComposition`, while continuation coordinates come only from the recovered `TopDownWorldPhysicalPlan`. The shipped scene requires `IsFullRun` and logs `KENTRIDGE_AUTHORED_FULL_RUN_READY`.
 
-`Assets/Game/Composition/Kentridge/Playable/Validation/KentridgeFullRunCampaignValidation.unity` is the owning module-local full-run player proof. It uses the shipped bootstrap, `GameSessionOrchestrator`, `ApplicationFlowCoordinator`, public Campaign facts, and production `EncounterRegistry`. It advances opening -> Awon -> Medrare -> church/Angel -> Rorik -> Moordell -> Rossdam -> mayor -> Logan -> lower castle, then asserts System15 success at revision 1, `ApplicationScreen.Outcome`, and normal return-to-frontend teardown. Its paired scenario requires bounded semantic milestone logs.
+`Assets/Game/Composition/Kentridge/Playable/Validation/KentridgeFullRunCampaignValidation.unity` drives the shipped bootstrap through `GameSessionOrchestrator` and `ApplicationFlowCoordinator`, advances the canonical route through real Encounter facts, and asserts System15 success revision 1, Outcome screen, and normal frontend return.
+
+WorldBuilder is also an affected player-visible module. Its prior only owned player scene (`Validation/SecretDiscovery`) exercises cave-secret generation, not the new top-down terrain/roads/towns/water path. T26-059 therefore adds `Assets/Game/WorldBuilder/Validation/TopDownPhysicalWorld/`, which uses the production macro planner, reservation adapter, voxel/water catalogues, `ShowcaseWorld`, streaming, and rendering composition with semantic Moordell/Rossdam/water survey targets.
 
 ## Current validation state
 
-Historical exact runs already prove Story/campaign ownership and hierarchy/site realization. Request `dcc9f36e64a4edaebe250560a89c2754aece2931` / run `34158903057` completed with a compile failure exposing a missing direct Kentridge API import; fixed at `6da358b28351b3b1c8645e65bdf862ba66cdcafb`. Request `715da043608eb80f167c8d404385b7bc6ba8b224` / run `34161473335` then exposed two narrower compile defects: missing `Game.WorldBuilder.Runtime` in the composition regression and an ambiguous validation `KentridgeDefinition`; both are fixed on the feature branch.
+Exact request `3796acf10f04fe266413f0956ebbd59e954336ad`, source `d6dd7a8100841b997b064afefc4d1e0fca19e333`, run `34164164923`, job `101871803067` reached automatic module validation but Unity aborted before tests. Artifact `10034721892` (`sha256:4e000d7a63b0235ca006f89c037ccc89369262813133ed5a9274be505d1cf6a9`) reports one compiler defect: `AuthoredFullRunKentridgeCompositionTests` accessed non-public `AuthoredTownPlan.BackendPlan`. The regression now uses the public authored-town plan for campaign planning and deterministic Kentridge settlement facts.
 
-Hypothesis A: those namespace/type-resolution defects were the remaining compile blockers. Hypothesis B: after compilation, the real full-run player proof may expose a semantic/runtime dead end. Next discriminating experiment is one new direct-child exact-SHA request from the stabilized feature head; do not speculate further before that result.
+Next discriminator: exact-SHA automatic module/player validation from the new feature head, including the new WorldBuilder-owned scene. Fix only demonstrated failures.
 
 ## External prerequisite / closure
 
-T26-043 remains independently owned by System25. `fixes/agent-7` still records separate-process authority/client topology, shared progression, reconnect/leave and release acceptance as incomplete; System26 must not duplicate that harness or authority.
+T26-043 remains owned by System25. Its authoritative branch still has separate-process authority/client topology, shared progression, reconnect/rehost and final evidence incomplete; System26 must not duplicate that harness or authority.
 
-After the next exact run: fix only demonstrated System26 failures. When automatic module tests, the full-run module-local player, and production Kentridge integration are green, record evidence and check T26-021/022/044/045/046/053/058. Recheck System25 and check T26-043 only from its authoritative evidence. Only when every task is complete: populate closure fields, move open -> closed, merge current `origin/master`, then promote through a fresh PR + auto-merge and required `affected` gate.
-
-Preserve existing performance/memory budgets and validation architecture; no readiness forcing, radius/budget widening, or alternate runtime paths.
+After System26 exact validation is green, record evidence/check independent tasks. Check T26-043 only from authoritative System25 evidence. Close only when every checkbox is complete; then merge current master, promote by PR + auto-merge, and require the `affected` gate.
