@@ -1,3 +1,9 @@
+Draw grouping checkpoint:64 GPU size buckets halve host solid submissions while preserving
+all selected live indices; padding stays below1.5x.527tests/module pass,Showcase339/288FPS,
+272missing,zero allocation failures/evictions,4074publications. This does not remove the host
+submission loop or complete400FPS. Next test GPU index compaction plus indexed indirect drawing;
+CPU far replacement and helper retirement remain. Exact evidence in tasks.md.
+
 Incremental demand checkpoint: camera-only GPU feedback no longer rebuilds all host demand.
 Only classification deltas and pending ranks apply when live metadata is stable; topology,
 settings/readiness changes retain full generation checks.527tests/module pass. Two Showcases

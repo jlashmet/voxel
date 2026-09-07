@@ -318,6 +318,8 @@ namespace VoxelEngine.Rendering.Tests.EditMode
                     Assert.That(draw.IndexCount, Is.EqualTo(expectedCounts[handle]));
                     Assert.That(draw.Bank, Is.EqualTo((uint)(handle & 1)));
                     Assert.That(draw.IndexCount, Is.LessThanOrEqualTo(maxIndexCount));
+                    Assert.That((ulong)maxIndexCount * 2, Is.LessThan((ulong)draw.IndexCount * 3),
+                        "A half-power bucket must bound padded vertex work without clipping live indices.");
                 }
 
                 totalInstances += instanceCount;

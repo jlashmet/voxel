@@ -9,7 +9,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
     /// <summary>Selects GPU LOD coverage and compacts candidate handles into indirect draw buckets.</summary>
     internal sealed class GpuSurfaceDrawDispatcher : IDisposable
     {
-        internal const int BucketCount = 128;
+        // Two intervals per uint exponent: fewer host submissions, at most <1.5x padded
+        // vertex invocations per instance. Live index counts still bound every shader fetch.
+        internal const int BucketCount = 64;
         private const int BufferedFrames = 3;
         private const int ThreadGroupSize = 64;
         private const int DrawMetadataStride = sizeof(uint) * 4;

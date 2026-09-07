@@ -18,49 +18,47 @@ are deleted; helper/oracle cleanup remains. GPU resolves canonical metadata/sour
 only missing source indices return for upload. Fine dense entries/coarse summaries remain
 GPU-resident. CPU generation~14.9s; first400near chunks40.4→23.3s after mirror/lane fixes.
 
-GPU handles bands/frustum, LOD and build urgency/distance rank. Candidate lists persist across
-camera motion; topology persists across readiness changes. Host applies feedback, stamps ages
-and updates membership. Far hierarchy optimization gave350/219FPS. GPU demand migration exposed
-vertex reclamation losing51 of52 released pages; explicit counters restored capacity. Checkpoint
-`c7d3d5db0`:518tests/module pass,Showcase332/256FPS,331missing,zero allocation failures/evictions.
-No budget or retirement-delay changes.
+GPU handles bands/frustum, LOD and build rank; host applies feedback and membership updates.
+Vertex reclamation loss fixed in `c7d3d5db0`;518tests/module passed with no allocation failures.
 
 ## Hypotheses and current experiment
 
-Resident far-instance checkpoint `8b50ca1b8`: transforms persist on GPU, GPU compacts instances
-and writes indirect arguments. Removed CPU matrix submission. Empty draws initially regressed
-FPS; skipping fully replaced batches restored it.523tests/module pass; Showcase322/271FPS,
-CPU2.89/3.305ms,272missing,zero allocation failures/evictions. Exact captures reviewed. CPU
-replacement still supplies flags; oldest coarse build20.6s, source-service latency unresolved.
+Resident far-instance checkpoint `8b50ca1b8`: GPU transforms/compaction/indirect arguments;
+CPU replacement supplies flags.523tests/module pass;Showcase322/271FPS,272missing,zero
+allocation failures. Source-service latency remains unresolved.
 
-H1: full host demand application repeats publication/queue/accounting work for unchanged GPU
-classifications (~.607ms walking). H2: readiness churn forces most feedback to refresh regardless,
-or dictionary/rank transport dominates. Compare same60–90s/120–180s Showcase windows and new
-full-refresh/coordinate-refresh/rank counters.
+Incremental demand checkpoint `65b560afc`:527tests/module pass,Showcase332/285FPS,
+CPU2.87/2.90ms,sampled feedback.129ms.350missing/2133residents,oldest21.62s(coarse),zero
+allocation failures/evictions; all164liveness samples show no unqueued demand. Coverage remains
+unresolved; this is not equivalent-coverage or400FPS acceptance.
 
-Implemented incremental GPU feedback: stable live metadata uses classification deltas, pending
-nodes receive rank-only updates, current complete nodes skip unchanged feedback. Topology,
-settings, readiness or a newer host image than the readback require full live checks. Worker
-accounting retains per-coordinate contributions; rank-only updates cannot create/change demand.
-Counters survive metadata collection, and removal subtracts contributions. Existing GPU age tags
-and current-generation admission/retry rules remain. No new GPU buffers or distance decisions.
+H1:128indirect solid submissions impose avoidable host/driver cost, as106empty far draws did.
+H2: broader groups increase padded GPU vertex work enough to outweigh the CPU saving.
+Experiment:32power-of-two buckets instead of128quarter-power buckets, same selected handles,
+index counts, materials, generations, page tables, distances and budgets. GPU maximum index
+count still defines each draw and per-instance live counts still guard fetches; padding stays
+below2x. No CPU readback or selection is introduced. Compare identical60–90s/120–180s Showcase
+windows, CPU/GPU timings and coverage, plus real GPU scatter/raster tests and module captures.
 
-527Rendering tests pass (24s), including real GPU delayed-readiness/delta checks,80-cycle
-incremental/full parity, rank-driven admission and a queue-liveness diagnostic. Final production
-module48s/seven captures/exit0 passes all markers,262.6MB,framep95/p99 .889/.914ms.
-Two Showcases180s/12captures/exit0:332/282 and332/285FPS. Repeat CPU2.87/2.90ms; sampled nonzero
-feedback median.129ms,2338full resets/11894accepted. All164liveness samples unqueued=0.
-However350missing versus parent272,3380publications/2133residents and oldest21.62s(coarse) leave
-coverage/service latency unresolved. Zero allocation failures/evictions. Source hashes and exact
-74.9s/149.9s captures reviewed. Reduced CPU work is not400FPS or equivalent-coverage acceptance.
+32groups:527tests/module pass;Showcase331/294FPS,353missing,zero allocation failures/evictions,
+3798publications. Module p95 .889→.714ms, but stationary GPU diagnostic5.83→7.76ms and no FPS
+gain. Test64half-power groups next (<1.5x padding), preserving the600-handle/prefix/bank checks
+and shipped solid/water raster regressions.64groups passed527tests/module;Showcase339/288FPS,272missing,zero allocation failures,
+4074publications. Keep64 interim; unequal coverage and single runs do not prove a robust gain.
 
 ## Next steps and remaining gates
 
 Move conservative far replacement proof to GPU using current publication, discovery and region
 residency evidence; preserve unknown/stale/edit guards. Avoid replacing CPU proof with per-batch
 compute/empty-draw overhead. Retain the incremental feedback improvement.
-Next test128solid indirect submission overhead with fewer GPU size buckets, preserving every
-handle/index. Pressure eviction and helper cleanup remain.
+Next structural experiment: GPU compacts selected live indices into one hardware index stream
+(global physical vertex IDs), then one indexed indirect draw consumes it without chunk padding.
+Use Index|Raw storage and five-word arguments. Preserve bank/generation/page retirement guards;
+record compaction and draw in graphics-queue order. First prove page remapping, exact triangle
+counts, no stale/released geometry, and shipped shader rasterization. A single stream sized to
+index-page capacity may fit the currently unused geometry-budget remainder; verify aggregate
+allocation at every tier before adding it. Never triple-buffer a full arena or reduce coverage
+to fit. Pressure eviction and helper cleanup remain.
 
 400FPS, startup pop-in, coverage/visual fidelity, long-session memory/pressure, canonical Kentridge
 integration and repeated workloads remain unproven. Castle silhouette persists; terrain gaps/seams,

@@ -27,7 +27,7 @@ namespace VoxelEngine.Rendering.Tests.EditMode
         [TearDown] public void TearDown()
         {
             if (_dispatcher.ActiveIndirectArgs != null)
-                _dispatcher.ActiveIndirectArgs.GetData(new uint[128 * 4]);
+                _dispatcher.ActiveIndirectArgs.GetData(new uint[GpuSurfaceDrawDispatcher.BucketCount * 4]);
             _dispatcher.Dispose(); _arena.Dispose();
             UnityEngine.Object.DestroyImmediate(_page); UnityEngine.Object.DestroyImmediate(_draw);
         }
@@ -46,10 +46,10 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             }
             _arena.LiveChunkGeometry.SetData(records);
             _dispatcher.PrepareLod(drawable, handles, complete, frame, owned, planes, voxelSize, bands, position);
-            var args = new uint[128 * 4];
+            var args = new uint[GpuSurfaceDrawDispatcher.BucketCount * 4];
             _dispatcher.ActiveIndirectArgs.GetData(args);
             int count = 0;
-            for (int i = 0; i < 128; i++) count += (int)args[i * 4 + 1];
+            for (int i = 0; i < GpuSurfaceDrawDispatcher.BucketCount; i++) count += (int)args[i * 4 + 1];
             var draws = new uint[_arena.HandleCapacity * 4];
             _dispatcher.ActiveDrawMetadata.GetData(draws);
             var selected = new HashSet<int>();

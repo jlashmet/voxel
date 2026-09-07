@@ -39,11 +39,12 @@ RWStructuredBuffer<uint> _LodSelected;
 
 int BucketFor(uint indexCount)
 {
-    uint count = max(1u,indexCount);
-    int exponent = firstbithigh(count);
-    uint lower = 1u << exponent;
-    int subdivision = (int)min(3u,((count-lower)*4u)/lower);
-    return min(_DrawBucketCount-1,exponent*4+subdivision);
+    // Preserve all live indices; split each power-of-two interval at its midpoint.
+    // Reading the next bit avoids overflowing integer multiplication at large counts.
+    uint count=max(1u,indexCount);
+    int exponent=firstbithigh(count);
+    uint half=exponent>0?(count>>(exponent-1))&1u:0u;
+    return min(_DrawBucketCount-1,exponent*2+(int)half);
 }
 
 [numthreads(64,1,1)]
