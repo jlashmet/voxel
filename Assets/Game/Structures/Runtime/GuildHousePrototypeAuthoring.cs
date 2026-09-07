@@ -234,7 +234,7 @@ namespace Game.Structures.Runtime
         }
 
         private static void AuthorFacadeArticulation(IStructureAuthoringSession authoring,
-            in GuildHouseSpatialPlan plan, byte frameMaterial, byte accentMaterial, byte windowMaterial)
+            in GuildHouseSpatialPlan plan, byte frameMaterial, byte accentMaterial, byte windowTrimMaterial)
         {
             const int doorWidth = 12;
             const int doorHeight = 24;
@@ -242,19 +242,24 @@ namespace Game.Structures.Runtime
             int frontZ = plan.Origin.z - 2;
             int doorLeft = plan.Origin.x + (plan.Width - doorWidth) / 2;
 
-            // Door surround and shallow canopy sit outside the perimeter, preserving the production
-            // walk-through opening while giving the front elevation a clear visual anchor.
+            // Door surround sits outside the perimeter, preserving the production walk-through opening.
             authoring.Box(new int3(doorLeft - 4, wallY, frontZ),
                 new int3(4, doorHeight, 2), frameMaterial);
             authoring.Box(new int3(doorLeft + doorWidth, wallY, frontZ),
                 new int3(4, doorHeight, 2), frameMaterial);
             authoring.Box(new int3(doorLeft - 4, wallY + doorHeight, frontZ),
                 new int3(doorWidth + 8, 4, 2), frameMaterial);
-            authoring.Box(new int3(doorLeft - 7, wallY + doorHeight + 3, plan.Origin.z - 7),
-                new int3(doorWidth + 14, 2, 9), accentMaterial);
 
-            // Region-driven lit/magic panels make floor count and facade scale legible from the
-            // exterior without inventing showcase-only materials.
+            int3 canopyMin = new int3(doorLeft - 7, wallY + doorHeight + 3, plan.Origin.z - 7);
+            int3 canopySize = new int3(doorWidth + 14, 3, 9);
+            if (authoring is ICurvedStructureAuthoringSession curved)
+                curved.RoundedBox(canopyMin, canopySize, radius: 2, accentMaterial);
+            else
+                authoring.Box(canopyMin, canopySize, accentMaterial);
+
+            // Windows are authoritative openings through the wall, not decorative panels. The carved
+            // three-voxel wall aperture receives a one-voxel production Glass pane; trim remains a
+            // separate regional material so geometry, transparency, and texture identity stay semantic.
             int windowWidth = math.max(6, math.min(10, plan.Width / 10));
             int leftX = plan.Origin.x + plan.Width / 4 - windowWidth / 2;
             int rightX = plan.Origin.x + (plan.Width * 3) / 4 - windowWidth / 2;
@@ -262,11 +267,31 @@ namespace Game.Structures.Runtime
             {
                 int windowY = plan.Origin.y + floor * plan.FloorHeight + 10;
                 int windowHeight = math.max(6, math.min(10, plan.FloorHeight - 14));
-                authoring.Box(new int3(leftX, windowY, plan.Origin.z - 1),
-                    new int3(windowWidth, windowHeight, 1), windowMaterial);
-                authoring.Box(new int3(rightX, windowY, plan.Origin.z - 1),
-                    new int3(windowWidth, windowHeight, 1), windowMaterial);
+                AuthorWindow(authoring, leftX, windowY, plan.Origin.z, windowWidth, windowHeight, windowTrimMaterial);
+                AuthorWindow(authoring, rightX, windowY, plan.Origin.z, windowWidth, windowHeight, windowTrimMaterial);
             }
+        }
+
+        private static void AuthorWindow(
+            IStructureAuthoringSession authoring,
+            int x,
+            int y,
+            int frontWallZ,
+            int width,
+            int height,
+            byte trimMaterial)
+        {
+            authoring.Carve(new int3(x, y, frontWallZ), new int3(width, height, 3));
+            authoring.Box(
+                new int3(x, y, frontWallZ + 1),
+                new int3(width, height, 1),
+                GameMaterialIds.Glass);
+
+            int trimZ = frontWallZ - 1;
+            authoring.Box(new int3(x - 2, y - 2, trimZ), new int3(width + 4, 2, 1), trimMaterial);
+            authoring.Box(new int3(x - 2, y + height, trimZ), new int3(width + 4, 2, 1), trimMaterial);
+            authoring.Box(new int3(x - 2, y, trimZ), new int3(2, height, 1), trimMaterial);
+            authoring.Box(new int3(x + width, y, trimZ), new int3(2, height, 1), trimMaterial);
         }
 
         private static void AuthorFloor(IStructureAuthoringSession authoring,
