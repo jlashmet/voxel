@@ -3,6 +3,7 @@
   "rootNamespace": "Game.Composition.Kentridge.Playable.Tests",
   "references": [
     "Game.Characters.Api",
+    "Game.Characters.Runtime",
     "Game.Composition.EncounterRealization",
     "Game.Composition.Kentridge.Playable",
     "Game.Composition.Kentridge.Playable.Validation",
