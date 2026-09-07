@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using Game.Characters.Api;
 using Game.Combat.Api;
 using Game.Encounters.Api;
@@ -8,6 +9,7 @@ using Game.GameplayReplication.Api;
 using Game.Inventory.Api;
 using Game.Progression.Api;
 using Game.Vitality.Api;
+using Game.WorldObjects.Api;
 
 namespace Game.Composition.Kentridge.Playable
 {
@@ -31,6 +33,8 @@ namespace Game.Composition.Kentridge.Playable
             new GameplayProjectionDescriptor(new GameplayProjectionId("vitality"), 1, true);
         public static readonly GameplayProjectionDescriptor CombatDescriptor =
             new GameplayProjectionDescriptor(new GameplayProjectionId("combat"), 1, true);
+        public static readonly GameplayProjectionDescriptor WorldObjectsDescriptor =
+            new GameplayProjectionDescriptor(new GameplayProjectionId("world-objects"), 1, true);
 
         private static readonly IReadOnlyList<GameplayProjectionDescriptor> s_descriptors =
             Array.AsReadOnly(new[]
@@ -40,7 +44,8 @@ namespace Game.Composition.Kentridge.Playable
                 ProgressionDescriptor,
                 EncountersDescriptor,
                 VitalityDescriptor,
-                CombatDescriptor
+                CombatDescriptor,
+                WorldObjectsDescriptor
             });
 
         private readonly IReadOnlyList<IGameplayProjectionSource> _authoritySources;
@@ -59,7 +64,8 @@ namespace Game.Composition.Kentridge.Playable
             Func<IProgressionQuery> progression,
             Func<IEncounterQuery> encounters,
             Func<IVitalityQuery> vitality,
-            Func<ICombatService> combat)
+            Func<ICombatService> combat,
+            Func<IWorldObjectRegistry> worldObjects = null)
         {
             if (characters == null) throw new ArgumentNullException(nameof(characters));
             if (inventory == null) throw new ArgumentNullException(nameof(inventory));
@@ -67,6 +73,7 @@ namespace Game.Composition.Kentridge.Playable
             if (encounters == null) throw new ArgumentNullException(nameof(encounters));
             if (vitality == null) throw new ArgumentNullException(nameof(vitality));
             if (combat == null) throw new ArgumentNullException(nameof(combat));
+            Func<IWorldObjectRegistry> worldObjectQuery = worldObjects ?? (() => null);
 
             return new KentridgeMultiplayerGameplayReplication(new IGameplayProjectionSource[]
             {
@@ -93,8 +100,42 @@ namespace Game.Composition.Kentridge.Playable
                 new DeferredSource<ICombatService>(
                     CombatDescriptor,
                     combat,
-                    query => new CombatGameplayProjectionSource(query))
+                    query => new CombatGameplayProjectionSource(query)),
+                new DeferredSource<IWorldObjectRegistry>(
+                    WorldObjectsDescriptor,
+                    worldObjectQuery,
+                    query => new WorldObjectsProjectionSource(query))
             });
+        }
+
+        private sealed class WorldObjectsProjectionSource : IGameplayProjectionSource
+        {
+            private readonly IWorldObjectRegistry _objects;
+
+            public WorldObjectsProjectionSource(IWorldObjectRegistry objects)
+            {
+                _objects = objects ?? throw new ArgumentNullException(nameof(objects));
+            }
+
+            public GameplayProjectionDescriptor Descriptor => WorldObjectsDescriptor;
+
+            public GameplayProjectionState Capture()
+            {
+                IReadOnlyList<WorldObjectStateSnapshot> snapshots = _objects.CaptureState();
+                var entries = new List<GameplayProjectionEntry>(snapshots.Count * 5);
+                for (int i = 0; i < snapshots.Count; i++)
+                {
+                    WorldObjectStateSnapshot snapshot = snapshots[i];
+                    string prefix = "object/" + snapshot.ObjectId.Value + "/";
+                    entries.Add(new GameplayProjectionEntry(prefix + "kind", snapshot.Kind.ToString()));
+                    entries.Add(new GameplayProjectionEntry(prefix + "enabled", snapshot.Enabled ? "true" : "false"));
+                    entries.Add(new GameplayProjectionEntry(
+                        prefix + "state-code", snapshot.StateCode.ToString(CultureInfo.InvariantCulture)));
+                    entries.Add(new GameplayProjectionEntry(
+                        prefix + "revision", snapshot.Revision.ToString(CultureInfo.InvariantCulture)));
+                }
+                return new GameplayProjectionState(Descriptor, entries);
+            }
         }
 
         private sealed class DeferredSource<TQuery> : IGameplayProjectionSource where TQuery : class
