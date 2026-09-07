@@ -15,12 +15,14 @@
     "Game.Inventory.Runtime",
     "Game.Characters.Api",
     "Game.Outcomes.Api",
+    "Game.Outcomes.Runtime",
     "Game.Persistence.Api",
     "Game.Persistence.Runtime",
     "Game.Progression.Api",
     "Game.SessionOrchestration.Api",
     "Game.SessionOrchestration.Runtime",
-    "Game.Story.Api"
+    "Game.Story.Api",
+    "MountingForce.WorldGen.Core"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
