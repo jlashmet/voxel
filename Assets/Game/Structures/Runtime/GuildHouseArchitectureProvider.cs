@@ -14,9 +14,14 @@ namespace Game.Structures.Runtime
         public const string ProviderKey = "guild-house";
         private const int DefaultWidth = 128;
         private const int DefaultDepth = 128;
+        private const int MinimumFloorHeight = 24;
+        private const int MaximumFloorHeight = 48;
+        private const int MaximumStoreys = 4;
 
         private static readonly ArchitectureParameterSupport Supported =
             ArchitectureParameterSupport.Footprint |
+            ArchitectureParameterSupport.StoreyCount |
+            ArchitectureParameterSupport.FloorHeight |
             ArchitectureParameterSupport.RoomCount;
 
         private static readonly ArchitecturePresentationCapabilities Capabilities =
@@ -131,7 +136,15 @@ namespace Game.Structures.Runtime
                 error = $"Unknown guild-house archetype '{request.ArchetypeKey}'.";
                 return false;
             }
-            if (!TryValidateParameters(in request.Parameters, in house, out int width, out int depth, out int rooms, out error))
+            if (!TryValidateParameters(
+                    in request.Parameters,
+                    in house,
+                    out int width,
+                    out int depth,
+                    out int rooms,
+                    out int storeys,
+                    out int floorHeight,
+                    out error))
                 return false;
 
             prototype = GuildHousePrototypeComposition.Build(
@@ -142,7 +155,9 @@ namespace Game.Structures.Runtime
                 request.Origin,
                 width,
                 depth,
-                rooms);
+                rooms,
+                storeys,
+                floorHeight);
             if (!prototype.IsWellFormed)
             {
                 error = "Production guild-house composition returned an invalid prototype.";
@@ -159,11 +174,15 @@ namespace Game.Structures.Runtime
             out int width,
             out int depth,
             out int rooms,
+            out int storeys,
+            out int floorHeight,
             out string error)
         {
             width = parameters.Width == 0 ? DefaultWidth : parameters.Width;
             depth = parameters.Depth == 0 ? DefaultDepth : parameters.Depth;
             rooms = parameters.RoomCount == 0 ? house.PreferredRooms : parameters.RoomCount;
+            storeys = parameters.StoreyCount;
+            floorHeight = parameters.FloorHeight;
 
             int minimumWidth = house.Kind == GuildHouseKind.Druids ? 84 : 64;
             int minimumDepth = house.Kind == GuildHouseKind.Druids ? 72 : 64;
@@ -177,13 +196,40 @@ namespace Game.Structures.Runtime
                 error = $"{house.DisplayName} requires at least {house.MinimumRooms} rooms.";
                 return false;
             }
-            if (parameters.StoreyCount != 0 || parameters.FloorHeight != 0 ||
-                parameters.RoofForm != ArchitectureRoofForm.ProviderDefault ||
+
+            GuildHouseProgram program = GuildHouseProgramCatalog.Get(house.Kind);
+            int selectedRoomCount = math.min(rooms, program.Rooms.Length);
+            int cellsPerFloor = house.Kind == GuildHouseKind.Druids ? 6 : 4;
+            int minimumStoreys = math.max(1, (selectedRoomCount + cellsPerFloor - 1) / cellsPerFloor);
+            if (house.Kind == GuildHouseKind.Wizards)
+                minimumStoreys = math.max(2, minimumStoreys);
+
+            if (storeys != 0)
+            {
+                if (storeys < minimumStoreys)
+                {
+                    error = $"{house.DisplayName} needs at least {minimumStoreys} storeys for the selected room program.";
+                    return false;
+                }
+                if (storeys > MaximumStoreys)
+                {
+                    error = $"Guild-house provider supports at most {MaximumStoreys} explicit storeys.";
+                    return false;
+                }
+            }
+
+            if (floorHeight != 0 && (floorHeight < MinimumFloorHeight || floorHeight > MaximumFloorHeight))
+            {
+                error = $"Guild-house floor height must be {MinimumFloorHeight}-{MaximumFloorHeight} voxels when explicit.";
+                return false;
+            }
+
+            if (parameters.RoofForm != ArchitectureRoofForm.ProviderDefault ||
                 parameters.Foundation != ArchitectureFoundationForm.ProviderDefault ||
                 parameters.Openings != ArchitectureOpeningPattern.ProviderDefault ||
                 parameters.TrimLevel != 0 || parameters.DetailLevel != 0)
             {
-                error = "Guild-house provider currently supports explicit footprint and room-count parameters only; other non-default parameters are rejected.";
+                error = "Guild-house provider supports footprint, room count, storey count, and floor height; roof, foundation, opening, trim, and detail overrides remain provider defaults.";
                 return false;
             }
 
