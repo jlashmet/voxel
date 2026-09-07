@@ -6,30 +6,42 @@ Complete the authored Kentridge -> Rorik/Moordell/Rossdam/Logan route, exactly-o
 
 ## Current evidence
 
-T26-057 is green at product source `e31528947add430f39588a7d3fda98db40589974`, direct-child request `0498efba7629b09f93cfc00a4c12fcdd8ecfa1ed`, run `34008635270`: `Game.Composition.Kentridge.Tests` 1/1 and `Game.Story.Tests` 2/2 passed. That run's Kentridge integration consumer reaches gameplay readiness but is only layout/autowalk/survey proof; it has no authored terminal milestones and is not System26 full-run acceptance.
+T26-057 is green at product source `e31528947add430f39588a7d3fda98db40589974`, direct-child request `0498efba7629b09f93cfc00a4c12fcdd8ecfa1ed`, run `34008635270`: `Game.Composition.Kentridge.Tests` 1/1 and `Game.Story.Tests` 2/2 passed. That historical run's Kentridge integration consumer reaches gameplay readiness but is only layout/autowalk/survey proof; it has no authored terminal milestones and is not System26 full-run acceptance.
 
-Nine tasks remain: T26-021/022/043/044/045/046/053/054/058.
+Recovered hierarchy-aware physical planning and semantic site/NPC projection have exact product proof at source `31e7b47aefad0f71d4d7ab2b842f4f1dec898ebb`, direct-child request `d1182bc248c54dced2ce5bb86de31056bd5d7b07`, run `34029171252`, job `101475442215`. Artifact `9988560566` digest `sha256:7784f88df4e9374e44241375b668ed50e5f8bc506b3c266122087509359ec3e2` records the previously failing hierarchy/site realization regression as passed. See `ci-evidence-d1182bc.md`.
 
-Recovered hierarchy-aware physical planning and semantic site/NPC projection now have exact product proof. Source `31e7b47aefad0f71d4d7ab2b842f4f1dec898ebb`, direct-child request `d1182bc248c54dced2ce5bb86de31056bd5d7b07`, run `34029171252`, job `101475442215` completed successfully. Artifact `9988560566` digest `sha256:7784f88df4e9374e44241375b668ed50e5f8bc506b3c266122087509359ec3e2` records the previously failing `AuthoredFullRunPhysicalWorldPlanTests.FullRunGenerationResolvesAuthoredSitesAndNpcAssignmentsAgainstPhysicalHierarchy` as passed, including source-backed `/rich-generation/starting-pub` identity plus a physical macro anchor. See `ci-evidence-d1182bc.md`.
+The preserved exact request `dcc9f36e64a4edaebe250560a89c2754aece2931` targets product source `5702064ce9feb070f8cb893342af106b3df957a4` and remains queued in run `34158903057`. It must not be replaced while queued/running. Since the feature branch has advanced with the dedicated full-run player proof, this request is historical evidence only; final acceptance requires a new direct-child exact-SHA request for the stabilized final feature source after `dcc9f36e...` completes.
 
-This exact run does not complete T26-058: the explicit SceneIssue replay step was skipped, the top-level integration consumer remains generic layout/autowalk/survey, and production `KentridgePlayableSlice` still boots `KnownOpeningCampaignContent.Build(...)` rather than the full authored campaign.
+## T26-058 production full-run path — implemented, awaiting exact proof
 
-## Selected physical-world recovery
+The shipped `KentridgePlayableSlice` now enters through `KentridgePlayableFullRunBootstrap`. The bootstrap intentionally retains the opening-only Kentridge planner for exact rich pub/hidden-space geometry, then overlays those semantic opening identities onto the hierarchy-aware `AuthoredFullRunKentridgeComposition`. The session factory therefore boots `AuthoredFullRunCampaignContent` against the real multi-settlement physical realization without weakening the single-settlement opening invariant or inventing continuation coordinates.
 
-The prior macro-world SceneIssue was administratively deferred, but its preserved checkpoint `62533f5c0b1716c70414eb82d0e2b0def9e99f39` contains acceptance-required reusable production work that master intentionally omitted: semantic physical regions/route constraints, deterministic terrain-aware macro planning, generic settlement realization, water/ridge/pass catalogues, and Kentridge macro-selection integration. This System26 assignment recovers only those production pieces required by T26-021/022/044–046; the closed agent-6 SceneIssue and its bookkeeping remain untouched.
+`KentridgePlayableSlice` now asserts that its session is full-run and emits `KENTRIDGE_AUTHORED_FULL_RUN_READY` with settlement/NPC counts. The canonical top-level Kentridge player scenario requires that marker in addition to its existing world-layout evidence, so the actual shipped scene cannot silently regress to the opening-only graph.
 
-Recovered core product source `808c93e8b06a999e37664a021af4eea2382799f7` restored the semantic physical intent/planner, reservation adapter, physical/water voxel catalogues, Kentridge macro intent, and the existing Kentridge/generic catalogue integration points. The follow-on full-run planner compiles the real `WorldHierarchyPlan`, consumes the recovered `TopDownWorldPhysicalPlan`, and now resolves authored rich-settlement roles without weakening generic blockout failure behavior.
+Focused hierarchy/opening-overlay regressions remain module-owned. Final exact CI must compile and exercise these paths before T26-058 is checked.
 
-## Next implementation gate — T26-058
+## T26-021/022/044-046 built-player terminal proof — implemented, awaiting exact proof
 
-Production `KentridgePlayableSlice.OnEnable()` still constructs `KnownOpeningCampaignContent.Build(...)`, so the shipped player cannot expose the authored Rorik/Moordell/Rossdam/Logan continuation even though the hierarchy-aware physical plan now resolves. The existing `KentridgeCampaignWorldPlanner` intentionally accepts exactly one region/settlement and rejects outer routes; preserve that opening-only contract.
+`Assets/Game/Composition/Kentridge/Playable/Validation/KentridgeFullRunCampaignValidation.unity` is a paired module-local standalone player validation. It enters through the exact shipped `KentridgePlayableFullRunBootstrap`, production `GameSessionOrchestrator`, and production `ApplicationFlowCoordinator`; no alternate campaign/session/outcome authority is constructed.
 
-Implement a distinct production full-campaign realization boundary that boots `AuthoredFullRunCampaignContent`, consumes `AuthoredFullRunCampaignGenerationPlan`, converts resolved site anchors into terrain-relative NPC and cutscene-stage facts through existing production semantics, and feeds the existing Kentridge session/player seams. Reuse `SiteRoleResolver`, `NpcPlacementResolver`, cutscene-stage realization, existing actor host/presentation, and System15 observer/query. Do not invent continuation coordinates, mutate private progression, add parallel world authority, or weaken the opening planner.
+The driver advances the authored route using public semantic gameplay facts and the production Encounter registry: opening -> Awon -> Medrare -> church/Angel -> Rorik -> Moordell -> Rossdam -> mayor -> Logan -> lower castle. Cutscenes use bounded SessionOrchestration ticks, encounters resolve through their owning runtime, and semantic milestones are logged for the standalone scenario. The proof asserts the hierarchy-backed physical realization includes continuation NPC/stage facts, System15 resolves `main-campaign-complete` with success at revision `1`, Application projects `ApplicationScreen.Outcome`, and `ReturnFromOutcome` reaches the frontend through normal teardown.
 
-Then replace the generic System26 integration proof with bounded semantic milestone waits for Rorik/Moordell/Rossdam/Logan, System15 terminal outcome, and Systems14/23 aftermath. Only exact built-player evidence through the production composition can check T26-058 and T26-021/022/044–046.
+The paired `.player-scenario.json` requires milestone logs through Rorik, Moordell, Rossdam and Logan plus System15/frontend completion, with bounded 30-second smoke classification and failure-pattern rejection. This is ordinary module-local player validation, while the existing production Kentridge integration scenario separately proves the shipped scene boots the full-run graph.
 
-T26-043 remains independently owned by production Sessions/System25. Current master still carries System25 open with its production topology/gameplay/reconnect evidence unchecked; System26 will recheck it after independent full-run work and will not duplicate multiplayer authority or transport.
+T26-021/022/044/045/046 and the final T26-053 gate stay unchecked until the final exact-SHA run proves these assets in CI.
 
-## Cost / validation
+## External prerequisite — T26-043
 
-Preserve existing residency, streaming, scheduler, renderer and memory budgets. Do not force readiness, widen radius, raise budgets, or substitute storage-only evidence. Update only owning module-local validation required by changed runtime behavior. New exact-SHA CI follows a legitimate production/test change; PR #312 remains draft until every checkbox is genuinely complete.
+T26-043 remains independently owned by production Sessions/System25. `fixes/agent-7` still records core authority/client topology, convergence, gameplay contention/shared progression, reconnect/leave and release acceptance as incomplete. System26 will not duplicate multiplayer transport, process harness, or campaign authority. Closure is therefore prohibited until authoritative System25 evidence satisfies the shared multiplayer progression/outcome requirement.
+
+## Closure sequence
+
+1. Preserve request `dcc9f36e...` until it reaches a terminal result; do not replace its transport commit while queued/running.
+2. After that request completes, stabilize any CI-discovered defects and issue a new direct-child exact-SHA request for the current final System26 source.
+3. Require automatic domain/module validation, the new full-run standalone player scenario, and the production Kentridge integration scenario to pass with retained artifacts/milestones.
+4. Recheck System25 and check T26-043 only from authoritative separate-process evidence.
+5. When every checkbox and acceptance criterion is genuinely complete, record final CI evidence, set `acceptanceComplete: true`, move the issue atomically from `SceneIssues/open/...` to `SceneIssues/closed/...`, merge current `origin/master` into `fixes/agent-8`, then promote only by PR + auto-merge and required `affected` gate.
+
+## Cost / validation constraints
+
+Preserve existing residency, streaming, scheduler, renderer and memory budgets. Do not force readiness, widen radius, raise budgets, substitute storage-only evidence, or create a second network/runtime path. New validation remains module-local and uses existing structural discovery. PR #312 is historical/closed; final promotion must use a fresh PR only after all acceptance is complete.
