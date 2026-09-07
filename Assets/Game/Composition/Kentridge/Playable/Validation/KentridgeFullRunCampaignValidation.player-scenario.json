@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "runSeconds": 30,
+  "capture": {
+    "width": 960,
+    "height": 540,
+    "intervalSeconds": 5,
+    "minimumFrames": 4,
+    "evidenceAfterSeconds": 2
+  },
+  "timeline": {},
+  "assertions": {
+    "requiredLogPatterns": [
+      "KENTRIDGE_FULL_RUN_MILESTONE physical-world-ready",
+      "KENTRIDGE_FULL_RUN_MILESTONE rorik-encounter-completed",
+      "KENTRIDGE_FULL_RUN_MILESTONE moordell-distribution-completed",
+      "KENTRIDGE_FULL_RUN_MILESTONE rossdam-battle-end-completed",
+      "KENTRIDGE_FULL_RUN_MILESTONE logan-castle-lower-logan-hole-completed",
+      "KENTRIDGE_FULL_RUN_OUTCOME disposition=Success outcome=main-campaign-complete revision=1",
+      "KENTRIDGE_FULL_RUN_APPLICATION_OUTCOME PASS",
+      "KENTRIDGE_FULL_RUN_VALIDATION PASS"
+    ],
+    "forbiddenLogPatterns": [
+      "NullReferenceException",
+      "MissingReferenceException",
+      "InvalidOperationException",
+      "FAIL"
+    ]
+  }
+}
