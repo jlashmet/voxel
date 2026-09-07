@@ -36,9 +36,9 @@ Pressure-retirement H2 was independently falsified: victim selection excludes cu
 
 ## Red regression and selected repair
 
-Added `GpuPersistentSourceDemandOwnershipTests.AdmittedRequestWatchesEditsWithoutRetainingWholeSourceFootprint` at feature SHA `c3a3ddb1051d478cb955f4a0e1daf323293983c8`. It uses a real bound voxel world, real `GpuSurfaceExtractionContext`, and real page arena. For steps 1/2/4/8 an admitted request must retain its edit/version watch while `GpuSurfaceMirrorCoordinator.DemandFootprintCount` remains zero. Current pre-fix fine steps retain one whole-footprint demand, so this is a direct red discriminator.
+Added `GpuPersistentSourceDemandOwnershipTests.AdmittedRequestWatchesEditsWithoutRetainingWholeSourceFootprint` at pre-fix feature SHA `c3a3ddb1051d478cb955f4a0e1daf323293983c8`. It uses a real bound voxel world, real `GpuSurfaceExtractionContext`, and real page arena. For steps 1/2/4/8 an admitted request must retain its edit/version watch while `GpuSurfaceMirrorCoordinator.DemandFootprintCount` remains zero.
 
-Red CI transport `41cd5e3b07c7d5a9d8c4af87dbd1c360a7191fe4` / run `34163251595` is pending runner admission and must not be replaced while queued/running.
+Red CI transport `41cd5e3b07c7d5a9d8c4af87dbd1c360a7191fe4` / run `34163251595` / job `101869196874` completed on Unity `6000.5.6f1`. The requested regression failed exactly on pre-fix steps 1/2/4: each retained one whole-request source-demand footprint (`Expected: 0`, `But was: 1`). Step 8 passed, matching its pre-existing edit-watch-only path. The run reached the requested EditMode test normally (80 seconds, 6208 MB peak) and was not an infrastructure failure. This is the required red proof for the ownership defect.
 
 Selected production repair is deliberately narrow: all admitted steps use `RequestEditWatch` for whole-request invalidation; only count-batch source-preparation portions own `RequestSourceRange` residency. No global capacity, draw distance, content, quality or device budget changes.
 
@@ -46,4 +46,4 @@ Production repair commit: `0c65f67b4e1ef1518923fb24a19eb4c8170eb707`.
 
 ## Verdict / next step
 
-H1 source-residency ownership is supported by the exact standalone baseline and by the current ownership contradiction. Preserve the queued red request. After its result is recorded, run the same focused regression on the repaired exact SHA, then replay the owning SolidGpu production validation and full 180-second VoxelShowcase capture. The repair is accepted only if source demand remains bounded, persistent occupied-visible holes converge away under the existing deadline, and the fix does not weaken quality/capacity or introduce fallback.
+H1 source-residency ownership is now directly proven by both the 180-second product baseline and the pre-fix red regression. Run the same focused regression on the repaired exact feature SHA next. If green, replay the owning SolidGpu production validation and full 180-second VoxelShowcase capture. The repair is accepted only if source demand remains bounded, persistent occupied-visible holes converge away under the existing deadline, and the fix does not weaken quality/capacity or introduce fallback.
