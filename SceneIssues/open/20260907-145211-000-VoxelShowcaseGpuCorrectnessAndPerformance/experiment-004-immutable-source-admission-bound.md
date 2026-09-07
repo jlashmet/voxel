@@ -36,7 +36,7 @@ No capacity, quality, draw-distance, content or CPU-authority budget changes are
 
 Pre-fix red evidence remains `41cd5e3b07c7d5a9d8c4af87dbd1c360a7191fe4`, run `34163251595`: steps 1/2/4 failed exactly because each retained an unrestricted whole footprint; step 8 passed.
 
-The first corrected request, transport `730a7a344f8ac7162f9891b664734f3e58be3aad` / source `47e08b76e9e3bc331786790178160bbb12188403`, run `34165162761`, reached automatic Rendering validation but failed compile before tests with two `CS0103` errors for `VoxelReadGrid` in the new gate. This was a narrow missing namespace import, not a behavioral or infrastructure result. Current source imports `VoxelEngine.Rendering.Runtime.SurfaceExtraction`, so that exact old failure is superseded and must not be retried as acceptance.
+The first corrected request, transport `730a7a344f8ac7162f9891b664734f3e58be3aad` / source `47e08b76e9e3bc331786790178160bbb12188403`, run `34165162761`, reached automatic Rendering validation but failed compile before tests with two `CS0103` errors for `VoxelReadGrid` in the new gate. This was a narrow missing `VoxelEngine.Storage.Api` namespace import, not a behavioral or infrastructure result. Feature commit `c10a7471dd2a49e42f6eda0a0f5ccb0ac3ed54e4` adds that import, and `VoxelEngine.Rendering.Runtime.asmdef` already references `VoxelEngine.Storage.Api`, so no assembly-boundary change is required. The failed `730a7a34` request is superseded and must not be retried as acceptance.
 
 ## Verdict / next step
 
