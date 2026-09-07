@@ -1,0 +1,77 @@
+name: ChatGPT binary upload test
+
+on:
+  push:
+    branches:
+      - chatgpt-image-test-20260907
+    paths:
+      - .github/workflows/chatgpt-binary-upload-test.yml
+
+permissions:
+  contents: write
+
+jobs:
+  generate-and-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate 2048x2048 PNG
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import binascii
+          import pathlib
+          import struct
+          import zlib
+
+          WIDTH = 2048
+          HEIGHT = 2048
+
+          def png_chunk(kind: bytes, data: bytes) -> bytes:
+              return (
+                  struct.pack('>I', len(data))
+                  + kind
+                  + data
+                  + struct.pack('>I', binascii.crc32(kind + data) & 0xFFFFFFFF)
+              )
+
+          raw = bytearray()
+          for y in range(HEIGHT):
+              raw.append(0)  # PNG filter type 0
+              for x in range(WIDTH):
+                  # Deterministic procedural texture with enough entropy to make
+                  # the resulting PNG comfortably larger than the old ~20 KB limit.
+                  v = ((x * 73) ^ (y * 151) ^ ((x * y) >> 3) ^ ((x + y) * 29)) & 0xFF
+                  raw.extend((v, (v * 3 + x) & 0xFF, (v * 5 + y) & 0xFF))
+
+          png = bytearray(b'\x89PNG\r\n\x1a\n')
+          png += png_chunk(b'IHDR', struct.pack('>IIBBBBB', WIDTH, HEIGHT, 8, 2, 0, 0, 0))
+          png += png_chunk(b'IDAT', zlib.compress(bytes(raw), 9))
+          png += png_chunk(b'IEND', b'')
+
+          out = pathlib.Path('test-assets/chatgpt-2k-texture.png')
+          out.parent.mkdir(parents=True, exist_ok=True)
+          out.write_bytes(png)
+
+          if len(png) <= 20_000:
+              raise SystemExit(f'PNG unexpectedly too small: {len(png)} bytes')
+          if png[:8] != b'\x89PNG\r\n\x1a\n':
+              raise SystemExit('PNG signature invalid')
+
+          width, height = struct.unpack('>II', png[16:24])
+          if (width, height) != (2048, 2048):
+              raise SystemExit(f'Unexpected dimensions: {width}x{height}')
+
+          print(f'generated {out}: {len(png)} bytes, {width}x{height}')
+          PY
+
+      - name: Commit generated binary
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add test-assets/chatgpt-2k-texture.png
+          git diff --cached --exit-code && exit 0
+          git commit -m "Add ChatGPT 2K binary texture"
+          git push origin HEAD:chatgpt-image-test-20260907
