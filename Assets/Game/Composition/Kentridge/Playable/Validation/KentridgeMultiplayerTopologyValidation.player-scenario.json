@@ -163,6 +163,13 @@
     }
   ],
   "assertions": {
+    "equalMilestoneFields": [
+      {
+        "name": "baseline-ready",
+        "roles": ["authority", "client-a", "client-b"],
+        "fields": ["revision", "stateDigest"]
+      }
+    ],
     "requiredLogPatterns": ["VOXEL_VALIDATION_MILESTONE"],
     "forbiddenLogPatterns": [
       "GAMESYSTEM25_MULTIPLAYER_TOPOLOGY FAIL",
