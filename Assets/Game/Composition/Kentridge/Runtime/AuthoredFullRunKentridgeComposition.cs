@@ -1,5 +1,6 @@
 using System;
 using Game.Composition.Campaign.Content;
+using Game.Composition.Kentridge.Api;
 using Game.Composition.WorldBuilderWorldGen.Runtime;
 using Game.Cutscenes.Api;
 using Game.Outcomes.Api;
