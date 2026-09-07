@@ -16,6 +16,8 @@
     "Game.Composition.Kentridge.Runtime",
     "Game.Composition.Showcase",
     "Game.Composition.WorldBuilderWorldGen",
+    "Game.Continuity.Api",
+    "Game.Continuity.Runtime",
     "Game.Cutscenes.Api",
     "Game.Encounters.Api",
     "Game.Encounters.Runtime",
