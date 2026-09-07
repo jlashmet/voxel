@@ -566,12 +566,13 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             return true;
         }
 
-        internal void ApprovePagedCandidate(int handle, int frame)
+        internal ulong ApprovePagedCandidate(int handle, int frame)
         {
             if (!_hasStaged || !_candidatePending || handle != _staged.Handle)
                 throw new InvalidOperationException("No current GPU candidate is available for approval.");
             GpuSurfaceMirrorCoordinator.ResolveCandidate(handle, _staged.Generation, true, frame);
             _candidatePending = false;
+            return _staged.Generation;
         }
 
         internal bool FailPagedBatch(uint token)

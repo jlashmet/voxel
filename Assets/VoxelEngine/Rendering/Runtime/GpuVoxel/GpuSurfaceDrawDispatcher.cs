@@ -169,6 +169,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         internal double LastLodInputMs { get; private set; }
         internal int LastLodUploadedNodes { get; private set; }
         internal int LodNodeCount => _lodInputs?.Count ?? 0;
+        internal ComputeBuffer ActiveLodState => _activeLodSlot >= 0 ? _lodState[_activeLodSlot] : null;
+        internal ComputeBuffer ActiveLodNodes => _activeLodSlot >= 0 ? _lodNodes[_activeLodSlot] : null;
+        internal ComputeBuffer ActiveLodSelection => _activeLodSlot >= 0 ? _lodSelected[_activeLodSlot] : null;
+        internal GpuSurfaceIndexDispatcher IndexedDraw { get; private set; }
         internal ComputeBuffer ActiveIndirectArgs { get; private set; }
         internal ComputeBuffer ActiveDrawMetadata { get; private set; }
         internal ComputeBuffer ActiveBucketState { get; private set; }
@@ -206,7 +210,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                                  IReadOnlyList<SurfaceLodNodeKey> complete, int frame,
                                  IReadOnlyList<SurfaceLodNodeKey> owned = null,
                                  Plane[] planes = null, float voxelSize = 1f,
-                                 Vector4[] bands = null, Vector3 cameraPosition = default)
+                                 Vector4[] bands = null, Vector3 cameraPosition = default, bool reuseInputImage = false)
         {
             if (_disposed) throw new ObjectDisposedException(nameof(GpuSurfaceDrawDispatcher));
             if (handles.Count > _arena.HandleCapacity) throw new ArgumentOutOfRangeException(nameof(handles));
@@ -224,7 +228,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             }
             double inputStart = Time.realtimeSinceStartupAsDouble;
             LastLodUploadedNodes = 0;
-            _lodInputs.Update(drawable, handles, complete, owned);
+            // The scheduler already versions membership/readiness before reusing its lists.
+            // Keep dynamic camera/band classification below active even when the image is reused.
+            if (!reuseInputImage || _lodInputs.Version == 0)
+                _lodInputs.Update(drawable, handles, complete, owned);
             int slot = Math.Abs(frame % BufferedFrames);
             if (_lodUploadedVersions[slot] != _lodInputs.Version)
             {
@@ -289,6 +296,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (visibleHandles == null) throw new ArgumentNullException(nameof(visibleHandles));
             if (visibleHandles.Count > _arena.HandleCapacity)
                 throw new ArgumentOutOfRangeException(nameof(visibleHandles));
+            // Indexed production drawing consumes the GPU selection directly. Bucket work is
+            // retained for explicit-handle consumers and the narrow addressing regressions.
+            if (_useLodSelection && IndexedDraw != null) return;
             int slot = Math.Abs(frame % BufferedFrames);
             ComputeBuffer handles = _visibleHandles[slot];
             ComputeBuffer state = _bucketState[slot];
@@ -332,12 +342,20 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _shader.SetBuffer(kernel, IdDrawMetadata, metadata);
         }
 
+        internal GpuSurfaceIndexDispatcher GetIndexedDraw()
+        {
+            if (_disposed) throw new ObjectDisposedException(nameof(GpuSurfaceDrawDispatcher));
+            return IndexedDraw ??= new GpuSurfaceIndexDispatcher(
+                Resources.Load<ComputeShader>("GpuSurfaceIndexCompact"), _arena);
+        }
+
         private static int Groups(int count) => (count + ThreadGroupSize - 1) / ThreadGroupSize;
 
         public void Dispose()
         {
             if (_disposed) return;
             _disposed = true;
+            IndexedDraw?.Dispose();
             // Teardown is the only blocking boundary; a live callback must not outlive its buffers.
             if (_demandPending) _demandRequest.WaitForCompletion();
             for (int i = 0; i < BufferedFrames; i++)

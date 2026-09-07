@@ -2,19 +2,10 @@
 #pragma kernel CSIndexRegions
 #pragma kernel CSQueryDiscovery
 
-StructuredBuffer<uint> _DiscoveryWords;
-RWStructuredBuffer<uint> _DiscoveryMap;
-uint _DiscoveryRegionCount;
-uint _DiscoveryMapCapacity;
-StructuredBuffer<int4> _DiscoveryQueries; // chunk coordinate xyz, source step
-RWStructuredBuffer<uint> _DiscoveryResults; // 1 only for a completed known-empty proof
+#include "GpuSurfaceDiscovery.hlsl"
+StructuredBuffer<int4> _DiscoveryQueries;
+RWStructuredBuffer<uint> _DiscoveryResults;
 uint _DiscoveryQueryCount;
-
-uint RegionHash(int3 region)
-{
-    uint3 value=asuint(region);
-    return (value.x*73856093u ^ value.y*19349663u ^ value.z*83492791u)&(_DiscoveryMapCapacity-1u);
-}
 
 [numthreads(64,1,1)]
 void CSClearRegionMap(uint3 id:SV_DispatchThreadID)
@@ -38,28 +29,6 @@ void CSIndexRegions(uint3 id:SV_DispatchThreadID)
     }
 }
 
-bool DiscoveryCellIsEmpty(int3 fine)
-{
-    int3 region=fine>>3;
-    uint slot=RegionHash(region);
-    for(uint probe=0u;probe<_DiscoveryMapCapacity;probe++)
-    {
-        uint entry=_DiscoveryMap[slot];
-        if(entry==0u)return false;
-        uint base=(entry-1u)*20u;
-        int3 key=int3(_DiscoveryWords[base],_DiscoveryWords[base+1u],_DiscoveryWords[base+2u]);
-        if(all(key==region))
-        {
-            if(_DiscoveryWords[base+3u]==0u)return false;
-            uint3 local=asuint(fine)&7u;
-            uint bit=local.x+8u*(local.y+8u*local.z);
-            return (_DiscoveryWords[base+4u+(bit>>5)]&(1u<<(bit&31u)))==0u;
-        }
-        slot=(slot+1u)&(_DiscoveryMapCapacity-1u);
-    }
-    return false;
-}
-
 [numthreads(64,1,1)]
 void CSQueryDiscovery(uint3 id:SV_DispatchThreadID)
 {
@@ -70,6 +39,6 @@ void CSQueryDiscovery(uint3 id:SV_DispatchThreadID)
     for(int z=0;empty && z<query.w;z++)
     for(int y=0;empty && y<query.w;y++)
     for(int x=0;empty && x<query.w;x++)
-        empty=DiscoveryCellIsEmpty(min+int3(x,y,z));
+        empty=DiscoveryCellState(min+int3(x,y,z))==1u;
     _DiscoveryResults[id.x]=empty?1u:0u;
 }

@@ -46,4 +46,10 @@ namespace VoxelEngine.Structures.Api
         /// </summary>
         IReadOnlyList<FeaturePresentationBake> Query(FeaturePresentationBounds bounds);
     }
+    /// <summary>Changes whenever query membership or any immutable bake is replaced.</summary>
+    public interface IVersionedFeaturePresentationSource : IFeaturePresentationSource
+    {
+        ulong Revision { get; }
+    }
+
 }

@@ -19,6 +19,8 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             public uint Low;
             public uint High;
             public uint Release;
+            public uint SourceStep;
+            public uint OwnerHash;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -98,7 +100,7 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             const ulong latest = 0x12345678abcdef01UL;
             arena.QueueGeneration(first, 1UL);
             arena.QueueGeneration(second, 19UL);
-            arena.QueueGeneration(first, latest);
+            arena.QueueGeneration(first, latest, 4, 0xdeadbeefu);
             arena.FlushHandleCommands(3);
 
             // Reading the real transport catches the race deterministically even when separate
@@ -109,6 +111,12 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             Assert.That(commands[0].Low, Is.EqualTo(0xabcdef01u));
             Assert.That(commands[0].High, Is.EqualTo(0x12345678u));
             Assert.That(commands[0].Release, Is.Zero);
+            Assert.That(commands[0].SourceStep, Is.EqualTo(4));
+            Assert.That(commands[0].OwnerHash, Is.EqualTo(0xdeadbeefu));
+            var owners = new uint[4];
+            arena.ResidentOwners.GetData(owners);
+            Assert.That(owners[first * 2], Is.EqualTo(4));
+            Assert.That(owners[first * 2 + 1], Is.EqualTo(0xdeadbeefu));
             Assert.That(commands[1].Handle, Is.EqualTo((uint)second));
             Assert.That(commands[1].Low, Is.EqualTo(19u));
 

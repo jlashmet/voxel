@@ -7,6 +7,16 @@ namespace VoxelEngine.Tests.EditMode
     public sealed class SurfaceDiscoveryCoverageTests
     {
         [Test]
+        public void ResidencyLossInvalidatesProofWithoutAWorldEdit()
+        {
+            var coverage=new SurfaceDiscoveryCoverage();coverage.Begin(int3.zero);coverage.Complete(int3.zero);
+            ulong version=coverage.Version;
+            coverage.ForgetNonresident(_=>true);Assert.AreEqual(version,coverage.Version);
+            coverage.ForgetNonresident(_=>false);Assert.Greater(coverage.Version,version);
+            Assert.False(coverage.IsKnownEmpty(new SurfaceLodNodeKey(1,int3.zero)));
+        }
+
+        [Test]
         public void UnknownAndPartialDiscoveryCannotProveEmpty()
         {
             var coverage = new SurfaceDiscoveryCoverage();

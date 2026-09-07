@@ -47,6 +47,44 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(result[0].Presentation.Roughness, Is.EqualTo(0.79f).Within(0.0001f));
         }
 
+        [Test]
+        public void ResidentCandidatesObserveRemovalRuinAndRestorationWithoutRequeryingGeometry()
+        {
+            var states=new StructureVisualStateStore();
+            var source=new ResidentSource();
+            var selection=new FarFeatureSelectionPolicy(
+                new FarFeatureSelectionPolicy.Thresholds(24,18,4,3,1.5f,1),
+                new FarFeatureSelectionPolicy.DistanceCaps(1000,1000,1000),60,1080);
+            var adapter=new ShowcaseFarFeatureStateAdapter(new FarFeaturePresentationAdapter(source,selection,1),states);
+            var first=adapter.QueryCandidates(float3.zero,1000)[0];
+            ulong version=adapter.CandidateVersion;
+            adapter.QueryCandidates(new float3(1,0,0),1000);
+            Assert.AreEqual(version,adapter.CandidateVersion);
+            states.Set(7,StructureVisualState.Removed);
+            Assert.AreEqual(0,adapter.QueryCandidates(float3.zero,1000).Count);
+            Assert.Greater(adapter.CandidateVersion,version);
+            states.Set(7,StructureVisualState.Ruined);
+            var ruined=adapter.QueryCandidates(float3.zero,1000)[0];
+            Assert.AreEqual(first.Geometry,ruined.Geometry);
+            Assert.AreNotEqual(0,ruined.Flags & FarFeatureVisualFlags.Ruined);
+            states.Remove(7);
+            Assert.AreEqual(FarFeatureVisualFlags.None,adapter.QueryCandidates(float3.zero,1000)[0].Flags);
+            states.Set(7,StructureVisualState.Removed);states.Clear();
+            Assert.AreEqual(1,adapter.QueryCandidates(float3.zero,1000).Count);
+            Assert.AreEqual(1,source.Queries);
+        }
+
+        private sealed class ResidentSource : IVersionedFeaturePresentationSource
+        {
+            public ulong Revision=>1;
+            public int Queries;
+            private readonly FeaturePresentationBake[] _bakes={new FeaturePresentationBake(7,1,default,int3.zero,0,
+                int3.zero,new int3(10),new[]{new Primitive {Shape=PrimitiveShape.Box,Mode=PrimitiveMode.Fill,
+                    A=int3.zero,B=new int3(10),Material=1}})};
+            public bool TryGet(ulong id,out FeaturePresentationBake bake){bake=_bakes[0];return id==7;}
+            public IReadOnlyList<FeaturePresentationBake> Query(FeaturePresentationBounds bounds){Queries++;return _bakes;}
+        }
+
         private static ShowcaseFarFeatureStateAdapter CreateAdapter(StructureVisualStateStore states)
         {
             var selection = new FarFeatureSelectionPolicy(

@@ -155,14 +155,15 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void SolidSurfaceDrawsAreBucketedInsteadOfSubmittedPerChunk()
+        public void SolidSurfaceDrawsUseGpuCompactedHardwareIndices()
         {
             string renderPass = ReadRenderingSource(
                 Path.Combine("RenderFeature", "VoxelRenderPass.cs"));
             string shader = File.ReadAllText(
                 "Assets/VoxelEngine/Rendering/Runtime/Shaders/SmoothSurface.shader");
 
-            StringAssert.Contains("GpuSurfaceDrawDispatcher.BucketCount", renderPass);
+            StringAssert.Contains("passData.IndexedDraw.Record(", renderPass);
+            StringAssert.Contains("passData.IndexedDraw.Indices", renderPass);
             StringAssert.Contains("DrawProceduralIndirect", renderPass);
             StringAssert.Contains("SV_InstanceID", shader);
             StringAssert.Contains("_PagedDrawMetadata", shader);
@@ -365,7 +366,7 @@ namespace VoxelEngine.Tests.EditMode
                 Path.Combine("SurfaceExtraction", "GpuSolidChunkCache.cs"));
             int start = cache.IndexOf("private bool AllOwnedCoreRegionsResident",
                                       StringComparison.Ordinal);
-            int end = cache.IndexOf("internal bool TryEvictOneForArenaPressure", start,
+            int end = cache.IndexOf("internal bool AcknowledgeGpuEviction", start,
                                     StringComparison.Ordinal);
             Assert.GreaterOrEqual(start, 0);
             Assert.Greater(end, start);
@@ -462,7 +463,7 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.DoesNotContain("foreach (int3 candidate in _dirty)", water);
             StringAssert.DoesNotContain("private void DropNoLongerResident", water);
             StringAssert.DoesNotContain("List<int3> gone", water);
-            int pressure = water.IndexOf("TryEvictOneForArenaPressure", StringComparison.Ordinal);
+            int pressure = water.IndexOf("RelieveGpuPressure", StringComparison.Ordinal);
             int pressureEnd = water.IndexOf("public void Dispose()", pressure,
                                             StringComparison.Ordinal);
             Assert.GreaterOrEqual(pressure, 0);

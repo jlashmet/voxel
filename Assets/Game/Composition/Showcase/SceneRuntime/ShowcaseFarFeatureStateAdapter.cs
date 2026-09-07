@@ -17,6 +17,23 @@ namespace VoxelEngine.Showcase
         private readonly FarFeaturePresentationAdapter _presentation;
         private readonly IStructureVisualStateSource _states;
         private readonly List<FarFeatureInstance> _instances = new();
+        private ulong _candidateVersion, _stateRevision;
+        private bool _hasCandidates;
+        public ulong CandidateVersion { get; private set; }
+
+        public IReadOnlyList<FarFeatureInstance> QueryCandidates(float3 cameraPosition, float radiusMetres)
+        {
+            var candidates = _presentation.QueryCandidates(cameraPosition, radiusMetres);
+            var versioned = _states as IVersionedStructureVisualStateSource;
+            if (versioned != null && _hasCandidates && _candidateVersion == _presentation.CandidateVersion
+                && _stateRevision == versioned.Revision) return _instances;
+            Apply(candidates);
+            _hasCandidates = true;
+            _candidateVersion = _presentation.CandidateVersion;
+            _stateRevision = versioned?.Revision ?? 0;
+            CandidateVersion++;
+            return _instances;
+        }
 
         public ShowcaseFarFeatureStateAdapter(
             FarFeaturePresentationAdapter presentation,
@@ -39,6 +56,7 @@ namespace VoxelEngine.Showcase
         {
             if (selected == null) throw new ArgumentNullException(nameof(selected));
 
+            _hasCandidates = false;
             _instances.Clear();
             if (_instances.Capacity < selected.Count) _instances.Capacity = selected.Count;
 

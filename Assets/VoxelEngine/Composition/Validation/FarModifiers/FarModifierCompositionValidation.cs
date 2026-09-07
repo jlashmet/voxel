@@ -48,11 +48,13 @@ namespace VoxelEngine.Composition.Validation
             }
             if (_modifiers.Count == 0) Debug.LogError("FAR_MODIFIER failure: no generated modifier inputs");
             _target = centerSum / Mathf.Max(1, _modifiers.Count);
-            _adapter = new FarFeaturePresentationAdapter(source,
-                new FarFeatureSelectionPolicy(
+            var selection = new FarFeatureSelectionPolicy(
                     new FarFeatureSelectionPolicy.Thresholds(24, 18, 4, 3, 1.5f, 1),
-                    new FarFeatureSelectionPolicy.DistanceCaps(1500, 1500, 1500), 55, 900), 0.1f);
+                    new FarFeatureSelectionPolicy.DistanceCaps(1500, 1500, 1500), 55, 900);
+            _adapter = new FarFeaturePresentationAdapter(source, selection, 0.1f);
             _renderer = gameObject.AddComponent<ProceduralFarFeatureRenderer>();
+            _renderer.ConfigureGpuSelection(selection.GpuSettings,1500f,0.1f);
+            _renderer.UseSurfaceReplacementHandoff=true;
             var terrain = VoxelFarTerrain.Create(transform, seed, 100f, 1500f);
             terrain.Structures = _world.FarField;
             Debug.Log($"FAR_MODIFIER ready: canonicalModifiers={_modifiers.Count}");
@@ -64,7 +66,7 @@ namespace VoxelEngine.Composition.Validation
             float angle = Time.time * 0.07f;
             transform.position = _target + new Vector3(Mathf.Sin(angle) * 80f, 45f, -Mathf.Cos(angle) * 80f);
             transform.LookAt(_target);
-            var instances = _adapter.Query(transform.position, 1500f);
+            var instances = _adapter.QueryCandidates(transform.position, 1500f);
             foreach (var instance in instances)
                 if (instance.Geometry == null || _modifiers.Contains(instance.StableId))
                     Debug.LogError("FAR_MODIFIER failure: modifier became standalone geometry");

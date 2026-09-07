@@ -171,6 +171,10 @@ void CSClassifyLodCandidates(uint3 id : SV_DispatchThreadID)
         }
     }
     uint flags=inBand?(node.flags&3u):0u;
+    // GPU retirement can precede its host acknowledgment. Missing live geometry must
+    // not suppress ancestor fallback while the CPU membership image is still unchanged.
+    if(node.handle>=0 && node.handle<_LodHandleCapacity && _LiveChunkGeometry[node.handle].ready==0u)
+        flags=0u;
     if(inBand && !inFrustum)
     {
         flags&=~1u;

@@ -12,6 +12,12 @@
 
 #include "VoxelBatchChunkDescriptor.hlsl"
 
+// Captured during existing publication validation; no additional dispatch or CPU bounds scan.
+struct ResidentBounds { float4 center; float4 extent; };
+RWStructuredBuffer<ResidentBounds> _ResidentBounds;
+float _BoundsHalfCells;
+float _BoundsHaloCells;
+
 struct ChunkGeometryRecord
 {
     uint generationLow;
@@ -36,6 +42,8 @@ struct HandleCommand
     uint generationLow;
     uint generationHigh;
     uint release;
+    uint sourceStep;
+    uint ownerHash;
 };
 
 StructuredBuffer<BatchChunkDescriptor> _BatchChunks;
@@ -49,6 +57,7 @@ RWStructuredBuffer<RetiredPage> _RetiredIndexPages;
 StructuredBuffer<RetiredPage> _RetiredVertexPagesRead;
 StructuredBuffer<RetiredPage> _RetiredIndexPagesRead;
 RWStructuredBuffer<uint2> _DesiredGenerations;
+RWStructuredBuffer<uint2> _ResidentOwners;
 StructuredBuffer<uint2> _DesiredGenerationsRead;
 StructuredBuffer<HandleCommand> _HandleCommands;
 RWStructuredBuffer<ChunkGeometryRecord> _LiveChunkGeometry;
@@ -195,6 +204,7 @@ void CSApplyHandleCommands(uint3 id : SV_DispatchThreadID)
     if (commandIndex >= _HandleCommandCount) return;
     HandleCommand command = _HandleCommands[commandIndex];
     _DesiredGenerations[command.handle] = uint2(command.generationLow,command.generationHigh);
+    _ResidentOwners[command.handle] = uint2(command.sourceStep, command.ownerHash);
     if (command.release == 0u) return;
 
     ChunkGeometryRecord pending = _PendingChunkGeometryRead[command.handle];
@@ -326,6 +336,17 @@ void CSPublishBatchPages(uint3 id : SV_DispatchThreadID)
             : (complete ? AllocationReady : AllocationWriteFailed);
         _BatchCounters[word + 10] = status;
         if (status != AllocationReady && samePending) RetirePending(handle, pending);
+        if (status == AllocationReady)
+        {
+            BatchChunkDescriptor chunk = _BatchChunks[record];
+            float sampleSize = chunk.sourceStep * chunk.voxelSize;
+            float extent = (_BoundsHalfCells + _BoundsHaloCells) * sampleSize;
+            ResidentBounds bounds;
+            bounds.center = float4(float3(chunk.chunkOriginVoxel) * chunk.voxelSize
+                + _BoundsHalfCells * sampleSize, 0);
+            bounds.extent = float4(extent, extent, extent, 0);
+            _ResidentBounds[handle] = bounds;
+        }
     }
 }
 

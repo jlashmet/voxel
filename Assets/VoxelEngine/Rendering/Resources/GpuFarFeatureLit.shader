@@ -113,7 +113,8 @@ Shader "Voxel/FarFeatureLit"
 
             // -------------------------------------
             // Shader Stages
-            #pragma vertex LitPassVertex
+            #pragma vertex FarPassVertex
+            #pragma multi_compile_local _ VOXEL_FAR_PAGED_DRAW
             #pragma fragment LitPassFragment
 
             // -------------------------------------
@@ -187,16 +188,50 @@ Shader "Voxel/FarFeatureLit"
             struct FarTransform { float4x4 objectToWorld; float4x4 worldToObject; };
             StructuredBuffer<FarTransform> _FarTransforms;
             StructuredBuffer<uint> _FarVisibleIndices;
+            uint _FarVisibleOffset;
+            #endif
+            #ifdef VOXEL_FAR_PAGED_DRAW
+            StructuredBuffer<uint4> _FarDrawPages;
+            uint _FarPageOffset;
+            struct FarVertex { float3 position; float3 normal; };
+            StructuredBuffer<FarVertex> _FarAtlasVertices;
+            StructuredBuffer<uint> _FarAtlasIndices;
             #endif
             void SetupFarInstance()
             {
                 #ifdef UNITY_PROCEDURAL_INSTANCING_ENABLED
-                FarTransform instance = _FarTransforms[_FarVisibleIndices[unity_InstanceID]];
+                #ifdef VOXEL_FAR_PAGED_DRAW
+                FarTransform instance = _FarTransforms[_FarDrawPages[_FarPageOffset + unity_InstanceID].x];
+                #else
+                FarTransform instance = _FarTransforms[_FarVisibleIndices[_FarVisibleOffset + unity_InstanceID]];
+                #endif
                 unity_ObjectToWorld = instance.objectToWorld;
                 unity_WorldToObject = instance.worldToObject;
                 #endif
             }
             #include "Packages/com.unity.render-pipelines.universal/Shaders/LitForwardPass.hlsl"
+            #ifdef VOXEL_FAR_PAGED_DRAW
+            struct FarInput { uint vertexID : SV_VertexID; UNITY_VERTEX_INPUT_INSTANCE_ID };
+            Varyings FarPassVertex(FarInput input)
+            {
+                UNITY_SETUP_INSTANCE_ID(input);
+                uint pageInstance = 0u;
+                #if UNITY_ANY_INSTANCING_ENABLED
+                pageInstance = unity_InstanceID;
+                #endif
+                uint4 page = _FarDrawPages[_FarPageOffset + pageInstance];
+                // Padding produces degenerate triangles; live indices remain exact.
+                uint local = input.vertexID < page.z ? input.vertexID : 0u;
+                FarVertex source = _FarAtlasVertices[_FarAtlasIndices[page.y + local]];
+                Attributes vertex = (Attributes)0;
+                UNITY_TRANSFER_INSTANCE_ID(input, vertex);
+                vertex.positionOS = float4(source.position, 1);
+                vertex.normalOS = source.normal;
+                return LitPassVertex(vertex);
+            }
+            #else
+            Varyings FarPassVertex(Attributes input) { return LitPassVertex(input); }
+            #endif
             ENDHLSL
         }
 

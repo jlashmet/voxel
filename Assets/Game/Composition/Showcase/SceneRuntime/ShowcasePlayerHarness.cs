@@ -1,6 +1,8 @@
 using System;
 using System.Globalization;
 using System.IO;
+using System.Runtime.InteropServices;
+using System.Text;
 using UnityEngine;
 
 namespace VoxelEngine.Showcase
@@ -118,6 +120,8 @@ namespace VoxelEngine.Showcase
                 hideFlags = HideFlags.DontSave
             };
             Reporter reporter = root.AddComponent<Reporter>();
+            reporter.SymbolRequestPath = Argument("-voxel-symbol-request");
+            reporter.SymbolAfter = Value("-voxel-symbol-after", 185.0);
             reporter.Logging = log;
             reporter.RunSeconds = runSeconds;
             reporter.AutoWalkAfter = autoWalkAfter;
@@ -315,11 +319,51 @@ namespace VoxelEngine.Showcase
             private float _totalElapsed;
             private int _window;
 
+            internal string SymbolRequestPath;
+            internal double SymbolAfter;
+            private double _nextSymbolPoll;
+
+#if UNITY_STANDALONE_OSX && !ENABLE_IL2CPP
+            [DllImport("__Internal", EntryPoint = "mono_pmip")]
+            private static extern IntPtr DescribeManagedAddress(IntPtr address);
+            [DllImport("__Internal", EntryPoint = "mono_free")]
+            private static extern void FreeManagedDescription(IntPtr text);
+#endif
+            // Optional, one-shot diagnostic after the measurement windows. Native sampling
+            // cannot otherwise name Mono JIT frames. No debugger attachment or world mutation.
+            private void ResolveRequestedSymbols()
+            {
+                if (string.IsNullOrEmpty(SymbolRequestPath) || _totalElapsed < SymbolAfter
+                    || _totalElapsed < _nextSymbolPoll) return;
+                _nextSymbolPoll = _totalElapsed + 0.5;
+                if (!File.Exists(SymbolRequestPath)) return;
+                string path = SymbolRequestPath; SymbolRequestPath = null;
+#if UNITY_STANDALONE_OSX && !ENABLE_IL2CPP
+                var output = new StringBuilder(); int count = 0;
+                foreach (string line in File.ReadLines(path))
+                {
+                    if (++count > 4096) throw new InvalidOperationException("Symbol request exceeds 4096 addresses.");
+                    string value = line.Trim();
+                    if (value.StartsWith("0x", StringComparison.OrdinalIgnoreCase)) value = value.Substring(2);
+                    if (!ulong.TryParse(value, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out ulong address))
+                        throw new InvalidOperationException("Invalid native symbol address.");
+                    IntPtr description = DescribeManagedAddress(new IntPtr(unchecked((long)address)));
+                    try { output.Append("0x").Append(value).Append('\t').Append(Marshal.PtrToStringAnsi(description)).Append('\n'); }
+                    finally { if (description != IntPtr.Zero) FreeManagedDescription(description); }
+                }
+                File.WriteAllText(path + ".resolved.tsv", output.ToString());
+                Debug.Log($"HARNESS resolved {count} native addresses");
+#else
+                Debug.LogWarning("HARNESS native symbol resolution requires macOS Mono.");
+#endif
+            }
+
             private void Update()
             {
                 float dt = Time.unscaledDeltaTime;
                 _totalElapsed += dt;
                 _windowElapsed += dt;
+                ResolveRequestedSymbols();
 
                 // The frame after a capture carries the cost of encoding and writing a PNG, which
                 // is tens of milliseconds and nothing to do with the renderer. Counting it would

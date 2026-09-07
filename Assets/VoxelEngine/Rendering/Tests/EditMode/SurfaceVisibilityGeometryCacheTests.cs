@@ -9,6 +9,37 @@ namespace VoxelEngine.Tests.EditMode
 {
     public sealed class SurfaceVisibilityGeometryCacheTests
     {
+        [TestCase(false, false)] [TestCase(false, true)]
+        [TestCase(true, false)] [TestCase(true, true)]
+        public void EvictionAcknowledgmentPreservesNewPublicationAndActiveReplacement(bool active, bool newer)
+        {
+            using var worker = new GpuSolidChunkCache();
+            var coordinate = new int3(-2, 1, 3);
+            var entry = new GpuSolidChunkCache.Entry(coordinate, worker.VoxelsPerAxis, worker.SourceStep);
+            entry.PublishGpuPaged(4, newer ? 20UL : 10UL);
+            var entries = Field<Dictionary<int3, GpuSolidChunkCache.Entry>>(worker, "_entries");
+            entries.Add(coordinate, entry);
+            if (active)
+            {
+                var field = typeof(GpuSolidChunkCache).GetField("_build", BindingFlags.Instance | BindingFlags.NonPublic);
+                object build = field.GetValue(worker);
+                build.GetType().GetField("Active").SetValue(build, true);
+                build.GetType().GetField("Coordinate").SetValue(build, coordinate);
+                field.SetValue(worker, build);
+            }
+            bool accepted = worker.AcknowledgeGpuEviction(coordinate * worker.VoxelsPerAxis,
+                worker.SourceStep, 4, 10);
+            Assert.That(accepted, Is.EqualTo(!newer));
+            Assert.That(entries.ContainsKey(coordinate), Is.EqualTo(active || newer));
+            if (active || newer)
+            {
+                Assert.That(entry.GpuHandle, Is.EqualTo(4));
+                Assert.That(entry.Ready, Is.EqualTo(newer));
+                Assert.That(entry.PublishedGpuGeneration, Is.EqualTo(newer ? 20UL : 10UL));
+            }
+            Assert.That(worker.DirtyCount, Is.EqualTo((newer ? 0 : 1) + (active ? 1 : 0)));
+        }
+
         [TestCase(0)] [TestCase(1)] [TestCase(2)] [TestCase(3)]
         [TestCase(4)] [TestCase(5)] [TestCase(6)]
         public void ChangedQueryCannotReusePreviousClassification(int change)

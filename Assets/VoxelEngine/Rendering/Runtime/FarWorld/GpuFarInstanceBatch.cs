@@ -26,6 +26,27 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
         private readonly MaterialPropertyBlock _properties = new();
         private ComputeBuffer _transforms, _visibilityBuffer, _visibleIndices, _count, _arguments;
         private bool _dirty = true, _disposed;
+        private ComputeBuffer _sharedArguments;
+        private int _sharedArgumentOffset;
+        internal Mesh Mesh => _mesh;
+        internal Material MaterialAt(int submesh) => _materials[submesh];
+        internal int SubmeshCount => _mesh.subMeshCount;
+        internal void WriteSharedArguments(uint[] destination, int offset)
+        {
+            for(int i=0;i<_mesh.subMeshCount;i++)
+            {
+                destination[offset+i*5]=_mesh.GetIndexCount(i);
+                destination[offset+i*5+2]=_mesh.GetIndexStart(i);
+                destination[offset+i*5+3]=_mesh.GetBaseVertex(i);
+            }
+        }
+        internal void UseSharedDraw(ComputeBuffer arguments, int argumentOffset, ComputeBuffer indices, int firstInstance)
+        {
+            if(ReferenceEquals(_sharedArguments,arguments) && _sharedArgumentOffset==argumentOffset)return;
+            _sharedArguments=arguments; _sharedArgumentOffset=argumentOffset;
+            _properties.SetBuffer("_FarVisibleIndices",indices);
+            _properties.SetInteger("_FarVisibleOffset",firstInstance);
+        }
         internal int Count => _visibility.Length;
         internal int VisibleCount { get; private set; }
         internal int VisibilityUploads { get; private set; }
@@ -82,6 +103,9 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
         internal void UpdateReplacement(Func<Bounds, bool> hasReplacement)
         {
             if (_disposed) throw new ObjectDisposedException(nameof(GpuFarInstanceBatch));
+            _sharedArguments=null;
+            _properties.SetBuffer("_FarVisibleIndices",_visibleIndices);
+            _properties.SetInteger("_FarVisibleOffset",0);
             int visible = 0;
             for (int i = 0; i < Count; i++)
             {
@@ -115,10 +139,11 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
 
         internal void RecordDraws(CommandBuffer command)
         {
-            if (VisibleCount == 0) return;
+            if (_sharedArguments == null && VisibleCount == 0) return;
             for (int submesh = 0; submesh < _mesh.subMeshCount; submesh++)
                 command.DrawMeshInstancedIndirect(_mesh, submesh, _materials[submesh], 0,
-                    _arguments, submesh * 5 * sizeof(uint), _properties);
+                    _sharedArguments ?? _arguments,
+                    (_sharedArguments != null ? _sharedArgumentOffset : 0) + submesh * 5 * sizeof(uint), _properties);
         }
 
         internal void DrawNow(int layer)

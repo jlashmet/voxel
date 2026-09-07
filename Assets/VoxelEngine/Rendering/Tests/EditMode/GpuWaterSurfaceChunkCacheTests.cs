@@ -67,7 +67,7 @@ namespace VoxelEngine.Rendering.Tests.EditMode
                     foreach (var field in owner.GetType().GetFields(
                                  BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
                         if (field.GetValue(owner) is ComputeBuffer buffer) buffers.Add(buffer);
-                Assert.That(buffers.Count, Is.EqualTo(19), "Cover the water buffers and its paged arena.");
+                Assert.That(buffers.Count, Is.EqualTo(21), "Cover water and arena buffers, including resident bounds and owner metadata.");
                 foreach (var buffer in buffers) Assert.That(buffer.IsValid(), Is.True);
                 // Include an already logically retired cache: it must remain registered for exit
                 // until the asynchronous physical release has actually happened.
@@ -101,6 +101,46 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             var record = new uint[8];
             System.Array.Copy(data, handle * 8, record, 0, 8);
             return record;
+        }
+
+        [UnityTest]
+        public IEnumerator GpuPressureRetiresWaterPresentationAndRebuildsFromPreservedDiscovery()
+        {
+            yield return Pending();
+            Assert.That(_cache.TryPublishPending(16, out _), Is.True);
+            Assert.That(_cache.ResidentCount, Is.EqualTo(1));
+            var bounds = new Vector4[Arena.HandleCapacity * 2];
+            Arena.ResidentBounds.GetData(bounds);
+            Assert.That(bounds[0].x, Is.EqualTo(6.4f).Within(0.001));
+            Assert.That(bounds[1].x, Is.EqualTo(7.0f).Within(0.001), "Include six-voxel spray halo.");
+            _camera.transform.position = new Vector3(0, 0, -100);
+            _camera.transform.LookAt(new Vector3(0, 0, -200));
+            _cache.RelieveGpuPressure(_camera, 1);
+            AsyncGPUReadback.WaitAllRequests(); // Test-only drain of actual GPU retirement identities.
+            _cache.RelieveGpuPressure(_camera, 0);
+            Assert.That(_cache.ResidentCount, Is.Zero);
+            Assert.That(_cache.DirtyCount, Is.EqualTo(1));
+            _camera.transform.position = new Vector3(0.8f, 0.4f, -3);
+            _camera.transform.LookAt(new Vector3(0.8f, 0.4f, 0.4f));
+            yield return Pending();
+            Assert.That(_cache.TryPublishPending(16, out _), Is.True);
+            Assert.That(_cache.ResidentCount, Is.EqualTo(1));
+            Assert.That(_cache.CollectVisible(_camera, 0.1f).Count, Is.EqualTo(1));
+        }
+
+        [UnityTest]
+        public IEnumerator DisposingWaterWhilePressureReadbackIsPendingReleasesPressureBuffers()
+        {
+            yield return Pending();
+            Assert.That(_cache.TryPublishPending(16, out _), Is.True);
+            _cache.RelieveGpuPressure(_camera, 1);
+            var pressure = typeof(GpuWaterSurfaceChunkCache).GetField("_pressure",
+                BindingFlags.Instance | BindingFlags.NonPublic).GetValue(_cache);
+            var outcomes = (ComputeBuffer)pressure.GetType().GetField("Outcomes",
+                BindingFlags.Instance | BindingFlags.NonPublic).GetValue(pressure);
+            _cache.DisposeForApplicationQuit();
+            Assert.That(outcomes.IsValid(), Is.False);
+            Assert.DoesNotThrow(_cache.DisposeForApplicationQuit);
         }
 
         [UnityTest]

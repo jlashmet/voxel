@@ -99,7 +99,7 @@ namespace VoxelEngine.Rendering.Validation
                     _sawEditProxyRestore = true;
                     _awaitingEditProxyRestore = false;
                 }
-                _farFeatures.SetInstances(_farPresentation.Query((float3)_camera.transform.position, 120f));
+                _farFeatures.SetInstances(_farPresentation.QueryCandidates((float3)_camera.transform.position, 120f));
             }
             if (HasHardGpuFailure(out string failure))
             {
@@ -314,7 +314,8 @@ namespace VoxelEngine.Rendering.Validation
             _farPresentation = new FarFeaturePresentationAdapter(manifest, selection, VoxelSize);
             if (_farFeatures == null) _farFeatures = gameObject.AddComponent<ProceduralFarFeatureRenderer>();
             _farFeatures.UseSurfaceReplacementHandoff = true;
-            _farFeatures.SetInstances(_farPresentation.Query((float3)_camera.transform.position, 120f));
+            _farFeatures.ConfigureGpuSelection(selection.GpuSettings, 120f, VoxelSize);
+            _farFeatures.SetInstances(_farPresentation.QueryCandidates((float3)_camera.transform.position, 120f));
         }
 
         private static void AuthorTableau(IRegionMutationStore mutations)
@@ -452,6 +453,12 @@ namespace VoxelEngine.Rendering.Validation
                 return false;
             }
 
+            if (VoxelSolidRenderTelemetry.Snapshot.LastUnitySubmissionCalls != 1)
+            {
+                failure = "converged solid geometry must use one hardware-indexed submission";
+                return false;
+            }
+
             if (benchmark.SchedulerPrepareP95Ms > 6.0
                 || benchmark.SubmissionP95Ms > 6.0)
             {
@@ -488,6 +495,7 @@ namespace VoxelEngine.Rendering.Validation
                 + $" prepareP99Ms={benchmark.SchedulerPrepareP99Ms:0.###}"
                 + $" submissionP95Ms={benchmark.SubmissionP95Ms:0.###}"
                 + $" submissionP99Ms={benchmark.SubmissionP99Ms:0.###}"
+                + $" solidDrawCalls={VoxelSolidRenderTelemetry.Snapshot.LastUnitySubmissionCalls}"
                 + $" arenaCommittedBytes={metrics.SolidArenaCommittedBytes}"
                 + $" arenaUsedBytes={metrics.SolidArenaUsedBytes}"
                 + $" uploadedGeometryBytes={metrics.UploadedGeometryBytes}");

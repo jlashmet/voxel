@@ -68,6 +68,14 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private static GpuVoxelBrickMirror s_Mirror;
         private static GpuSurfacePageArena s_PageArena;
         private static readonly Dictionary<ChunkHandleKey, int> s_ChunkHandles = new();
+        private static readonly Dictionary<int, ChunkHandleKey> s_HandleKeys = new();
+        private static GpuSurfacePressureDispatcher s_Pressure;
+        private static int s_PressureBudget;
+        private static int s_CapacityCursor;
+        private static bool s_PreferCapacity;
+        internal static ulong CapacityPressureDispatches { get; private set; }
+        internal static ulong AllocationPressureDispatches { get; private set; }
+        private static readonly Plane[] s_PressurePlanes = new Plane[6];
         private static IRegionReadSource s_Storage;
         private static IVoxelChangeSource s_ChangeSource;
         private static ulong s_ChangeCursor;
@@ -448,6 +456,13 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (s_PageArena == null || !ReferenceEquals(s_PageArena, arena)) return;
             s_PageArena.FlushHandleCommands(frame);
             s_ChunkHandles.Clear();
+            s_HandleKeys.Clear();
+            s_Pressure?.Dispose();
+            s_Pressure = null;
+            s_PressureBudget = 0;
+            s_CapacityCursor = 0;
+            s_PreferCapacity = false;
+            CapacityPressureDispatches = AllocationPressureDispatches = 0;
             s_PageArena = null;
         }
 
@@ -462,8 +477,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             {
                 if (!s_PageArena.TryAcquireHandle(out handle)) return -1;
                 s_ChunkHandles.Add(key, handle);
+                s_HandleKeys.Add(handle, key);
             }
-            s_PageArena.QueueGeneration(handle, generation);
+            s_PageArena.QueueGeneration(handle, generation, (uint)sourceStep,
+                math.hash(origin / (GpuSolidChunkCache.CellsPerAxis * sourceStep)));
             return handle;
         }
 
@@ -481,7 +498,62 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (s_PageArena == null) return;
             var key = new ChunkHandleKey(origin, sourceStep);
             if (!s_ChunkHandles.Remove(key, out int handle)) return;
+            s_HandleKeys.Remove(handle);
             s_PageArena.QueueRelease(handle, generation);
+        }
+
+        internal static int RelieveGpuPressure(Camera camera, ulong newFailures,
+            GpuSolidChunkCache[] workers, int frame)
+        {
+            if (s_PageArena == null) return 0;
+            s_PressureBudget = Math.Min(GpuSurfacePressureDispatcher.MaximumVictims,
+                s_PressureBudget + (int)Math.Min(16UL, newFailures));
+            int acknowledged = 0;
+            if (s_Pressure != null && s_Pressure.TryTakeResults(out uint[] results))
+            {
+                for (int slot = 0; slot < GpuSurfacePressureDispatcher.MaximumVictims; slot++)
+                {
+                    int word = slot * 4;
+                    if (results[word] == 0) continue;
+                    int handle = (int)results[word + 1];
+                    ulong generation = results[word + 2] | ((ulong)results[word + 3] << 32);
+                    if (!s_HandleKeys.TryGetValue(handle, out ChunkHandleKey key)) continue;
+                    for (int worker = 0; worker < workers.Length; worker++)
+                        if (workers[worker].AcknowledgeGpuEviction(key.Origin, key.SourceStep, handle, generation))
+                        { acknowledged++; break; }
+                }
+            }
+            if (camera == null || (s_Pressure != null && s_Pressure.Busy)) return acknowledged;
+            GpuSolidChunkCache capacityWorker = null;
+            int capacityIndex = 0;
+            for (int offset = 0; offset < workers.Length; offset++)
+            {
+                int index = (s_CapacityCursor + offset) % workers.Length;
+                if (!workers[index].NeedsCapacityRelief) continue;
+                capacityWorker = workers[index];
+                capacityIndex = index;
+                break;
+            }
+            if (capacityWorker != null && (s_PressureBudget == 0 || s_PreferCapacity))
+            {
+                s_Pressure ??= new GpuSurfacePressureDispatcher(s_PageArena);
+                GeometryUtility.CalculateFrustumPlanes(camera, s_PressurePlanes);
+                s_Pressure.Request(s_PressurePlanes, camera.transform.position, 1, frame,
+                    capacityWorker.SourceStep, capacityWorker.ShardIndex, capacityWorker.ShardCount);
+                s_CapacityCursor = (capacityIndex + 1) % workers.Length;
+                CapacityPressureDispatches++;
+                s_PreferCapacity = false;
+            }
+            else if (s_PressureBudget > 0)
+            {
+                s_Pressure ??= new GpuSurfacePressureDispatcher(s_PageArena);
+                GeometryUtility.CalculateFrustumPlanes(camera, s_PressurePlanes);
+                s_Pressure.Request(s_PressurePlanes, camera.transform.position, s_PressureBudget, frame);
+                s_PressureBudget = 0;
+                AllocationPressureDispatches++;
+                s_PreferCapacity = true;
+            }
+            return acknowledged;
         }
 
         private readonly struct ActiveFootprint : IEquatable<ActiveFootprint>

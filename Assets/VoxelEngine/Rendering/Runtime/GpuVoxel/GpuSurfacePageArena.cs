@@ -37,7 +37,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             internal uint GenerationLow;
             internal uint GenerationHigh;
             internal uint Release;
-            internal const int Stride = sizeof(uint) * 4;
+            internal uint SourceStep;
+            internal uint OwnerHash;
+            internal const int Stride = sizeof(uint) * 6;
         }
 
         private static GpuSurfacePageArena s_activeArena;
@@ -109,14 +111,21 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         internal readonly ComputeBuffer VertexPageTable;
         internal readonly ComputeBuffer IndexPageTable;
         internal readonly ComputeBuffer HandleCommands;
+        internal readonly ComputeBuffer ResidentBounds;
+        internal readonly ComputeBuffer ResidentOwners;
 
         internal GpuSurfacePageArena(ComputeShader shader, int vertexCapacity,
-                                     int indexCapacity, int handleCapacity, bool primaryArena = true)
+                                     int indexCapacity, int handleCapacity, bool primaryArena = true,
+                                     int boundsCellsPerAxis = 64, int boundsHaloCells = 1)
         {
             _shader = shader != null ? shader : throw new ArgumentNullException(nameof(shader));
             if (vertexCapacity <= 0) throw new ArgumentOutOfRangeException(nameof(vertexCapacity));
             if (indexCapacity <= 0) throw new ArgumentOutOfRangeException(nameof(indexCapacity));
             if (handleCapacity <= 0) throw new ArgumentOutOfRangeException(nameof(handleCapacity));
+            if (boundsCellsPerAxis <= 0) throw new ArgumentOutOfRangeException(nameof(boundsCellsPerAxis));
+            if (boundsHaloCells < 0) throw new ArgumentOutOfRangeException(nameof(boundsHaloCells));
+            _shader.SetFloat("_BoundsHalfCells", boundsCellsPerAxis * 0.5f);
+            _shader.SetFloat("_BoundsHaloCells", boundsHaloCells);
             HandleCapacity = handleCapacity;
             VertexPageCount = Math.Max(1, vertexCapacity / VertexPageSize);
             IndexPageCount = Math.Max(1, indexCapacity / IndexPageSize);
@@ -141,6 +150,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             VertexPageTable = new ComputeBuffer(handleCapacity * 2 * MaxVertexPagesPerChunk, sizeof(uint), ComputeBufferType.Structured);
             IndexPageTable = new ComputeBuffer(handleCapacity * 2 * MaxIndexPagesPerChunk, sizeof(uint), ComputeBufferType.Structured);
             HandleCommands = new ComputeBuffer(HandleCommandCapacity, HandleCommand.Stride, ComputeBufferType.Structured);
+            ResidentBounds = new ComputeBuffer(handleCapacity, 32, ComputeBufferType.Structured);
+            ResidentOwners = new ComputeBuffer(handleCapacity, 8, ComputeBufferType.Structured);
+            ResidentOwners.SetData(new uint[handleCapacity * 2]);
 
             var vertexPages = new uint[VertexPageCount];
             var indexPages = new uint[IndexPageCount];
@@ -175,12 +187,12 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             return true;
         }
 
-        internal void QueueGeneration(int handle, ulong generation)
+        internal void QueueGeneration(int handle, ulong generation, uint sourceStep = 0, uint ownerHash = 0)
         {
             ValidateHandle(handle);
             if (_handleStates[handle] != HandleState.Acquired)
                 throw new InvalidOperationException("A GPU generation command requires an acquired handle without a queued release.");
-            QueueCommand(handle, generation, release: false);
+            QueueCommand(handle, generation, release: false, sourceStep, ownerHash);
         }
 
         internal void QueueRelease(int handle, ulong generation)
@@ -222,6 +234,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _shader.SetInt(IdBatchRecordCount, recordCount);
             _shader.SetInt(IdBatchRecordWords, recordWords);
             _shader.Dispatch(_allocateKernel, 1, 1, 1);
+
         }
 
         internal void PublishBatch(ComputeBuffer descriptors, ComputeBuffer counters,
@@ -230,6 +243,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             ValidateBatch(descriptors, counters, recordCount, recordWords);
             SetEpoch(frame);
             _shader.SetBuffer(_publishKernel, IdBatchChunks, descriptors);
+            _shader.SetBuffer(_publishKernel, "_ResidentBounds", ResidentBounds);
             _shader.SetBuffer(_publishKernel, IdBatchCounters, counters);
             _shader.SetBuffer(_publishKernel, IdBatchCountersRead, counters);
             _shader.SetInt(IdBatchRecordCount, recordCount);
@@ -289,6 +303,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             // to every kernel caused Metal aliasing; using the RW view in allocation consumed the
             // ninth UAV and made otherwise-current capacity requests report the default Stale state.
             _shader.SetBuffer(_handleKernel, IdDesiredGenerations, DesiredGenerations);
+            _shader.SetBuffer(_handleKernel, "_ResidentOwners", ResidentOwners);
             int[] generationReaders = { _allocateKernel, _publishKernel, _commitKernel };
             foreach (int kernel in generationReaders)
                 _shader.SetBuffer(kernel, IdDesiredGenerationsRead, DesiredGenerations);
@@ -303,7 +318,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _shader.SetInt(IdRetirementDelay, RetirementDelayFrames);
         }
 
-        private void QueueCommand(int handle, ulong generation, bool release)
+        private void QueueCommand(int handle, ulong generation, bool release, uint sourceStep = 0, uint ownerHash = 0)
         {
             var command = new HandleCommand
             {
@@ -311,6 +326,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 GenerationLow = (uint)generation,
                 GenerationHigh = (uint)(generation >> 32),
                 Release = release ? 1u : 0u,
+                SourceStep = sourceStep,
+                OwnerHash = ownerHash,
             };
             if (_commandIndexByHandle.TryGetValue(handle, out int existingIndex))
             {
@@ -373,7 +390,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             RetiredVertexPages?.Release(); RetiredIndexPages?.Release();
             DesiredGenerations?.Release(); LiveChunkGeometry?.Release();
             PendingChunkGeometry?.Release(); VertexPageTable?.Release();
-            IndexPageTable?.Release(); HandleCommands?.Release();
+            IndexPageTable?.Release(); HandleCommands?.Release(); ResidentBounds?.Release(); ResidentOwners?.Release();
         }
     }
 }

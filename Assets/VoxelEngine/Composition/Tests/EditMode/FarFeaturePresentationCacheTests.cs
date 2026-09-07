@@ -63,6 +63,38 @@ namespace VoxelEngine.Composition.Tests
             Assert.That(adapter.CachedGeometryCount, Is.Zero);
         }
 
+        [Test]
+        public void ResidentCandidatesRefreshOnlyOnRevisionOrLeavingPaddedQuery()
+        {
+            var source = new VersionedSource { Bakes = new[] { Bake(1,10) } };
+            var adapter = Adapter(source);
+            var first=adapter.QueryCandidates(float3.zero,1000,100)[0];
+            ulong version=adapter.CandidateVersion;
+            adapter.QueryCandidates(new float3(50,0,0),1000,100);
+            Assert.AreEqual(1,source.Queries);
+            Assert.AreEqual(version,adapter.CandidateVersion);
+            source.Bakes=new[]{Bake(1,11)};source.Revision++;
+            var edited=adapter.QueryCandidates(new float3(50,0,0),1000,100)[0];
+            Assert.AreNotSame(first.Geometry,edited.Geometry);
+            Assert.AreEqual(2,source.Queries);
+            adapter.QueryCandidates(new float3(300,0,0),1000,100);
+            Assert.AreEqual(3,source.Queries);
+            source.Bakes=System.Array.Empty<FeaturePresentationBake>();source.Revision++;
+            Assert.AreEqual(0,adapter.QueryCandidates(new float3(300,0,0),1000,100).Count);
+            Assert.AreEqual(0,adapter.CachedGeometryCount);
+        }
+
+        [Test]
+        public void UnversionedCandidatesNeverAssumeCameraStabilityMeansSourceStability()
+        {
+            var source=new Source {Bakes=new[]{Bake(1,10)}};
+            var adapter=Adapter(source);
+            adapter.QueryCandidates(float3.zero,1000);
+            source.Bakes=System.Array.Empty<FeaturePresentationBake>();
+            Assert.AreEqual(0,adapter.QueryCandidates(float3.zero,1000).Count);
+            Assert.AreEqual(2,source.Queries);
+        }
+
         private static FarFeaturePresentationAdapter Adapter(Source source) => new(
             source,
             new FarFeatureSelectionPolicy(
@@ -75,10 +107,16 @@ namespace VoxelEngine.Composition.Tests
             new[] { new Primitive { Shape = PrimitiveShape.Box, Mode = PrimitiveMode.Fill,
                 A = int3.zero, B = new int3(100), Material = 1 } });
 
-        private sealed class Source : IFeaturePresentationSource
+        private sealed class VersionedSource : Source, IVersionedFeaturePresentationSource
+        {
+            public ulong Revision {get;set;}
+        }
+
+        private class Source : IFeaturePresentationSource
         {
             public FeaturePresentationBake[] Bakes;
-            public IReadOnlyList<FeaturePresentationBake> Query(FeaturePresentationBounds bounds) => Bakes;
+            public int Queries;
+            public IReadOnlyList<FeaturePresentationBake> Query(FeaturePresentationBounds bounds) { Queries++; return Bakes; }
             public bool TryGet(ulong id, out FeaturePresentationBake bake)
             {
                 foreach (var candidate in Bakes)

@@ -144,6 +144,13 @@ namespace VoxelEngine.Composition
             return selected;
         }
 
+        public FarFeatureSelectionSettings GpuSettings => new(
+            new float4(_thresholds.MidEnterPixels, _thresholds.MidExitPixels,
+                _thresholds.FarEnterPixels, _thresholds.FarExitPixels),
+            new float2(_thresholds.HorizonEnterPixels, _thresholds.HorizonExitPixels),
+            new float3(_distanceCaps.DefaultMetres, _distanceCaps.ImportantMetres, _distanceCaps.HorizonMetres),
+            _verticalFovDegrees, _viewportHeightPixels);
+
         public void Forget(ulong stableId) => _previous.Remove(stableId);
         public void ClearHistory() => _previous.Clear();
 
@@ -209,6 +216,34 @@ namespace VoxelEngine.Composition
         private readonly float _voxelSizeMetres;
         private readonly Func<FeaturePresentationBake, FarFeatureImportance> _importance;
         private readonly List<FarFeatureInstance> _instances = new();
+        private readonly List<FarFeatureInstance> _candidates = new();
+        private FeaturePresentationBounds _residentBounds;
+        private ulong _residentRevision;
+        private bool _hasResidents;
+        public ulong CandidateVersion { get; private set; }
+
+        /// <summary>Bounded spatial working set; the GPU selects visibility and tiers each frame.</summary>
+        public IReadOnlyList<FarFeatureInstance> QueryCandidates(float3 cameraPosition, float radiusMetres,
+                                                                float paddingMetres = 256f)
+        {
+            if (!(radiusMetres > 0) || !math.isfinite(radiusMetres))
+                throw new ArgumentOutOfRangeException(nameof(radiusMetres));
+            if (!(paddingMetres >= 0) || !math.isfinite(paddingMetres))
+                throw new ArgumentOutOfRangeException(nameof(paddingMetres));
+            var active = BuildQueryBounds(cameraPosition, radiusMetres);
+            var versioned = _source as IVersionedFeaturePresentationSource;
+            if (versioned != null && _hasResidents && _residentRevision == versioned.Revision
+                && math.all(active.Min >= _residentBounds.Min) && math.all(active.Max <= _residentBounds.Max))
+                return _candidates;
+            _residentBounds = BuildQueryBounds(cameraPosition, radiusMetres + paddingMetres);
+            _residentRevision = versioned?.Revision ?? 0;
+            var realised = QueryCore(_residentBounds, cameraPosition, false);
+            _candidates.Clear();
+            _candidates.AddRange(realised);
+            _hasResidents = true;
+            CandidateVersion++;
+            return _candidates;
+        }
         private readonly Dictionary<ulong, CachedPresentation> _cache = new();
         private readonly HashSet<ulong> _queriedIds = new();
         private readonly List<ulong> _retiredIds = new();
@@ -252,7 +287,12 @@ namespace VoxelEngine.Composition
             if (!(radiusMetres > 0f) || !math.isfinite(radiusMetres))
                 throw new ArgumentOutOfRangeException(nameof(radiusMetres));
 
-            FeaturePresentationBounds queryBounds = BuildQueryBounds(cameraPosition, radiusMetres);
+            return QueryCore(BuildQueryBounds(cameraPosition, radiusMetres), cameraPosition, true);
+        }
+
+        private IReadOnlyList<FarFeatureInstance> QueryCore(FeaturePresentationBounds queryBounds,
+                                                           float3 cameraPosition, bool select)
+        {
             IReadOnlyList<FeaturePresentationBake> bakes = _source.Query(queryBounds);
             _instances.Clear();
             _queriedIds.Clear();
@@ -264,12 +304,12 @@ namespace VoxelEngine.Composition
                 _queriedIds.Add(bake.SourceId);
                 BoundsFor(bake, out float3 position, out float3 center, out float3 extents, out float3 scale);
                 FarFeatureImportance importance = _importance?.Invoke(bake) ?? FarFeatureImportance.Default;
-                FarFeatureTier tier = _selection.Select(
+                FarFeatureTier tier = select ? _selection.Select(
                     bake.SourceId,
                     center,
                     extents,
                     cameraPosition,
-                    importance);
+                    importance) : FarFeatureTier.Mid;
                 if (tier == FarFeatureTier.Culled) continue;
 
                 // The renderer caches immutable geometry by identity. Recreating its payload on

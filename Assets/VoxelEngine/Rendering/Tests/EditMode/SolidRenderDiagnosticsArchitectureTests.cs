@@ -13,7 +13,7 @@ namespace VoxelEngine.Tests.EditMode
             string diagnostics = File.ReadAllText(
                 "Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelSolidRenderDiagnostics.cs");
 
-            StringAssert.Contains("solidSubmissionCalls += GpuSurfaceDrawDispatcher.BucketCount", renderPass);
+            StringAssert.Contains("solidSubmissionCalls++", renderPass);
             StringAssert.Contains("data.VisibleSolidCount = transvoxelVisible.Count", renderPass);
             StringAssert.Contains("VoxelSolidRenderTelemetry.Record(", renderPass);
             StringAssert.Contains("VoxelTimingWindow StagingTiming", diagnostics);

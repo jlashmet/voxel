@@ -85,6 +85,7 @@ namespace VoxelEngine.Rendering.Tests.EditMode
 
         // A narrow raster-addressing fixture, not art or visual acceptance. It uses the shipped
         // vertex shader and real page lookup/compaction; debug coverage only bypasses lighting.
+        [TestCase(-2, false)]
         [TestCase(-1, false)]
         [TestCase(0, false)]
         [TestCase(1, true)]
@@ -169,6 +170,15 @@ namespace VoxelEngine.Rendering.Tests.EditMode
                 var projection = GL.GetGPUProjectionMatrix(Matrix4x4.Ortho(-1, 1, -1, 1, -1, 1), true);
                 commands.SetViewProjectionMatrices(Matrix4x4.identity, projection);
                 commands.SetGlobalMatrix("unity_MatrixVP", projection);
+                if (waterPass == -2)
+                {
+                    var indexed = _dispatcher.GetIndexedDraw();
+                    indexed.Record(commands, _dispatcher.ActiveDrawMetadata, _dispatcher.ActiveBucketState);
+                    commands.SetKeyword(material, new LocalKeyword(material.shader, "VOXEL_HARDWARE_INDEXED"), true);
+                    commands.DrawProceduralIndirect(indexed.Indices, Matrix4x4.identity, material, 0,
+                        MeshTopology.Triangles, indexed.Arguments);
+                }
+                else
                 for (int bucket = 0; bucket < GpuSurfaceDrawDispatcher.BucketCount; bucket++)
                 {
                     commands.SetGlobalInteger("_PagedDrawBucket", bucket);
@@ -242,6 +252,75 @@ namespace VoxelEngine.Rendering.Tests.EditMode
                 UnityEngine.Object.DestroyImmediate(target);
                 UnityEngine.Object.DestroyImmediate(pixels);
                 UnityEngine.Object.DestroyImmediate(material);
+            }
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void IndexedStreamPreservesNoncontiguousPagesAcrossBankChangeAndRemoval(bool directSelection)
+        {
+            var records = new GeometryRecord[_arena.HandleCapacity];
+            var indices = new uint[_arena.Indices.count];
+            var vertexPages = new uint[_arena.VertexPageTable.count];
+            var indexPages = new uint[_arena.IndexPageTable.count];
+            // First chunk crosses an index-page boundary inside a triangle and maps both
+            // local vertex pages to nonadjacent physical pages. Second chunk uses bank one.
+            indexPages[0] = 3; indexPages[1] = 1;
+            vertexPages[0] = 2; vertexPages[1] = 0;
+            int bankOne = 3 * GpuSurfacePageArena.MaxIndexPagesPerChunk;
+            indexPages[bankOne] = 0; vertexPages[bankOne] = 3;
+            var expected = new uint[3006];
+            for (int i = 0; i < 3000; i++)
+            {
+                uint local = (uint)(i % 1500);
+                indices[(i < 2048 ? 3 : 1) * 2048 + i % 2048] = local;
+                expected[i] = (local < 1024 ? 2048u : 0u) + local % 1024;
+            }
+            for (int i = 0; i < 6; i++) { indices[i] = (uint)(i % 3); expected[3000+i] = 3072u+(uint)(i%3); }
+            records[0] = new GeometryRecord { GenerationLow=1, IndexCount=3000, VertexCount=1500,
+                VertexPageCount=2, IndexPageCount=2, Ready=1 };
+            records[1] = new GeometryRecord { GenerationLow=2, Bank=1, IndexCount=6, VertexCount=3,
+                VertexPageCount=1, IndexPageCount=1, Ready=1 };
+            _arena.Indices.SetData(indices); _arena.VertexPageTable.SetData(vertexPages);
+            _arena.IndexPageTable.SetData(indexPages); _arena.LiveChunkGeometry.SetData(records);
+            var indexed = _dispatcher.GetIndexedDraw();
+            using var commands = new CommandBuffer();
+            var args = new uint[5];
+            using var selected = new ComputeBuffer(_arena.HandleCapacity,4);
+            var mask = new uint[_arena.HandleCapacity]; mask[0]=1; mask[1]=1;
+            selected.SetData(mask);
+            for (int cycle=0; cycle<3; cycle++)
+            {
+                if (cycle==1)
+                {
+                    records[0].Ready=0;
+                    records[1].Bank=0; records[1].GenerationLow++;
+                    indexPages[1024]=0; vertexPages[1024]=1;
+                    _arena.IndexPageTable.SetData(indexPages); _arena.VertexPageTable.SetData(vertexPages);
+                    _arena.LiveChunkGeometry.SetData(records);
+                }
+                if (cycle==2) { records[1].Ready=0; _arena.LiveChunkGeometry.SetData(records); }
+                _dispatcher.Prepare(new [] { 0, 1 },cycle);
+                commands.Clear();
+                indexed.Record(commands,_dispatcher.ActiveDrawMetadata,_dispatcher.ActiveBucketState,
+                    directSelection ? selected : null);
+                Graphics.ExecuteCommandBuffer(commands);
+                indexed.Arguments.GetData(args);
+                CollectionAssert.AreEqual(new uint[] { cycle==0 ? 3006u : cycle==1 ? 6u : 0u, 1, 0, 0, 0 }, args);
+                if (cycle==2) continue;
+                var actual=new uint[args[0]]; indexed.Indices.GetData(actual,0,0,actual.Length);
+                if (cycle==1) CollectionAssert.AreEqual(new uint[] {1024,1025,1026,1024,1025,1026},actual);
+                else
+                {
+                    // Chunk reservation order is unspecified; triangle corner order is not.
+                    var want=new List<string>(); var got=new List<string>();
+                    for(int i=0;i<actual.Length;i+=3)
+                    {
+                        want.Add($"{expected[i]},{expected[i+1]},{expected[i+2]}");
+                        got.Add($"{actual[i]},{actual[i+1]},{actual[i+2]}");
+                    }
+                    CollectionAssert.AreEquivalent(want,got);
+                }
             }
         }
 

@@ -1,67 +1,53 @@
-# GPU renderer production restoration
+# GPU renderer restoration — PR checkpoint
 
-## Objective and acceptance
+## Objective and state
 
-Finish GPU-only presentation and reach400 FPS on VoxelShowcase. Preserve canonical integer CPU
-world truth, generation/collision/simulation and required host orchestration. No hidden content,
-weaker budgets or shorter distance. Startup fill-in and FPS are priorities; imperfect water is
-acceptable. Delete retired CPU renderer helpers without losing coverage.
+Finish planned CPU-to-GPU presentation migration and reach400FPS in VoxelShowcase. Keep deterministic
+integer CPU world truth, generation, collision and simulation. Preserve geometry, distances and device
+budgets. Imperfect water is allowed for this performance task.
+**Unfinished.** User requested committing current work, documenting what remains and opening a PR
+against origin/master. Keep the issue open; no auto-merge or production acceptance claim.
 
-Worktree `/private/tmp/voxel-gpu-restoration`, branch `gpu-rendering-agent-1-resume`. Local harness,
-tests/screenshots authorized. Last requested push fulfilled at `origin/fixes/agent-1` `64b2921a3`;
-newer work stays local. Detailed evidence is in tasks.md.
+## Implemented
 
-## Verified state
+Solid steps1/2/4/8 and water extract/publish geometry on GPU; production CPU geometry workers,
+workspace, contiguous arena and draw route were removed. GPU owns solid LOD/frustum/build ranking,
+source readiness, far replacement/tier selection, resident transforms and material-grouped far draws.
+Solid draws use a hardware-indexed compact stream. Shader avoids unused texture samples.
+GPU selects/retires solid allocation, water allocation and worker-capacity victims. Generation-safe
+acknowledgments preserve replacements; LOD checks live readiness. Capacity filters exact step/shard,
+ranks only requested K, and reuses publication dispatch for bounds.
 
-Solid steps1/2/4/8 and water use GPU geometry. CPU workers/workspace/contiguous arena/draw route
-are deleted; helper/oracle cleanup remains. GPU resolves canonical metadata/source readiness;
-only missing source indices return for upload. Fine dense entries/coarse summaries remain
-GPU-resident. CPU generation~14.9s; first400near chunks40.4→23.3s after mirror/lane fixes.
+## Local evidence
 
-GPU handles bands/frustum, LOD and build rank; host applies feedback and membership updates.
-Vertex reclamation loss fixed in `c7d3d5db0`;518tests/module passed with no allocation failures.
+checkpoint-evidence.json records132 tested source/meta hashes and diagnostics. New meta files
+had trailing whitespace normalized for commit; executable source matches the tested image. Rendering EditMode566/566 passed,0skips. Latest SolidGpu module:
+25s build/48s player,seven captures/all seven markers; fort intact but prototype quality.
+Earlier WaterDemo and GPU water eviction/rebuild/disposal tests passed; detailed scope in tasks.md.
 
-## Hypotheses and current experiment
+Latest180sShowcase: **172.17FPS stationary (60–90s),429.57walking (120–180s)**,11captures.
+Final293missing chunks,48allocation failures/evictions,4190publications,0unqueued demand.
+Capacity dispatches0 throughout; allocation dispatches38, all after stationary. Stationary camera
+faces castle; walking views simpler terrain. These are different workloads. Earlier source reached
+423/437 and452/513; latest stationary regression remains unresolved. Reviewed76.6s/151.6s images:
+castle intact; terrain gaps/seams, sparse vegetation, incomplete houses. Local logs/images remain
+under Artifacts/LocalGpuShowcase. This is not remote CI or merge evidence.
 
-Resident far-instance checkpoint `8b50ca1b8`: GPU transforms/compaction/indirect arguments;
-CPU replacement supplies flags.523tests/module pass;Showcase322/271FPS,272missing,zero
-allocation failures. Source-service latency remains unresolved.
+## Remaining work and next experiment
 
-Incremental demand checkpoint `65b560afc` reduced feedback to~.13ms; no unqueued demand,
-but coverage/service latency remains unresolved.
+H1, stationary eviction overhead, is falsified for the latest run: both dispatch counters were0.
+H2: external GPU/presentation contention or another GPU submission cost explains the regression.
+Next: separate Metal System Trace of the stationary castle view; attribute GPU intervals/process
+contention before changing an idle path. CPU process activity alone does not prove GPU contention.
+Repeat identical FPS windows after each justified change.
 
-64-group checkpoint `15668edeb`:527tests/module passed,Showcase339/288FPS,272missing,zero allocation failures. Single runs
-with unequal coverage do not prove a robust gain.
+- Move water CPU frustum culling (CollectVisible) and bounded nearest-build ranking to GPU.
+- Retire CPU helpers/oracles using the removal ledger and independent GPU regressions.
+- Resolve coarse source-service starvation, startup fill-in and missing coverage without hiding content.
+- Fix console/mobile index-stream memory overruns with bounded scratch/metadata; preserve capacity.
+  Audit far atlas caches and prove long-session resource retirement/flatness.
+- Fix Composition far-validation framing and remaining visual defects; rough water is permitted.
+- Integrate current master and run affected modules plus canonical standalone Kentridge validation.
+  Current master has four commits absent here. Draft PR is a checkpoint, not final promotion.
 
-H1: manual index pulling and chunk padding waste GPU vertex work and host submissions.
-H2: extra GPU index-copy bandwidth may outweigh hardware vertex reuse/submission savings.
-Experiment now implemented: GPU reserves exact selected index ranges, builds bounded page-copy
-records, remaps local indices to physical vertex IDs, and emits five-word arguments. One
-Index|Raw stream is written immediately before one indexed draw on the graphics queue. Same
-live bank metadata, geometry, materials, ranges and retirement policy; no CPU index readback.
-529tests/module passed, including page/bank/removal and shipped shader rasterization. Module
-proved one draw;Showcase329/295FPS,310missing,zero allocation failures,4072publications. No
-robust overall gain. Next version now bypasses four bucket dispatches and consumes GPU selection
-directly;530tests/module passed with one draw. Showcase333/297FPS,229missing,zero allocation
-failures,3777publications. Exact captures reviewed; no robust overall gain or400FPS acceptance.
-
-## Remaining validation and next steps
-
-Memory audit: full stream adds~181MB on PC. Geometry payload plus bounded primary metadata/LOD
-fits PC; console/mobile aggregate accounting does not fit once metadata is included. Existing
-mobile metadata already exceeds the nominal envelope. Do not checkpoint as tier-safe or weaken
-budgets. After PC measurement, use bounded tiled scratch and resolve metadata allocation without
-reducing resident geometry capacity. Audit artifact: gpu-index-stream-memory-audit.json.
-
-Next move far replacement proof to GPU using current publication/discovery/region evidence.
-Discovery prerequisite implemented: versioned512-bit region images,270KB buffered GPU hash/query
-map;532tests passed with CPU/GPU differential coverage across lifecycle,negative coordinates,
-all bits/LODs and1024-region pressure. Not yet connected to far visibility; no player/FPS claim.
-Next bind journal/residency guards and current selected/live geometry to shared GPU far queries
-and draw data. Avoid106empty submissions. Pressure eviction and retired CPU
-helper cleanup remain; keep incremental demand feedback.
-
-400FPS, startup pop-in, coverage/visual fidelity, long-session memory/pressure, canonical Kentridge
-integration and repeated workloads remain unproven. Castle silhouette persists; terrain gaps/seams,
-far scenery and sparse vegetation remain unacceptable. Module fort/landmark are prototype quality,
-behavioral evidence only. G01–G27 remain incomplete.
+Detailed evidence: tasks.md. Retirement scope: cpu-render-backend-removal-ledger.md.

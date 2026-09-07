@@ -4,6 +4,7 @@ using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
 using VoxelEngine.Rendering.Api;
+using VoxelEngine.Rendering.Runtime.GpuVoxel;
 
 namespace VoxelEngine.Rendering.Runtime.FarWorld
 {
@@ -19,6 +20,18 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
         private const int FrustumSegments = 24;
 
         private readonly List<GpuFarInstanceBatch> _gpuBatches = new();
+        private GpuFarDrawSet _gpuDrawSet;
+        private FarFeatureSelectionSettings? _selectionSettings;
+        private float _selectionRadius, _selectionVoxelSize;
+
+        public void ConfigureGpuSelection(FarFeatureSelectionSettings settings, float radius, float voxelSize)
+        {
+            if (!(radius > 0) || !math.isfinite(radius) || !(voxelSize > 0) || !math.isfinite(voxelSize)
+                || !(settings.FocalPixels > 0)) throw new ArgumentOutOfRangeException(nameof(radius));
+            _selectionSettings = settings;
+            _selectionRadius = radius;
+            _selectionVoxelSize = voxelSize;
+        }
         internal int BatchBuildCount { get; private set; }
         private readonly Dictionary<string, FarFeatureGeometry> _geometrySources = new(StringComparer.Ordinal);
         private readonly Dictionary<string, FarFeaturePresentation> _styleSources = new(StringComparer.Ordinal);
@@ -52,21 +65,31 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
         private void OnDisable() => s_SurfaceConsumers.Remove(this);
 
         internal static void PrepareSurfaceConsumers(List<ProceduralFarFeatureRenderer> destination,
-                                                      Func<Bounds, bool> hasReplacement, Camera camera = null)
+                                                      Func<Bounds, bool> hasReplacement, Camera camera = null,
+                                                      GpuFarCoverageDispatcher gpuCoverage = null)
         {
             destination.Clear();
             foreach (var renderer in s_SurfaceConsumers)
             {
                 if (renderer == null || !renderer.isActiveAndEnabled
                     || !renderer.UseSurfaceReplacementHandoff) continue;
-                renderer.UpdateReplacement(hasReplacement);
+                if(renderer._gpuDrawSet != null && (gpuCoverage != null || renderer._selectionSettings.HasValue))
+                {
+                    renderer._gpuDrawSet.Prepare(gpuCoverage, renderer._selectionSettings,
+                        camera != null ? (float3)camera.transform.position : float3.zero,
+                        renderer._selectionRadius, renderer._selectionVoxelSize);
+                    renderer._instanceCount=renderer._gpuDrawSet.VisibleCount;
+                    renderer.NearReplacementCount=renderer._gpuDrawSet.NearCount;
+                }
+                else renderer.UpdateReplacement(hasReplacement);
                 destination.Add(renderer);
             }
         }
 
         internal void RecordSurfaceDraws(CommandBuffer command)
         {
-            foreach (var batch in _gpuBatches) batch.RecordDraws(command);
+            if (_gpuDrawSet != null && _gpuDrawSet.Prepared) _gpuDrawSet.Record(command);
+            else foreach (var batch in _gpuBatches) batch.RecordDraws(command);
         }
 
         public int InstanceCount => _instanceCount;
@@ -77,6 +100,10 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
             if (instances != null && instances.Count > maximumInstances)
                 throw new InvalidOperationException($"Far instance capacity {maximumInstances} exceeded by {instances.Count}.");
             if (MatchesSource(instances)) return;
+            var previousDrawSet = _gpuDrawSet;
+            _gpuDrawSet = null;
+            try
+            {
             ClearBatches();
             _sourceInstances.Clear();
             if (instances != null)
@@ -92,6 +119,9 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
                 group.Add(instance);
             }
             var shader = Resources.Load<ComputeShader>("GpuFarInstanceCompact");
+            var bounds = new List<Bounds>();
+            var flags = new List<FarFeatureVisualFlags>();
+            var ids = new List<ulong>();
             try
             {
                 foreach (var group in groups)
@@ -101,11 +131,24 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
                     for (int submesh = 0; submesh < materials.Length; submesh++)
                         materials[submesh] = GetSubmeshMaterial(group.Key, submesh);
                     _gpuBatches.Add(new GpuFarInstanceBatch(shader, mesh, materials, group.Value));
+                    foreach(var instance in group.Value)
+                    {
+                        bounds.Add(new Bounds(instance.BoundsCenter,instance.BoundsExtents*2));
+                        flags.Add(instance.Flags);
+                        ids.Add(instance.StableId);
+                    }
                 }
                 BatchBuildCount++;
                 UpdateReplacement(null);
+                if(bounds.Count>0)
+                {
+                    _gpuDrawSet=new GpuFarDrawSet(_gpuBatches,bounds,flags,ids);
+                    _gpuDrawSet.InheritSelection(previousDrawSet);
+                }
             }
             catch { ClearBatches(); throw; }
+            }
+            finally { previousDrawSet?.Dispose(); }
         }
 
         private bool MatchesSource(IReadOnlyList<FarFeatureInstance> instances)
@@ -127,6 +170,7 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
 
         private void UpdateReplacement(Func<Bounds, bool> hasReplacement)
         {
+            _gpuDrawSet?.UseLegacyDraw();
             _instanceCount = NearReplacementCount = 0;
             foreach (var batch in _gpuBatches)
             {
@@ -172,6 +216,7 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
 
         private void ClearBatches()
         {
+            _gpuDrawSet?.Dispose();_gpuDrawSet=null;
             foreach (var batch in _gpuBatches) batch.Dispose();
             _gpuBatches.Clear();
             _instanceCount = 0;

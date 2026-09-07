@@ -22,3 +22,30 @@ void CSWriteArguments(uint3 id : SV_DispatchThreadID)
 {
     if (id.x < (uint)_FarSubmeshCount) _FarArguments[id.x * 5u + 1u] = _FarCount[0];
 }
+
+#pragma kernel CSCompactReplacementBatches
+StructuredBuffer<uint> _FarReplacement;
+StructuredBuffer<uint4> _FarBatches; // first instance, count, argument offset, submesh count
+RWStructuredBuffer<uint> _FarBatchCounts;
+uint _FarBatchCount;
+groupshared uint s_VisibleCount;
+[numthreads(64,1,1)]
+void CSCompactReplacementBatches(uint3 group:SV_GroupID,uint lane:SV_GroupIndex)
+{
+    uint batchIndex=group.x+group.y*1024u;
+    if(batchIndex>=_FarBatchCount)return;
+    uint4 batch=_FarBatches[batchIndex];
+    if(lane==0u)s_VisibleCount=0u;
+    GroupMemoryBarrierWithGroupSync();
+    for(uint i=lane;i<batch.y;i+=64u)
+    {
+        if(_FarReplacement[batch.x+i]!=0u)continue;
+        uint destination;
+        InterlockedAdd(s_VisibleCount,1u,destination);
+        _FarVisibleIndices[batch.x+destination]=i;
+    }
+    GroupMemoryBarrierWithGroupSync();
+    for(uint submesh=lane;submesh<batch.w;submesh+=64u)
+        _FarArguments[batch.z+submesh*5u+1u]=s_VisibleCount;
+    if(lane==0u)_FarBatchCounts[batchIndex]=s_VisibleCount;
+}

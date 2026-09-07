@@ -175,6 +175,123 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             Assert.That(batch.ReadAllocationStatus(), Is.EqualTo(AllocationReady));
         }
 
+        [TestCase(1)] [TestCase(2)] [TestCase(4)] [TestCase(8)]
+        public void AllocationCapturesProductionBoundsOnGpu(int step)
+        {
+            var arena = Create(1);
+            int handle = AcquireAndSelectGeneration(arena, 1, 0);
+            using var batch = new Batch(handle, 1, 3, 3);
+            batch.Descriptors.SetData(new[] { new GpuSurfaceExtractor.BatchChunkDescriptor {
+                OriginX = -128, OriginY = 64, OriginZ = -256, SourceStep = step,
+                VoxelSize = 0.1f, Handle = (uint)handle, GenerationLow = 1 } });
+            AllocateAndFinalize(arena, batch, 0);
+            var bounds = new Vector4[2];
+            arena.ResidentBounds.GetData(bounds);
+            Assert.That(bounds[0].x, Is.EqualTo(-12.8f + step * 3.2f).Within(0.0001));
+            Assert.That(bounds[0].y, Is.EqualTo(6.4f + step * 3.2f).Within(0.0001));
+            Assert.That(bounds[0].z, Is.EqualTo(-25.6f + step * 3.2f).Within(0.0001));
+            for (int axis = 0; axis < 3; axis++)
+                Assert.That(bounds[1][axis], Is.EqualTo(step * 3.3f).Within(0.0001));
+        }
+
+        [TestCase(1, 0, 16)] [TestCase(1, 1, 16)] [TestCase(2, 0, 16)] [TestCase(2, 1, 16)]
+        [TestCase(1, 0, 1)] [TestCase(1, 1, 1)] [TestCase(2, 0, 1)] [TestCase(2, 1, 1)]
+        public void CapacityPressureFiltersExactStepAndShardBeforeRanking(int step, int shard, int wanted)
+        {
+            const int count = 130;
+            var arena = Create(count, count, count);
+            var bounds = new Vector4[count * 2];
+            var expected = new System.Collections.Generic.List<int>();
+            for (int i = 0; i < count; i++)
+            {
+                Assert.That(arena.TryAcquireHandle(out int handle), Is.True);
+                int ownerStep = i % 2 + 1;
+                var coordinate = new Unity.Mathematics.int3(i - 65, i % 3 - 1, 2 - i % 5);
+                uint ownerHash = Unity.Mathematics.math.hash(coordinate);
+                arena.QueueGeneration(handle, (ulong)i + 1, (uint)ownerStep, ownerHash);
+                arena.FlushHandleCommands(0);
+                using var batch = new Batch(handle, (ulong)i + 1, 3, 3);
+                AllocateAndFinalize(arena, batch, 0);
+                arena.CommitPending(handle, (ulong)i + 1, 2);
+                bounds[i * 2] = new Vector4(-10 * (i + 1), 0, 0, 0);
+                bounds[i * 2 + 1] = Vector4.one;
+                if (ownerStep == step && VoxelEngine.Rendering.Runtime.SurfaceExtraction.GpuSolidChunkCache
+                    .ShardForChunk(coordinate, 2) == shard) expected.Add(handle);
+            }
+            expected.Reverse();
+            using var residentBounds = new ComputeBuffer(count, 32);
+            residentBounds.SetData(bounds);
+            using var pressure = new GpuSurfacePressureDispatcher(arena);
+            var planes = new Plane[6];
+            for (int i = 0; i < 6; i++) planes[i] = new Plane(Vector3.right, 0);
+            pressure.Dispatch(residentBounds, planes, Vector3.zero, wanted, 3, step, shard, 2);
+            var results = new uint[64];
+            pressure.Outcomes.GetData(results);
+            Assert.That(expected.Count, Is.GreaterThan(16));
+            for (int i = 0; i < wanted; i++)
+            {
+                Assert.That(results[i * 4], Is.EqualTo(1));
+                Assert.That(results[i * 4 + 1], Is.EqualTo((uint)expected[i]));
+            }
+            for (int i = 0; i < count; i++)
+                Assert.That(ReadRecord(arena.LiveChunkGeometry, i, count).Ready,
+                    Is.EqualTo(expected.GetRange(0, wanted).Contains(i) ? 0u : 1u));
+        }
+
+        [TestCase(7)]
+        [TestCase(67)]
+        [TestCase(130)]
+        public void GpuPressureRetiresFarthestOffscreenPublishedIdentitiesOnce(int count)
+        {
+            var arena = Create(count, count + 1, count + 1);
+            var bounds = new Vector4[count * 2];
+            for (int i = 0; i < count; i++)
+            {
+                int handle = AcquireAndSelectGeneration(arena, (1UL << 40) + (ulong)i, 0);
+                using var batch = new Batch(handle, (1UL << 40) + (ulong)i, 3, 3);
+                AllocateAndFinalize(arena, batch, 0);
+                arena.CommitPending(handle, (1UL << 40) + (ulong)i, 2);
+                bounds[i * 2] = new Vector4(i == 0 ? 10 : -10 * i, 0, 0, 0);
+                bounds[i * 2 + 1] = Vector4.one;
+            }
+            // The farthest handle is replacing its live generation. The next farthest
+            // already has a pending candidate; neither may be pressure-retired.
+            arena.QueueGeneration(count - 1, 900);
+            using var pending = new Batch(count - 2, (1UL << 40) + (ulong)(count - 2), 3, 3);
+            AllocateAndFinalize(arena, pending, 2);
+            using var residentBounds = new ComputeBuffer(count, 32);
+            residentBounds.SetData(bounds);
+            using var pressure = new GpuSurfacePressureDispatcher(arena);
+            var planes = new Plane[6];
+            for (int i = 0; i < planes.Length; i++) planes[i] = new Plane(Vector3.right, 0);
+            pressure.Dispatch(residentBounds, planes, Vector3.zero, 16, 3);
+            var outcomes = new uint[16 * 4];
+            pressure.Outcomes.GetData(outcomes);
+            int expected = Math.Min(16, count - 3);
+            for (int i = 0; i < 16; i++)
+            {
+                Assert.That(outcomes[i * 4], Is.EqualTo(i < expected ? 1u : 0u));
+                if (i >= expected) continue;
+                int handle = count - 3 - i;
+                Assert.That(outcomes[i * 4 + 1], Is.EqualTo((uint)handle));
+                Assert.That(outcomes[i * 4 + 2], Is.EqualTo((uint)handle));
+                Assert.That(outcomes[i * 4 + 3], Is.EqualTo(256u));
+                Assert.That(ReadRecord(arena.LiveChunkGeometry, handle, count).Ready, Is.Zero);
+            }
+            Assert.That(ReadRecord(arena.LiveChunkGeometry, 0, count).Ready, Is.EqualTo(1));
+            Assert.That(ReadRecord(arena.LiveChunkGeometry, count - 1, count).Ready, Is.EqualTo(1));
+            Assert.That(ReadRecord(arena.LiveChunkGeometry, count - 2, count).Ready, Is.EqualTo(1));
+            // Make every remaining chunk visible: another dispatch must not re-retire old pages.
+            for (int i = 0; i < planes.Length; i++) planes[i] = new Plane(Vector3.up, 1000);
+            pressure.Dispatch(residentBounds, planes, Vector3.zero, 16, 3);
+            pressure.Outcomes.GetData(outcomes);
+            for (int i = 0; i < 16; i++) Assert.That(outcomes[i * 4], Is.Zero);
+            var state = new uint[7];
+            arena.ArenaState.GetData(state);
+            Assert.That(state[3], Is.EqualTo((uint)expected));
+            Assert.That(state[5], Is.EqualTo((uint)expected));
+        }
+
         [TestCase(13, 9)] [TestCase(9, 13)]
         public void MultiPagePendingSupersessionPreservesCapacity(int vertexPages, int indexPages)
         {

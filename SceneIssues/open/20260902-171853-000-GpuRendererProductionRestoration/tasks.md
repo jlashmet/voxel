@@ -1384,3 +1384,306 @@ Next GPU migration target is far replacement proof, still CPU UpdateReplacement�
 GPU discovery prerequisite: added versioned snapshots of the existing production SurfaceDiscoveryCoverage, a bounded three-buffer GPU mirror (270,336 bytes), GPU region hashing and known-empty queries for steps1/2/4/8. Unknown, incomplete, invalidated and evicted regions cannot prove empty. In-progress additions stay unpublished until Complete; stable revisions reuse GPU buffers. Source identity prevents reuse across worlds with matching revision numbers. GPU results remain presentation evidence, never authoritative Storage/collision inputs.
 
 Validation: gpu-discovery-map-tests.xml final run532/532 passed,zero skipped,wrapper20s/exit0. Real GPU differential tests cover all512 fine cells at every LOD,negative coordinates,32/64-bit boundaries,completion/invalidation/rediscovery/eviction through every buffered slot,additions while incomplete,matching-version world replacement,full1024-region capacity/hash collisions/rejected admission/slot reuse/clear. New helper is not yet wired to far visibility, so this is a tested GPU-query prerequisite, not completed CPU handoff retirement or player validation. Existing SolidGpu module scene will validate the integrated path when connected; no new FPS claim. CPU far bounds/current-publication checks and global journal/residency gates remain to move/bind. Source hashes preserved in gpu-discovery-map-source-sha256.json.
+
+GPU far handoff integration in progress: shared discovery HLSL lookup now feeds GpuFarCoverageDispatcher, which hashes current production GPU-selected LOD nodes and checks bounded feature AABBs. Completed region evidence required for every cell; empty cells need no geometry, current selected geometry covers occupied visible cells, offscreen cells use GPU frustum proof. Journal/residency gate remains authoritative host metadata; nonresident discovery records are pruned before GPU upload. Rendering pass now supplies GPU coverage rather than calling HasCurrentReplacement per instance. GpuFarDrawSet owns shared query/visible-index/argument/metadata buffers; one GPU compaction dispatch writes all batch submesh instance counts. Persistent per-batch transforms and geometry stay on the production path. Aggregate async readback is diagnostics only, never CPU draw suppression. Empty GPU submissions remain a performance risk to measure.
+
+First integrated535/535 Rendering tests passed, zero skipped,24s/exit0. Coverage tests use production GPU LOD selection and reject incomplete discovery, stale/unselected geometry, closed edit gate, unknown/exclusive-negative boundaries, oversized/distant/invalid bounds. Shared compaction tests check separate3/65-instance batches and all submesh arguments/indices; residency loss is checked without a world edit. Final frustum subcase and callback/lifetime cleanup rerun pending in gpu-far-handoff-tests; module/Showcase not yet run for integrated source. No400FPS or visual-acceptance claim.
+
+Full GPU far handoff baseline: final535/535 tests passed/zero skipped,21s/exit0. Production module48s/seven captures/exit0; all markers including initial proxy→near replacement→edit proxy restoration passed; zero missing/fallback/errors. Frame p95/p99 .707/.718ms,prepare .026/.027ms,submission .005/.006ms,one solid draw,263.3MB allocation. Exact42s screenshot reviewed,intact fort,prototype/blockout quality.
+
+Showcase gpu-far-handoff-showcase completed180s/11captures/exit0. Stationary29samples296.452FPS,CPU3.17ms/GPU diagnostic8.54ms; walking60samples240.703FPS,CPU3.40ms/GPU diagnostic2.405ms. Render-thread median p50 rose .32→.92ms stationary and .32→.96ms walking versus direct indexed selection, consistent with now-submitted empty far MeshInstancedIndirect draws.359missing,zero allocation failures/evictions,3657publications/2269candidate residents,oldest21.857s(step8);163demand samples unqueued=0. Archived source hashes verified,errors clear. Exact74.9s and150.1s screenshots reviewed: castle remains intact; additional flat gray rock/far proxy surfaces and a larger flat green foreground patch appear alongside existing terrain gaps/seams/sparse vegetation. Unacceptable visual finish; do not claim fidelity or performance acceptance.
+
+Next version (not yet player validated): each coverage query uses a cooperative64-thread group with bounded cell reduction;1024-wide dispatch rows also support65536queries/batches without exceeding per-axis dispatch limits. Added a1025-query row-boundary regression. Found missing current-empty extraction proof: conservative discovery may report surface where current extraction completed empty. GPU coverage now accepts only current owned/in-band empty nodes using production LOD state; tests include rejection when that ring is disabled. Source geometry capacity,draw distances and budgets unchanged. Parallel/current-empty suite running in gpu-far-parallel-query-tests; standalone module and Showcase remain required.
+
+Likely next submission experiment: replace far DrawMeshInstancedIndirect encoding with hardware-indexed procedural draws using the existing production Mesh vertex/index buffers and GPU transforms; inspect official Mesh buffer APIs and URP vertex layout first. This could avoid mesh submission overhead without duplicating all instance geometry into a large atlas. Preserve production materials/lighting/UVs/normals and verify real raster equivalence. No such vertex-pull implementation exists yet. Full index-stream lower-tier budget and helper/pressure cleanup still open.
+
+Parallel/current-empty query suite terminal exit0,24s,535/535 passed,zero skipped. No live Unity/player sessions remain. Current source remains uncommitted pending corrected module/Showcase and budget/performance gates.
+
+Parallel/current-empty module gpu-far-parallel-module finished: build29s/exit0, player48s/seven captures/exit0. All seven runtime markers passed, including edit restoration/restart/far handoff; zero missing/fallback/errors. Frame p95/p99 .713/.802ms, prepare .027/.030ms, submission .004/.006ms, one solid draw,263.3MB. Exact42s capture reviewed: intact fort, prototype/blockout quality; behavioral evidence only. Corrected Showcase gpu-far-parallel-showcase is now running; source snapshot, hashes, patch and parent HEAD archived before any further production edits.
+
+Corrected gpu-far-parallel-showcase completed180s/12captures/exit0: stationary30samples300.377FPS,CPU median p50 3.01ms/GPU diagnostic4.60ms; walking60samples274.94FPS,CPU2.89ms/GPU1.695ms. Render-thread median p50 .95/.84ms remains above pre-handoff .32/.32ms.327missing,zero allocation failures/evictions,3894publications/2429candidate residents,oldest21.820s(step8),all demand samples unqueued=0. Archived source hashes match current code. Reviewed exact74.9s/149.9s captures: castle intact, but large left gray proxy, flat foreground patches, terrain gaps/seams and sparse vegetation persist; unacceptable visual finish. Parallel queries improve walking against serial296/241 baseline but do not recover prior333/297 indexed performance or meet400FPS. Current-empty correction did not resolve visible proxy defects. No live player remains. Next discriminating experiment: hardware-indexed procedural submission of existing far Mesh GPU buffers, preserving production Lit shading and geometry; current generated far meshes contain positions/normals with no authored UV/tangent channels. This changes submission overhead before any geometry-atlas consolidation. Unity APIs support raw access to existing Mesh vertex buffers and indexed CommandBuffer.DrawProceduralIndirect; no implementation has been applied yet.
+
+Far procedural submission experiment: GpuFarInstanceBatch retains references to immutable production Mesh position/normal/index GPU buffers and issues hardware-indexed DrawProceduralIndirect; the shader reads those buffers by SV_VertexID and feeds the existing URP Lit vertex/fragment path with the same persistent transforms and GPU visible indices. No geometry atlas, readback admission, content reduction or material change. Buffer targets change only before the first retained reference; Dispose releases wrappers. Explicitly reject unsupported vertex layouts instead of silently dropping attributes. Final gpu-far-procedural-final-tests.xml535/535passed,zero skipped,18s/exit0 (initial535passed23s). gpu-far-procedural-module build30s/player48s/seven captures/exit0; all seven markers passed, zero missing/fallback, frame p95/p99 .709/.718ms,prepare .029/.031ms,submission .004/.004ms,one solid draw,263.3MB. Exact42s screenshot reviewed:intact fort,prototype/blockout; behavior only. Source snapshots/hashes/patch/parentHEAD preserved for module and running gpu-far-procedural-showcase. FPS impact pending.
+
+Far procedural experiment terminal: gpu-far-procedural-showcase180s/12captures/exit0, exact source hashes verified. Stationary30samples303.383FPS,CPU2.995ms/GPU diagnostic5.215ms; walking60samples227.702FPS,CPU3.69ms/GPU2.20ms. Render thread .92/.96ms versus baseline .95/.84ms; no convincing submission benefit.264missing,zero allocation failures/evictions,4023publications/2500candidate residents,oldest23.280s(step8),all demand unqueued=0. Recorded process-load.txt: background VM233%CPU and media/indexing services substantial; workload coverage also differs, so do not claim clean causal walking regression. Exact74.9s/149.9s reviewed: castle intact, gray proxy replaced by dark rock in stationary capture, but flat terrain patches/gaps/seams/sparse vegetation persist and remain unacceptable. Selected action: reject the per-mesh procedural API substitution and restore its two files from the exact parallel/current-empty source archive. All49 archived Rendering source hashes now match the previously535-test/module/Showcase-validated baseline. Experiment source remains archived. No live Unity/player processes remain. Next structural experiment must consolidate far geometry batches across shared materials, with bounded GPU-visible geometry-page descriptors and preserved production source geometry/shading; changing only draw API did not solve overhead.
+
+Material-grouped far submission implemented (uncommitted): one atlas per source set stores each unique production mesh once; GPU copies persistent transforms once and emits bounded192-index geometry pages for each visible instance/submesh. Pages reference source indices and transforms; shared material groups draw once each. Existing URP Lit shading is retained with a vertex-pulling variant; padding produces degenerate triangles. GPU replacement proof remains authoritative for presentation. Legacy explicit CPU-oracle consumer is unchanged. Initial535tests and new536-test suite passed,zero skipped (29s/25s); new real GPU test covers material merging, shared geometry exact indices, transform copying, multi-page boundaries and65-instance dispatch boundary, all/none/alternating proof, exact per-instance triangle sums/no duplicate pages. Added source-build draw/memory diagnostic after tests. Module/Showcase pending.
+
+Material-grouped module completed build33s/player48s/seven captures/exit0. All seven markers passed,including edit proxy restoration and restart,zero missing/fallback/errors. Frame p95/p99 .713/.719ms,prepare .027/.029ms,submission .004/.004ms,one solid draw,264.0MB. Exact42s capture reviewed:intact fort,prototype/blockout,behavioral evidence only. Module source has2batches/2materialdraws,2instances/2uniqueMeshes,9pages,21024additional resident bytes. Full Showcase running in gpu-far-material-showcase;53source files/hashes/patch/parentHEAD archived for both players.
+
+Material grouping Showcase gpu-far-material-showcase finished180s/12captures/exit0; source hashes verified.106batches→11material draws,106instances/106uniqueMeshes,366worst-case pages,964576additional resident bytes. Stationary30samples321.013FPS,CPU median p50 2.76ms/GPU diagnostic10.545ms; walking59samples271.034FPS,CPU2.89ms/GPU1.99ms. Render thread median p50 .40/.40ms versus prior .95/.84ms: draw consolidation materially reduces submission cost, but does not meet400FPS and walking mean is not improved.281missing,zero allocation failures/evictions,3944publications/2361candidate residents,oldest27.095s(step8),all demand unqueued=0. Background VM/media activity remains in process-load.txt; unequal readiness and load prevent broad single-run gain claims. Exact74.8s/149.9s captures reviewed: castle intact, dark left rock visible, persistent terrain patches/gaps/seams and sparse vegetation; unacceptable visual finish. Keep the structural draw reduction. Current source still performs the obsolete per-batch shared index/argument compaction and attachment solely alongside the new material path; remove that duplicated production work, retain only bounded diagnostic count updates at a suitable cadence, then remeasure. New atlas tests also need distinct-mesh offsets and lifetime/input-layout coverage before checkpoint. No live player remains.400FPS and all remaining gates stay open.
+
+Far material cleanup: removed obsolete shared per-batch visible-index/argument/metadata buffers, compaction dispatch and CPU attachment loop from active GpuFarDrawSet. GPU count reduction reads replacement bits only for one4-byte diagnostic snapshot at most10Hz; current material arguments still update every frame.538/538 tests passed,zero skipped,24s/exit0. Added real GPU instance-count reduction checks, distinct production box/cylinder mesh offsets with exact vertices/normals/indices, repeated buffer lifetimes, and unsupported vertex-channel rejection. gpu-far-material-cleanup-module build27s/player48s/seven captures/exit0,all seven markers including edit proxy restoration passed with lower diagnostic cadence. Zero missing/fallback/errors;frame p95/p99 .717/.724ms,prepare .027/.028ms,submission .004/.004ms,one solid draw,264.1MB. Exact42s capture reviewed:intact fort,prototype/blockout.53source files archived for module and running cleanup Showcase.
+
+After cleanup Showcase finished building, separate source edit added reuseInputImage from the scheduler cached-candidate branch to PrepareLod. The scheduler already checks every worker demand/readiness/known/band version and clipmap membership; previously the dispatcher then rescanned all input lists anyway (~.12ms). Reuse now skips only redundant input-image comparison; dynamic camera/band GPU classification and buffered uploads remain. Added count-only-list regression that throws if source items are rescanned while checking GPU selection across nine frames/all slots, current frustum/band changes, and explicit changed membership. This edit is NOT in the running cleanup Showcase binary; testing awaits that player terminal.
+
+Far material cleanup Showcase finished180s/11captures/exit0. Stationary30samples367.127FPS,CPU median p50 2.45ms/GPU diagnostic7.955ms; walking60samples302.687FPS,CPU2.505ms/GPU1.865ms. Render thread .34/.33ms.402missing,zero allocation failures/evictions,3703publications/2127candidate residents,oldest21.057s(step8),all demand unqueued=0. Exact archived source hashes verified; current runtime differs only by later input-reuse edits, plus added LOD test.76.8s/151.8s captures reviewed: castle intact, broad flat foreground patches/terrain gaps/seams/sparse vegetation persist; unacceptable. Higher missing count and unequal workload forbid acceptance from FPS alone.
+LOD input reuse test run gpu-lod-input-reuse-tests.xml539/539passed,zero skipped,27s/exit0. New regression proves current GPU frustum/band selection across all buffered slots without source-item reads, and explicit membership changes still update. Current reuse module launched; no Showcase evidence for this additional edit yet.
+
+LOD input reuse module finished build29s/player48s/seven captures/exit0. All seven runtime markers passed;zero missing/fallback/errors. Frame p95/p99 .714/.804ms,prepare .026/.026ms,submission .004/.004ms,one solid draw,264.1MB. Exact42s screenshot reviewed:intact fort,prototype/blockout,behavioral evidence only.54source files and hashes/patch/parentHEAD archived for module and running gpu-lod-input-reuse-showcase.
+
+LOD input reuse Showcase gpu-lod-input-reuse-showcase finished180s/11captures/exit0; all54source hashes match current runtime/tests. Stationary29samples384.941FPS,CPU median p50 2.41ms/GPU diagnostic8.16ms; walking60samples320.033FPS,CPU2.39ms/GPU1.84ms. Render thread .32/.315ms. Stable LOD inputCpu now0.000ms; current candidate-refresh frames still do full host metadata collection.262missing,zero allocation failures/evictions,3860publications/2431candidate residents,oldest6.383s(step8),all demand unqueued=0. Exact76.8s/151.8s captures reviewed: castle intact, broad flat foreground patches/terrain gaps/seams/sparse vegetation remain unacceptable. Coverage improves versus prior402missing but is incomplete;400FPS remains unmet. Background process-load snapshot preserved. Current tests539/module/Showcase all terminal, no live Unity/player remains. Next inspect host metadata refresh/source-service spikes with targeted timing/native sampling; CollectVisibleCoordinate currently computes CurrentBuildCoversDesiredGeneration before the GPU-candidate early return even though that result is only used in the legacy CPU branch. Moving that query below the GPU return is a concrete redundant-work cleanup; broader incremental readiness transport needs a discriminating experiment before editing.
+
+Host profile experiment (unchanged renderer): gpu-host-profile-showcase210s/13captures/exit0. Sampling at logged186.8s,5s/1ms,exit0,after60–90/120–180 FPS windows. Repeat windows379.297/325.712FPS,CPU2.33/2.32ms; full-run final318missing,zero allocation failures/evictions.3466main-thread samples:1852scripted render loop,1014behaviour Update,285presentation wait. Managed frames unresolved, so no individual-method bottleneck claim. Reinspection found CurrentBuildCoversDesiredGeneration is only three field comparisons, not a dictionary walk; defer micro-cleanup as unlikely to explain the gap.
+Added opt-in one-shot Mono symbol resolver to ShowcasePlayerHarness, enabled only by -voxel-symbol-request and by default after185s. Reads at most4096sampled addresses, uses exported mono_pmip/mono_free, writes resolved TSV. Library exports confirmed locally and Mono documentation/source consulted. Diagnostic does not alter renderer/world behavior. Managed-profile player and post185s sampling orchestrator running; resolver acceptance pending.
+
+- Resolved managed standalone profile: `gpu-managed-profile-showcase` exited0 after210s/13captures;
+  2225 native addresses resolved. Of3447 main-thread samples, timing Snapshot owns521 inclusive
+  (~15%), far presentation Query836 (~24%), including150 self in BoundsFor and106 ProjectedPixels.
+  Inclusive nested counts cannot be summed. Cheap CurrentBuildCoversDesiredGeneration field guard
+  deprioritized. Implemented exact incremental128-sample timing order; behavioral reference and
+  standalone performance validation pending. Upstream far GPU selection remains required work.
+
+- Timing-window validation:540/540 Rendering EditMode tests passed,0skips,wrapper exit0/23s.
+  `gpu-timing-window-module` build33s/player48s exited0,7captures/all seven markers,
+  0missing/fallback/errors, one solid draw,264.1MB, framep95/p99 .312/.322ms versus prior
+  .714/.804ms. Exact42s standalone capture reviewed: intact fort, prototype/blockout quality;
+  behavioral pass only. Showcase180s comparison running. Far migration requires a versioned spatial
+  working set: current IFeaturePresentationSource and IStructureVisualStateSource expose no change
+  revision; add a reusable change boundary rather than assuming camera stability means state stability.
+
+- `gpu-timing-window-showcase`: build19s/player180s exited0,11captures,no forbidden errors.
+  Standard windows173.153FPS stationary(30samples),367.710walking(59); CPU5.185/1.99ms,
+  GPUdiagnostic22.95/2.1ms. Main-thread medianp50 1.995/1.98ms versus prior2.21/2.39;
+  stationary presentation wait3.065ms versus.12ms. Background VM224%CPU/media89%/indexing40%
+  recorded; cause of excess GPU/presentation wait not isolated, so no overall FPS improvement claim.
+  Final307missing,0allocation failures/evictions. All57 archived/current source hashes matched.
+  Exact76.8s/151.8s captures reviewed: castle intact, terrain gaps/seams and sparse vegetation remain
+  unacceptable. Keep exact bounded timing fix (module improvement and lower main time); isolate
+  presentation wait in a repeat workload before concluding total FPS effect. Far selection migration
+  remains next substantive GPU work; this timing change itself moves no work to GPU.
+
+- GPU far selection migration: production Showcase now uses revisioned manifest/semantic state and
+  a padded resident candidate set; per-camera selection runs in GpuFarSelection before material page
+  compaction. Exact active query bounds, existing distance caps and projected-size hysteresis retained.
+  Source changes remap prior tier history GPU-to-GPU by stable ID; no admission readback. Geometry
+  and authoritative state remain production-derived. Unversioned sources conservatively requery.
+  First test attempt hit a validation-script scope error, fixed; final598/598tests passed0skips:
+  Rendering544, Composition7, Showcase28, Structures19 (25s wrapper exit0). GPU policy parity covers
+  1/65/1025sources across16camera frames, caps, active-query edges, replacement bits and history
+  remapping/repeated disposal. Revision tests cover source replacement and removed/ruined/restored
+  structures while geometry remains cached.
+- `gpu-far-selection-module`: build32s/player48s exit0,7captures/all seven markers,
+  0missing/fallback/errors, one solid draw,264.3MB, framep95/p99 .319/.324ms. Exact42s capture
+  reviewed: intact fort, prototype/blockout quality; behavioral pass only. Archived77source hashes.
+  Showcase180s and Composition far-modifier validation pending; module-local semantic-state owned
+  revision test added, execution pending. Full tier memory and long-session cache retirement remain gates.
+
+- `gpu-far-selection-showcase`: build19s/player180s exit0/11captures/no forbidden errors.
+  Stationary396.56FPS(30samples), walking455.322FPS(59); CPU2.255/1.68ms, main.87/1.10ms,
+  presentation wait1.34/.13ms, GPUdiagnostic9.73/4.86ms. Final240missing,215allocation failures and
+  215evictions,4371publications,0unqueued; increased throughput now reaches pressure.77source hashes
+  matched. Exact76.8s/151.9s captures: castle intact, house proxies present, persistent terrain gaps,
+  seams/sparse vegetation unacceptable.110resident far objects versus106,11draws,979872atlas bytes
+  versus964576 (+15296). Stationary target unmet; pressure/coverage equivalent workload unproven.
+- `gpu-far-selection-composition`: build22s/player28s exit0/7captures, both required markers,
+  no forbidden errors,1371canonical modifiers excluded and110additive sources. Exact24s screenshot
+  is close green terrain only: camera/framing fails useful visual evidence. Record as validation defect;
+  do not call module visuals accepted. Fix camera using production-derived bounds/terrain before closure.
+- Next pressure audit located active CPU `GpuSolidChunkCache.EvictFarthest`, driven by global GPU
+  allocation failures in VoxelSurfaceScheduler. It scans offscreen leases and chooses farthest victims;
+  current215evictions make this migration relevant. Also investigate repeated full GPU index compaction
+  once pressure behavior is understood. Do not lower capacity, distance or coverage requirements.
+- WorldBuilder-owned revision test initially discovered0tests because pre-existing
+  TemporaryMasterTestDisable.cs shadows [Test]. Qualified the two state tests with NUnit.Framework.Test;
+  rerun pending. No unrelated quarantine changes made; broader module validation remains incomplete.
+
+- WorldBuilder state rerun actually executed2/2 tests,0skips,wrapper exit0/13s. All current source files
+  passed diff whitespace checks. No live Unity/player sessions remain. GPU far migration is implemented
+  and behaviorally validated;400FPS, pressure, coverage and the noted validation framing remain open.
+
+- GPU index reuse experiment: selected live records are compared on GPU; an additional GPU arena
+  ownership epoch invalidates on publication/release, including identical handle/count aliases.
+  Unchanged streams retain indexed draw arguments and dispatch zero copy groups; legacy explicit-handle
+  draws force rebuild and invalidate reuse mode. No CPU admission/readback or reduced geometry capacity.
+  Bounded extra memory32bytes/handle+20bytes (262164bytes at8192handles), plus4arena-state bytes.
+  545/545Rendering tests pass0skips, including exact noncontiguous physical indices, bank changes,
+  removal, unchanged repeats, selection changes, page aliases, and three multi-handle release cases
+  verifying every GPU commit/release advances ownership. Final test wrapper exit0/22s.
+- `gpu-index-reuse-module`: build31s/player48s exit0/7captures/all seven markers,
+  0missing/fallback/errors, one solid draw,264.4MB, framep95/p99 .312/.328ms. Exact42s screenshot
+  reviewed: intact fort, prototype/blockout quality, behavioral evidence only.81source files archived.
+  Same180s Showcase comparison running. Prior pressure timeline first rises at151.8s/3551publications;
+  reaches215failures/evictions by178s/4371publications. Storedpressure-timeline.json. This separates
+  late traversal pressure from the stationary GPU/presentation limit; eviction migration remains open.
+
+- `gpu-index-reuse-showcase`: build18s/player180s exit0/11captures/no forbidden errors;
+ 370.127stationary/454.988walkingFPS, CPU2.36/1.63ms, GPUdiagnostic10.325/4.985ms,
+ 229missing,314allocation failures/evictions. Exact76.7s/151.7s images reviewed: castle intact,
+ terrain gaps/seams persist. No convincing gain against397/455, so six experiment files restored
+ from prior source archive or unchanged HEAD originals; all77prior source hashes match. Index reuse
+ is NOT active.545test/module successes prove correctness only, not performance benefit.
+- Xcode xctrace is installed with Metal System Trace template. Started105s standalone stationary
+ diagnostic (autowalk10000s), with5s trace requested atFPSLOG65s. Live harness/session17897 and
+ sampler7328 pending; files undergpu-metal-stationary-profile. No profile conclusions yet.
+
+- Metal diagnostic completed:105s player/6captures exit0,5s xctrace attach atFPSLOG65.5s exit0,
+ 146MB stationary.trace. Exported GPU intervals, encoder list, application intervals and object labels.
+ analyze_trace.py resolves XML references and joins encoder IDs.29739voxel GPU intervals; predominant
+ Render Command5 fragment3861ms/2038intervals (~1.895ms each), vertex1987ms/1970 (~1.009ms),
+ Compute Command0 2027ms/3223 (~.629ms), Compute Command4 359ms/1642 (~.219ms).
+ Parallel channels and nested depths overlap; do not sum as frame cost. Encoder5 follows the index
+ compute encoder and contains solid/water draws by source command order; no per-shader attribution
+ yet. Exact76.6s capture reviewed: castle intact, persistent terrain defects. This diagnostic is not FPS
+ benchmark evidence. All profile/export handles terminal.
+- Next measured hypothesis targets solid fragment sampling: projection endpoints previously sampled
+ both face and triplanar textures, and zero-strength distance-faded normals still fetched normal maps.
+ Shader now branches only to skip unused samples, retaining fractional blend path and original weights.
+ 544/544Rendering tests passed0skips,wrapper exit0/22s; these include GPU geometry/draw behavior,
+ not pixel-identical material proof. Standalone module and180s Showcase validation pending.
+
+- `gpu-material-sampling-module`: build20s/player48s exit0/7captures/all seven markers,
+ 0missing/fallback/errors, one solid draw,264.3MB, framep95/p99 .312/.324ms. Exact42s capture
+ reviewed: intact fort and material separation, prototype/blockout quality, no visible new defect;
+ not numerical pixel-parity proof. Same180s Showcase comparison running.81source files archived.
+
+- `gpu-material-sampling-showcase`: build19s/player180s exit0/11captures/no forbidden errors.
+ Stationary451.53FPS(30samples), walking512.766FPS(59); CPU2.075/1.39ms, main.82/1.06ms,
+ presentation wait1.22/0ms, GPUdiagnostic8.4/3.64ms.81archived/current source hashes match.
+ Exact76.6s/151.6s captures reviewed: castle and materials intact, no obvious new material defect;
+ terrain gaps/seams and sparse vegetation remain unacceptable. This is visual inspection, not
+ numerical pixel parity. Final4509publications,266missing,302allocation failures/evictions,0unqueued,
+ oldest10.265s step8. Keep the shader optimization: both standard windows exceed400 in this run.
+ Full goal remains incomplete because CPU pressure victim selection, pressure/coverage, lower-tier
+ memory, helper retirement and validation gates remain. Repeat after remaining migration changes.
+ All Unity/player/trace/export sessions terminal; no push. Index reuse remains reverted.
+
+
+### GPU pressure kernels — integration pending (2026-09-07)
+
+- Added `GpuSurfacePressure.compute` and `GpuSurfacePressureDispatcher`: parallel 64-lane
+  groups emit their top16 eligible offscreen handles; bounded global reduction retires at most16.
+  GPU eligibility requires live pages, matching desired/live generation and no pending candidate.
+  GPU writes exact retired handle/generation acknowledgments and clears live readiness while retaining
+  CPU handle ownership. No geometry readback, world mutation or capacity change.
+- `Artifacts/LocalGpuShowcase/gpu-pressure-kernels-tests.xml`:547/547 passed,0skips;
+  wrapper exit0 in30s, peak4527MB. New real-GPU cases at7/67/130handles exercise cross-group ranking,
+  nonzero generation-high identity, visible protection, desired/pending replacement protection,
+  a changed current frustum, and no duplicate page retirement. `git diff --check` passed.
+- This is a tested component, **not a completed production migration**. Scheduler CPU eviction remains.
+  Next wire a resident bounds table from extraction descriptors (64cells/axis, one source-sample halo),
+  async outcome lifetime, published render generation on entries, safe stale/new-build acknowledgments,
+  and actual live-ready checks in LOD fallback. Then remove CPU GPU-pressure scans and repeat
+  module standalone evidence plus identical180sShowcase FPS/coverage windows.
+- No new player run or FPS claim for this component. Latest integrated baseline remains452/513FPS;
+  previous terrain defects and remaining gates stay open. Water pressure still needs migration.
+
+
+### Production solid GPU pressure handoff — verification in progress (2026-09-07)
+
+- GPU allocation captures resident bounds from production descriptors in a separate dispatch to
+  preserve Metal's eight-UAV allocation limit. Solid scheduler uses GPU pressure selection/retirement;
+  reverse handle lookup routes bounded acknowledgments to host entries. Published render generation
+  prevents stale acknowledgments from deleting newer publications. Active replacements keep handles.
+  Async readback retains arena lifetime, retries the same outcome buffer after errors, and never
+  reruns retirement to recover a failed readback. LOD checks actual GPU live readiness.
+- Final `gpu-pressure-integrated-final-tests.xml`:556/556 passed,0skips,wrapper21s/exit0.
+  Initial547-test integration run had two expected resource-inventory mismatches after adding bounds;
+  next556-test run had two new fixture assertions forgetting DirtyCount includes the active build.
+  Corrected inventory and fixture accounting; no production invariant or budget weakened.
+- `gpu-pressure-integrated-module`:build32s/player48s/exit0,seven captures and all seven required
+  markers. Exact42s capture reviewed: fort intact, prototype/blockout quality, no new apparent defect.
+- `gpu-pressure-integrated-showcase` currently running.130 source/meta hashes archived before build;
+  no FPS or pressure acceptance claimed until terminal output and screenshots are reviewed.
+- Remaining migration: water pressure, per-worker capacity selection, dead solid CPU eviction helpers.
+  Water needs its real descriptor origin/scale and a six-voxel splash halo (current bounds table is
+  unused by water). Desired/live-generation mismatch protection may conservatively retain failed
+  replacements under pressure; inspect traversal evidence before changing that invariant.
+
+- Completed `gpu-pressure-integrated-showcase`:build19s/player180s/exit0,11screenshots.
+  Stationary60–90s29samples389.524FPS; walking120–180s60samples488.755FPS.
+  CPUmedianp502.39/1.425ms; main.87/1.05ms; present1.50/.145ms; GPUdiagnostic9.68/4.08ms.
+  Final238missing,252allocationfailures/evictions,4476publications,0unqueued;
+  oldest10.545s step8,10resident/269known. All130source/meta hashes match current source.
+  Exact76.8s castle and151.8s walking screenshots reviewed: castle intact; terrain gaps/seams,
+  smooth far hills and sparse vegetation remain unacceptable. No new transaction/shader errors.
+  Stationary400FPS gate fails in this run; walking passes. CPU eviction migration is verified under
+  actual pressure, but no speedup claim: stationary main barely changed and present wait rose.
+  Next discrimination: capture bounds in existing outcome dispatch rather than adding a dispatch,
+  while finishing water/capacity selection migration. Current source and benchmark remain matched.
+
+
+### Water GPU pressure and fused bounds publication (2026-09-07)
+
+- Moved bounds capture into existing CSPublishBatchPages (six writable resources); deleted the
+  extra capture kernel/dispatch. Bounds are available before commit and pressure admission.
+  Arena bounds dimensions are explicit: solid64cells+1sample halo; water128cells+6voxel spray halo.
+  Water now supplies actual origin, sample step and voxel scale in its production descriptor.
+- Water uses the same bounded GPU victim ranking/soft retirement and async lifetime/retry path.
+  Handle→entry lookup and published SourceVersion protect acknowledgments, preserve active rebuilds,
+  and retain discovered water. Removed unused solid TryEvictOne/EvictFarthest CPU pressure helpers.
+  CPU per-worker EnforceCapacity scan remains for migration; do not claim all victim selection GPU.
+- `gpu-water-pressure-final-tests.xml`:558/558 passed,0skips,21s/exit0. Includes real production
+  water publication→GPU eviction→rebuild from preserved discovery,128cell/6halo GPU bounds and
+  disposal during actual pending pressure readback. Initial556test run also passed24s/exit0.
+- `gpu-water-pressure-module`:build30s/player30s/exit0,fourcaptures,both required readiness markers.
+  Exact26.3s image reviewed: pool/waterfall rendered; prototype/blockout quality, surrounding trees
+  visibly float beyond terrain. Water imperfection allowed for this performance task; broader
+  visual defects remain open. `git diff --check` passes after EOF whitespace cleanup.
+- `gpu-water-pressure-showcase` running with130source/meta hashes archived. No new FPS claim yet.
+- Capacity follow-up: GPU needs a resident owner filter (source step + shard ownership) so pressure
+  in one bounded worker evicts from that worker, rather than an unrelated ring. Ownership can be
+  uploaded with generation commands once per build; host capacity counts remain bookkeeping, while
+  all candidate scanning/frustum/ranking stays GPU. Test shard matching and filtered retirement.
+
+- Completed `gpu-water-pressure-showcase`:build18s/player180s/exit0,11captures.
+  Stationary60–90s29samples423.248FPS;walking120–180s59samples436.953FPS.
+  CPUmedianp502.15/1.70ms;main.85/1.16ms;present1.30/.19ms;GPUdiagnostic8.8/4.64ms.
+  Final258missing,119allocationfailures/evictions,4360publications,0unqueued;
+  oldest9.02s step8,22resident/269known. All130source/meta hashes match.
+  Exact76.7s and151.7s screenshots reviewed: castle intact; terrain gaps/seams and sparse vegetation
+  remain unacceptable. Both400FPS windows pass. This does not prove the bounds fusion alone caused
+  recovery: walking performance varies and source-service/pressure workload differs between runs.
+  Per-worker capacity victim selection still CPU; full migration goal remains active.
+
+
+### GPU worker-capacity retirement (2026-09-07)
+
+- Generation commands now carry source step and stable CPU shard hash into an8B/handle GPU owner
+  table. GPU pressure eligibility filters exact step and hash modulo shard count before distance
+  ranking. Coordinator alternates capacity/global allocation pressure when both are pending and
+  round-robins full workers; CPU inspects only bounded worker counts, never resident bounds/victims.
+  EnforceCapacity now records demand only. Solid/water/global/capacity pressure selection runs GPU.
+- `gpu-capacity-pressure-final-tests.xml`:562/562 passed,0skips,21s/exit0. Four130handle real-GPU
+  cases cover step/shard filtering, negative-coordinate hashes, cross-workgroup ranking and
+  preservation of all unselected live records. Command coalescing verifies final GPU owner metadata.
+  Initial558-test run had two old16B command-readback fixtures; transport is now24B. Updated those
+  independent layouts and ownership assertions; water disposal inventory includes new owner buffer.
+- `gpu-capacity-pressure-module`:build29s/player48s/exit0,seven captures.42s image reviewed:
+  fort intact, prototype/blockout quality. Showcase currently running with132source/meta hashes.
+- Completion audit still requires the removal ledger: water CollectVisible performs CPU entry
+  frustum tests, BeginNearestBuild ranks up to32dirty candidates on CPU, and test-only CPU geometry
+  helpers remain. These are distinct from completed pressure migration; do not claim total CPU
+  presentation retirement from pressure evidence. Memory-tier/integration gates also remain.
+
+- Completed first `gpu-capacity-pressure-showcase`:build19s/player180s/exit0,11captures;
+  stationary175.52FPS/walking424.768FPS;296missing,106allocationfailures/evictions.
+  CPUmedianp505.04/1.79ms;GPUdiagnostic21.955/4.82ms. All132hashes matched before follow-up edits.
+  Walking151.7s image retains terrain gaps/seams and sparse vegetation. Stationary performance failed.
+  At~150s ps showed VM217%CPU,mediaanalysis46%+41%,mds49%,player127%; no process was killed.
+  External GPU contention is plausible, not proven. Eviction counters alone cannot establish whether
+  capacity dispatch ran with zero eligible victims. Add separate dispatch counters before attribution.
+- Follow-up source edits after terminal benchmark: rank only requested K (capacity K=1, global≤16),
+  scan only written candidate slots; preserve round-robin cursor on global-pressure turns so alternating
+  service cannot repeatedly skip half of persistently full workers. Add dispatch counters to RINGS.
+  Eight step/shard tests now exercise K=1 and16. New source is not covered by prior player FPS.
+
+- `gpu-capacity-bounded-tests.xml`:566/566 passed,0skips,26s/exit0. No player validation yet for
+  K-sized reduction/fairness/counters follow-up. Exact76.7s prior-player capture also reviewed:
+  castle intact, right houses less complete; terrain defects remain unacceptable. Next run must use
+  fresh archived source and counters. All tool/player sessions terminal; no pending run to restart.
+
+
+### User-requested draft PR checkpoint (2026-09-07)
+
+Latest bounded module completed25s build/48s player,7captures/all7markers;42s fort prototype intact.
+Latest bounded Showcase reached final verification artifact after successful-player/log/capture checks:
+180s,11captures,172.173stationary/429.567walkingFPS,293missing,48failures/evictions,4190publications.
+CapacityDispatch0 throughout; AllocationDispatch38 after stationary. Eviction-overhead hypothesis
+falsified; separate Metal trace next. VM activity does not itself prove GPU contention.
+132source/meta hashes match;566/566Rendering tests,0skips.76.6/151.6s images reviewed: castle intact,
+incomplete houses and terrain/vegetation defects remain unacceptable. checkpoint-evidence.json saves
+portable result summaries and source provenance; raw local artifacts remain under Artifacts.
+User requested committing work and opening a PR against master. Draft leaves issue and unfinished
+performance/migration/memory/visual/integration gates open; no auto-merge or remote CI success claim.
+Unrelated generated settings/import residue and crash artifacts are excluded from this task commit.

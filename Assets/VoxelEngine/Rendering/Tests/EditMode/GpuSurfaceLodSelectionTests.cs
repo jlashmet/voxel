@@ -58,6 +58,57 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             return selected;
         }
 
+        private sealed class CountOnlyList<T> : IReadOnlyList<T>
+        {
+            public int Count { get; }
+            internal CountOnlyList(int count) { Count = count; }
+            public T this[int index] => throw new InvalidOperationException("Reused input image must not rescan source lists.");
+            public IEnumerator<T> GetEnumerator() => throw new InvalidOperationException();
+            System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+        }
+
+        [Test]
+        public void RetiredGeometryCannotRemainSelectedThroughReusedCpuMembership()
+        {
+            var nodes = new List<SurfaceLodNodeKey> { new(1, int3.zero) };
+            CollectionAssert.AreEquivalent(new[] { 0 }, Select(nodes, nodes, 0, nodes));
+            _arena.LiveChunkGeometry.SetData(new uint[_arena.HandleCapacity * 8]);
+            _dispatcher.PrepareLod(nodes, new[] { 0 }, nodes, 1, nodes, reuseInputImage: true);
+            var selected = new uint[_arena.HandleCapacity];
+            _dispatcher.ActiveLodSelection.GetData(selected);
+            Assert.That(selected[0], Is.Zero, "A delayed host acknowledgment cannot preserve retired coverage.");
+        }
+
+        [Test]
+        public void ReusedInputImageStillClassifiesCurrentCameraAndBandsAcrossBufferedSlots()
+        {
+            var nodes = new List<SurfaceLodNodeKey> { new(1, int3.zero) };
+            var bands = new Vector4[4];
+            for (int i = 0; i < 4; i++) bands[i] = new Vector4(0, 10000, 0, 0);
+            var planes = new[] { new Plane(Vector3.right, 100), new Plane(Vector3.left, 100),
+                new Plane(Vector3.up, 100), new Plane(Vector3.down, 100),
+                new Plane(Vector3.forward, 100), new Plane(Vector3.back, 100) };
+            CollectionAssert.AreEquivalent(new[] { 0 }, Select(nodes, nodes, 0, nodes, planes, bands: bands));
+            var nodeCounts = new CountOnlyList<SurfaceLodNodeKey>(1);
+            var handleCounts = new CountOnlyList<int>(1);
+            for (int frame = 1; frame <= 9; frame++)
+            {
+                int mode = frame % 3;
+                planes[0] = new Plane(Vector3.right, mode == 1 ? -100000 : 100);
+                bands[0].z = mode == 2 ? 1 : 0;
+                _dispatcher.PrepareLod(nodeCounts, handleCounts, nodeCounts, frame, nodeCounts,
+                    planes, 1, bands, Vector3.zero, reuseInputImage: true);
+                var selected = new uint[_arena.HandleCapacity];
+                _dispatcher.ActiveLodSelection.GetData(selected);
+                Assert.AreEqual(mode == 0 ? 1u : 0u, selected[0]);
+                if (frame >= 3) Assert.AreEqual(0, _dispatcher.LastLodUploadedNodes);
+            }
+            // A changed scheduler image must still replace the reused membership.
+            var changed = new List<SurfaceLodNodeKey> { new(1, new int3(5000, 0, 0)) };
+            Assert.IsEmpty(Select(changed, changed, 10, changed, planes, bands: bands));
+            Assert.Greater(_dispatcher.LastLodUploadedNodes, 0);
+        }
+
         [TestCase(1)] [TestCase(2)] [TestCase(4)] [TestCase(8)]
         public void GpuDemandFeedbackPreservesBandAndFrustumForOwnedMissingNodes(int step)
         {

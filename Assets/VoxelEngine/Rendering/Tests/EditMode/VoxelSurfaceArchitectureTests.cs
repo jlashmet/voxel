@@ -874,6 +874,45 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void TimingWindowMatchesSortedReferenceAcrossRepeatedWrapsAndSnapshots()
+        {
+            var timing = new VoxelTimingWindow();
+            var reference = new System.Collections.Generic.Queue<double>();
+            var random = new System.Random(7129);
+            ulong accepted = 0;
+            Assert.AreEqual(0ul, timing.Snapshot().SampleCount);
+            for (int i = 0; i < 2048; i++)
+            {
+                double value = i < 256 ? i : i < 512 ? 512 - i : random.Next(-8, 64);
+                if (i % 31 == 0) value = double.NaN;
+                else if (i % 37 == 0) value = double.PositiveInfinity;
+                else if (i % 41 == 0) value = double.NegativeInfinity;
+                timing.Add(value);
+                if (!double.IsNaN(value) && !double.IsInfinity(value))
+                {
+                    reference.Enqueue(System.Math.Max(0, value));
+                    if (reference.Count > 128) reference.Dequeue();
+                    accepted++;
+                }
+                double[] ordered = reference.ToArray();
+                double last = ordered.Length == 0 ? 0 : ordered[ordered.Length - 1];
+                System.Array.Sort(ordered);
+                for (int repeat = 0; repeat < 2; repeat++)
+                {
+                    var summary = timing.Snapshot();
+                    Assert.AreEqual(accepted, summary.SampleCount);
+                    Assert.AreEqual(last, summary.LastMs);
+                    Assert.AreEqual(Expected(0.50), summary.P50Ms);
+                    Assert.AreEqual(Expected(0.95), summary.P95Ms);
+                    Assert.AreEqual(Expected(0.99), summary.P99Ms);
+                    Assert.AreEqual(Expected(1.00), summary.MaxMs);
+                }
+                double Expected(double percentile) => ordered.Length == 0 ? 0 :
+                    ordered[(int)System.Math.Ceiling(percentile * ordered.Length) - 1];
+            }
+        }
+
+        [Test]
         public void TimingWindowClampsInvalidNegativeDurationsAndIgnoresNonFiniteValues()
         {
             var timing = new VoxelTimingWindow();

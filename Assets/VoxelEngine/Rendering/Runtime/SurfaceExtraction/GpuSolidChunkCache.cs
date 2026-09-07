@@ -80,6 +80,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             public bool Ready;
             public bool IsGpuPaged => GpuHandle >= 0;
             public int GpuHandle { get; private set; } = -1;
+            internal ulong PublishedGpuGeneration { get; private set; }
             public int IndexCount => IsGpuPaged ? -1 : 0;
             public int LastUsedFrame;
             internal bool GpuDemandInBand;
@@ -110,10 +111,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 SurfaceCatalogueHash = CoatingCatalogueHash = 0;
             }
 
-            internal void PublishGpuPaged(int handle)
+            internal void PublishGpuPaged(int handle, ulong generation = 0)
             {
                 if (handle < 0) throw new ArgumentOutOfRangeException(nameof(handle));
                 GpuHandle = handle;
+                PublishedGpuGeneration = generation;
                 Ready = true;
             }
 
@@ -1430,7 +1432,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 return;
             }
 
-            _gpuExtraction.ApprovePagedCandidate(handle, frame);
+            ulong renderGeneration = _gpuExtraction.ApprovePagedCandidate(handle, frame);
             _gpuExtraction.Release();
             _gpuStagePending = false;
             _emptyVersions.Remove(_build.Coordinate);
@@ -1439,7 +1441,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 entry = AcquireEntry(_build.Coordinate);
                 _entries.Add(_build.Coordinate, entry);
             }
-            entry.PublishGpuPaged(handle);
+            entry.PublishGpuPaged(handle, renderGeneration);
             _readySetVersion++;
             entry.LastUsedFrame = frame;
             entry.SourceVersion = _build.SourceVersion;
@@ -1691,165 +1693,34 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         }
 
 
-        internal bool TryEvictOneForArenaPressure(Camera camera, float voxelSize)
+        // GPU already retired this exact live generation. Never release a newer pending build.
+        internal bool AcknowledgeGpuEviction(int3 origin, int sourceStep, int handle, ulong generation)
         {
-            if (_entries.Count == 0) return false;
-
-            int3 victim = default;
-            float farthest = -1f;
-            Vector3 cameraPosition = camera != null ? camera.transform.position : Vector3.zero;
-            float chunkMetres = VoxelsPerAxis * voxelSize;
-            if (camera != null) GeometryUtility.CalculateFrustumPlanes(camera, _frustumPlanes);
-
-            foreach (var pair in _entries)
+            if (sourceStep != SourceStep) return false;
+            int3 coordinate = origin / VoxelsPerAxis;
+            if (!_entries.TryGetValue(coordinate, out Entry entry) || entry.GpuHandle != handle
+                || entry.PublishedGpuGeneration != generation) return false;
+            if (_build.Active && coordinate.Equals(_build.Coordinate))
             {
-                // Keep current replacement geometry alive. Arena pressure may only retire a
-                // different, already-published, offscreen lease.
-                if (_build.Active && pair.Key.Equals(_build.Coordinate)) continue;
-                Bounds bounds = ChunkWorldBounds(pair.Key, voxelSize);
-                if (camera != null && GeometryUtility.TestPlanesAABB(_frustumPlanes, bounds))
-                    continue;
-
-                Vector3 centre = (new Vector3(pair.Key.x, pair.Key.y, pair.Key.z)
-                                + Vector3.one * 0.5f) * chunkMetres;
-                float distance = (centre - cameraPosition).sqrMagnitude;
-                if (distance <= farthest) continue;
-                farthest = distance;
-                victim = pair.Key;
+                entry.Ready = false;
+                _readySetVersion++;
             }
-
-            if (farthest < 0f) return false;
-            if (_entries.TryGetValue(victim, out Entry entry)) RecycleEntry(entry);
-            RemoveEntry(victim);
-            MarkDirty(victim);
+            else
+            {
+                RecycleEntry(entry);
+                RemoveEntry(coordinate);
+            }
+            MarkDirty(coordinate);
             return true;
         }
 
-        /// <summary>
-        /// Squared camera distance of the chunk this worker is waiting to publish, if any. The
-        /// scheduler uses the nearest such chunk to decide which resident leases may be retired
-        /// when the arena has no offscreen geometry left to give up.
-        /// </summary>
-        /// <summary>
-        /// Retires up to <paramref name="maxEvictions"/> of the farthest eligible leases in a single
-        /// pass over the entry table.
-        ///
-        /// Relief used to answer "give me one victim", so freeing N chunks meant N full scans of the
-        /// table with a frustum test per entry every time. Under pressure that is the dominant cost
-        /// in SchedulerPrepare — the same scan repeated, on every frame, over a table holding
-        /// thousands of leases. One pass that selects N victims costs what one old call did.
-        ///
-        /// With <paramref name="offscreenOnly"/> the pass gives up only geometry outside the frustum,
-        /// which is the cheap choice and always the first one tried. Otherwise it retires anything
-        /// published that sits farther than <paramref name="minDistanceSq"/>, which is how a fully
-        /// on-screen resident set still makes room for the chunk nearest the camera.
-        /// </summary>
-        internal int EvictFarthest(Camera camera, float voxelSize, bool offscreenOnly,
-                                   float minDistanceSq, int maxEvictions, bool gpuOnly = false)
-        {
-            if (_entries.Count == 0 || maxEvictions <= 0) return 0;
-
-            int wanted = math.min(maxEvictions, MaxEvictionVictims);
-            if (_evictionVictims == null || _evictionVictims.Length < MaxEvictionVictims)
-            {
-                _evictionVictims = new int3[MaxEvictionVictims];
-                _evictionVictimDistances = new float[MaxEvictionVictims];
-            }
-
-            int found = 0;
-            Vector3 cameraPosition = camera != null ? camera.transform.position : Vector3.zero;
-            if (camera != null) GeometryUtility.CalculateFrustumPlanes(camera, _frustumPlanes);
-
-            foreach (var pair in _entries)
-            {
-                if (gpuOnly && !pair.Value.IsGpuPaged) continue;
-                // Keep current replacement geometry alive. Relief may only retire a different,
-                // already-published lease.
-                if (_build.Active && pair.Key.Equals(_build.Coordinate)) continue;
-                if (offscreenOnly)
-                {
-                    Bounds bounds = ChunkWorldBounds(pair.Key, voxelSize);
-                    if (camera != null && GeometryUtility.TestPlanesAABB(_frustumPlanes, bounds))
-                        continue;
-                }
-                else if (!pair.Value.Ready)
-                {
-                    continue;
-                }
-
-                float distance = ChunkDistanceSq(pair.Key, camera, voxelSize);
-                if (!offscreenOnly && distance <= minDistanceSq) continue;
-                if (found == wanted && distance <= _evictionVictimDistances[found - 1]) continue;
-
-                // Keep the running selection ordered farthest-first; it is at most a few entries.
-                int slot = found < wanted ? found++ : wanted - 1;
-                while (slot > 0 && _evictionVictimDistances[slot - 1] < distance)
-                {
-                    _evictionVictimDistances[slot] = _evictionVictimDistances[slot - 1];
-                    _evictionVictims[slot] = _evictionVictims[slot - 1];
-                    slot--;
-                }
-                _evictionVictimDistances[slot] = distance;
-                _evictionVictims[slot] = pair.Key;
-            }
-
-            for (int i = 0; i < found; i++)
-            {
-                int3 victim = _evictionVictims[i];
-                if (_entries.TryGetValue(victim, out Entry entry)) RecycleEntry(entry);
-                RemoveEntry(victim);
-                MarkDirty(victim);
-            }
-            return found;
-        }
-
-        private const int MaxEvictionVictims = 16;
-        private int3[] _evictionVictims;
-        private float[] _evictionVictimDistances;
-
-        private float ChunkDistanceSq(int3 coordinate, Camera camera, float voxelSize)
-        {
-            Vector3 cameraPosition = camera != null ? camera.transform.position : Vector3.zero;
-            float chunkMetres = VoxelsPerAxis * voxelSize;
-            Vector3 centre = (new Vector3(coordinate.x, coordinate.y, coordinate.z)
-                            + Vector3.one * 0.5f) * chunkMetres;
-            return (centre - cameraPosition).sqrMagnitude;
-        }
+        internal bool NeedsCapacityRelief => _entries.Count >= MaxResidentChunks && _dirty.Count > 0;
 
         private void EnforceCapacity(Camera camera, float voxelSize)
         {
-            if (_entries.Count < MaxResidentChunks || _dirty.Count == 0) return;
-
-            int3 victim = default;
-            float farthest = -1f;
-            Vector3 cameraPosition = camera != null ? camera.transform.position : Vector3.zero;
-            float chunkMetres = VoxelsPerAxis * voxelSize;
-            if (camera != null) GeometryUtility.CalculateFrustumPlanes(camera, _frustumPlanes);
-
-            foreach (var pair in _entries)
-            {
-                // Capacity pressure is also bounded: at most one offscreen lease retires from
-                // this workspace per Prepare call. Repeated eviction loops turn a cache miss into
-                // a frame spike exactly when streaming is already under pressure.
-                if (camera != null && GeometryUtility.TestPlanesAABB(
-                        _frustumPlanes, ChunkWorldBounds(pair.Key, voxelSize)))
-                    continue;
-                Vector3 centre = (new Vector3(pair.Key.x, pair.Key.y, pair.Key.z)
-                                + Vector3.one * 0.5f) * chunkMetres;
-                float distance = (centre - cameraPosition).sqrMagnitude;
-                if (distance <= farthest) continue;
-                farthest = distance;
-                victim = pair.Key;
-            }
-
-            if (farthest < 0f)
-            {
-                CapacityPressureCount++;
-                return;
-            }
-            if (_entries.TryGetValue(victim, out Entry entry)) RecycleEntry(entry);
-            RemoveEntry(victim);
-            MarkDirty(victim);
+            // Selection/retirement is submitted once by the coordinator with this worker's
+            // step/shard filter. Counting host entries does not inspect presentation bounds.
+            if (NeedsCapacityRelief) CapacityPressureCount++;
         }
 
         /// <summary>

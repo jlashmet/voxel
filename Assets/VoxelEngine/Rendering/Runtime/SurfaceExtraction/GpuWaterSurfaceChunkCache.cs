@@ -53,6 +53,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 if (Handle >= 0) return true;
                 if (!_owner._geometryArena.TryAcquireHandle(out int handle)) return false;
                 Handle = handle;
+                _owner._entriesByHandle.Add(handle, this);
                 return true;
             }
 
@@ -79,6 +80,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             {
                 if (Handle >= 0)
                 {
+                    _owner._entriesByHandle.Remove(Handle);
                     _owner._geometryArena.QueueRelease(Handle, ++_owner._versionCounter);
                     Handle = -1;
                 }
@@ -125,6 +127,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private readonly List<Entry> _visible = new();
         private readonly Plane[] _frustumPlanes = new Plane[6];
         private readonly GpuSurfacePageArena _geometryArena;
+        private readonly Dictionary<int, Entry> _entriesByHandle = new();
+        private GpuSurfacePressureDispatcher _pressure;
+        private int _pressureBudget;
         private readonly ComputeShader _mesherShader;
         private readonly ComputeShader _arenaShader;
         private readonly ComputeShader _drawShader;
@@ -155,7 +160,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _arenaShader = UnityEngine.Object.Instantiate(Resources.Load<ComputeShader>("GpuSurfacePageArena"));
             _drawShader = UnityEngine.Object.Instantiate(Resources.Load<ComputeShader>("GpuWaterDrawArguments"));
             _geometryArena = new GpuSurfacePageArena(_arenaShader,
-                ArenaVertexCapacity, ArenaIndexCapacity, ArenaDrawCapacity, primaryArena: false);
+                ArenaVertexCapacity, ArenaIndexCapacity, ArenaDrawCapacity, primaryArena: false,
+                boundsCellsPerAxis: VoxelsPerAxis, boundsHaloCells: 6);
             _origins = new ComputeBuffer(GpuWaterSurfaceMesher.MaximumBricks, 16);
             _materials = new ComputeBuffer(GpuWaterSurfaceMesher.MaximumBricks * GpuWaterSurfaceMesher.SnapshotWords, 4);
             _counters = new ComputeBuffer(21, 4);
@@ -530,6 +536,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _geometryArena.FlushHandleCommands(Time.frameCount);
             _descriptorStaging[0] = new GpuSurfaceExtractor.BatchChunkDescriptor
             {
+                OriginX = _build.Coordinate.x * VoxelsPerAxis,
+                OriginY = _build.Coordinate.y * VoxelsPerAxis,
+                OriginZ = _build.Coordinate.z * VoxelsPerAxis,
+                SourceStep = 1,
+                VoxelSize = _build.VoxelSize,
                 Handle = (uint)entry.Handle,
                 GenerationLow = (uint)_build.SourceVersion,
                 GenerationHigh = (uint)(_build.SourceVersion >> 32)
@@ -761,34 +772,40 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _entryPool.Push(entry);
         }
 
-        internal bool TryEvictOneForArenaPressure(Camera camera, float voxelSize)
+        internal void RelieveGpuPressure(Camera camera, ulong newFailures)
         {
-            if (_entries.Count == 0) return false;
-            if (camera != null) GeometryUtility.CalculateFrustumPlanes(camera, _frustumPlanes);
-            Vector3 cameraPosition = camera != null ? camera.transform.position : Vector3.zero;
-            int3 victim = default;
-            float farthest = -1f;
-            float chunkMetres = VoxelsPerAxis * voxelSize;
-            foreach (var pair in _entries)
+            _pressureBudget = Math.Min(GpuSurfacePressureDispatcher.MaximumVictims,
+                _pressureBudget + (int)Math.Min(16UL, newFailures));
+            if (_pressure != null && _pressure.TryTakeResults(out uint[] results))
             {
-                if (_build.Active && pair.Key.Equals(_build.Coordinate)) continue;
-                if (camera != null
-                    && GeometryUtility.TestPlanesAABB(_frustumPlanes, pair.Value.WorldBounds(voxelSize)))
-                    continue;
-                Vector3 centre = (new Vector3(pair.Key.x, pair.Key.y, pair.Key.z)
-                                + Vector3.one * 0.5f) * chunkMetres;
-                float distance = (centre - cameraPosition).sqrMagnitude;
-                if (distance <= farthest) continue;
-                farthest = distance;
-                victim = pair.Key;
+                for (int slot = 0; slot < GpuSurfacePressureDispatcher.MaximumVictims; slot++)
+                {
+                    int word = slot * 4;
+                    if (results[word] == 0) continue;
+                    int handle = (int)results[word + 1];
+                    ulong generation = results[word + 2] | ((ulong)results[word + 3] << 32);
+                    AcknowledgeGpuEviction(handle, generation);
+                }
             }
-            if (farthest < 0f) return false;
-            if (!_entries.TryGetValue(victim, out Entry entry)) return false;
+            if (camera == null || _pressureBudget == 0 || (_pressure != null && _pressure.Busy)) return;
+            _pressure ??= new GpuSurfacePressureDispatcher(_geometryArena);
+            GeometryUtility.CalculateFrustumPlanes(camera, _frustumPlanes);
+            _pressure.Request(_frustumPlanes, camera.transform.position, _pressureBudget, Time.frameCount);
+            _pressureBudget = 0;
+        }
 
-            // Arena pressure is publication backpressure, not authoritative water eviction.
-            // Keep the discovered brick set + residency record so the chunk is rebuilt later.
-            _entries.Remove(victim);
-            ReleaseEntry(entry);
+        internal bool AcknowledgeGpuEviction(int handle, ulong generation)
+        {
+            if (!_entriesByHandle.TryGetValue(handle, out Entry entry)
+                || entry.SourceVersion != generation) return false;
+            int3 victim = entry.Coordinate;
+            if (_build.Active && _build.Coordinate.Equals(victim)) entry.Ready = false;
+            else
+            {
+                _entries.Remove(victim);
+                ReleaseEntry(entry);
+            }
+            // Retire presentation only; preserve discovered water and authoritative residency.
             MarkDirty(victim);
             return true;
         }
@@ -797,6 +814,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         {
             if (_disposed) return;
             _disposed = true;
+            _pressure?.Dispose();
+            _pressure = null;
 
             foreach (Entry entry in _entries.Values) entry.Dispose();
             foreach (Entry entry in _entryPool) entry.Dispose();

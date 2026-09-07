@@ -168,6 +168,8 @@ namespace VoxelEngine.Rendering.Runtime
             public float FlashlightOuterCos;
             public double SolidStagingMs;
             public int VisibleSolidCount;
+            public GpuSurfaceIndexDispatcher IndexedDraw;
+            public ComputeBuffer PagedLodSelection;
             public ComputeBuffer PagedVertices;
             public ComputeBuffer PagedIndices;
             public ComputeBuffer PagedVertexPageTable;
@@ -334,6 +336,8 @@ namespace VoxelEngine.Rendering.Runtime
             data.VisibleSolidCount = transvoxelVisible.Count;
             GpuSurfacePageArena gpuArena = _scheduler.GpuPageArena;
             GpuSurfaceDrawDispatcher gpuDraw = _scheduler.GpuDrawDispatcher;
+            data.IndexedDraw = gpuDraw?.GetIndexedDraw();
+            data.PagedLodSelection = gpuDraw?.ActiveLodSelection;
             data.PagedVertices = gpuArena?.Vertices;
             data.PagedIndices = gpuArena?.Indices;
             data.PagedVertexPageTable = gpuArena?.VertexPageTable;
@@ -342,8 +346,8 @@ namespace VoxelEngine.Rendering.Runtime
             data.PagedDrawBucketState = gpuDraw?.ActiveBucketState;
             data.PagedIndirectArgs = gpuDraw?.ActiveIndirectArgs;
             data.PagedCandidateCount = _scheduler.GpuDrawCandidates.Count;
-            _hasFarReplacement ??= _scheduler.HasCurrentReplacement;
-            ProceduralFarFeatureRenderer.PrepareSurfaceConsumers(_farSurfaceConsumers, _hasFarReplacement, camera);
+            ProceduralFarFeatureRenderer.PrepareSurfaceConsumers(_farSurfaceConsumers, null, camera,
+                _scheduler.PrepareGpuFarCoverage());
             data.FarSurfaceConsumers = _farSurfaceConsumers;
             data.WaterEntries = _waterDrawEntries;
             data.WaterEntryCount = waterVisible.Count;
@@ -435,14 +439,16 @@ namespace VoxelEngine.Rendering.Runtime
                         GpuSurfacePageArena.MaxVertexPagesPerChunk);
                     cmd.SetGlobalInteger(s_PagedMaxIndexPages,
                         GpuSurfacePageArena.MaxIndexPagesPerChunk);
-                    for (int bucket = 0; bucket < GpuSurfaceDrawDispatcher.BucketCount; bucket++)
-                    {
-                        cmd.SetGlobalInteger(s_PagedDrawBucket, bucket);
-                        cmd.DrawProceduralIndirect(Matrix4x4.identity, passData.Material, 0,
-                            MeshTopology.Triangles, passData.PagedIndirectArgs,
-                            bucket * sizeof(uint) * 4);
-                    }
-                    solidSubmissionCalls += GpuSurfaceDrawDispatcher.BucketCount;
+                    passData.IndexedDraw.Record(cmd, passData.PagedDrawMetadata,
+                        passData.PagedDrawBucketState, passData.PagedLodSelection);
+                    cmd.SetKeyword(passData.Material,
+                        new LocalKeyword(passData.Material.shader, "VOXEL_HARDWARE_INDEXED"), true);
+                    cmd.DrawProceduralIndirect(passData.IndexedDraw.Indices, Matrix4x4.identity,
+                        passData.Material, 0, MeshTopology.Triangles, passData.IndexedDraw.Arguments);
+                    cmd.SetKeyword(passData.Material,
+                        new LocalKeyword(passData.Material.shader, "VOXEL_HARDWARE_INDEXED"), false);
+                    solidSubmissionCalls++;
+
                 }
                 VoxelSolidRenderTelemetry.Record(
                     passData.SolidStagingMs,

@@ -17,6 +17,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             internal bool Complete;
         }
         private readonly Dictionary<int3, Region> _regions = new();
+        private readonly List<int3> _nonresident = new();
+        internal void ForgetNonresident(System.Func<int3,bool> isResident)
+        {
+            _nonresident.Clear();
+            foreach(var pair in _regions)if(!isResident(pair.Key))_nonresident.Add(pair.Key);
+            foreach(var region in _nonresident)Forget(region);
+        }
         internal int Count => _regions.Count;
         internal const int GpuWordsPerRegion = 20; // signed xyz, completeness, 512 surface bits
         internal ulong Version { get; private set; } = 1;

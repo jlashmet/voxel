@@ -779,6 +779,31 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private float _replacementVoxelSize;
         private Func<SurfaceLodNodeKey, bool> _replacementProof;
 
+        private GpuFarCoverageDispatcher _gpuFarCoverage;
+        private Func<int3,bool> _replacementResidencyCheck;
+        private bool IsReplacementRegionResident(int3 region) => _replacementStorage.IsRegionResident(region);
+        internal GpuFarCoverageDispatcher PrepareGpuFarCoverage()
+        {
+            var nodes=_gpuDrawDispatcher?.ActiveLodNodes;
+            if(nodes==null)return null;
+            _gpuFarCoverage ??= new GpuFarCoverageDispatcher(Resources.Load<ComputeShader>("GpuFarCoverage"),
+                Resources.Load<ComputeShader>("GpuSurfaceDiscovery"),nodes.count);
+            if(_replacementStorage!=null)
+            {
+                _replacementResidencyCheck ??= IsReplacementRegionResident;
+                _replacementDiscovery.ForgetNonresident(_replacementResidencyCheck);
+            }
+            bool allowed=_replacementStorage!=null && _replacementCamera!=null
+                && !_recoveringChangeOverflow && !_changeExpansionActive
+                && _changeRecordIndex>=_changeScratch.Count && !_changeFeedHasMore
+                && (_journal==null || _changeCursor==_journal.CurrentVersion);
+            _gpuFarCoverage.Prepare(_replacementDiscovery,nodes,_gpuDrawDispatcher.LodNodeCount,
+                _gpuDrawDispatcher.ActiveLodSelection,_gpuDrawDispatcher.ActiveLodState,Time.frameCount,allowed,
+                _replacementCamera!=null?_replacementCamera.transform.position:Vector3.zero,
+                _replacementVoxelSize,MaxVoxelRingRadiusMetres,_visibilityFrustumPlanes);
+            return _gpuFarCoverage;
+        }
+
         internal bool HasCurrentReplacement(UnityEngine.Bounds bounds)
         {
             if (_replacementStorage == null || _replacementCamera == null
@@ -893,7 +918,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private int _uploadAdmissionCursor;
         private int _lastFrameSolidUploadedBytes;
         private int _lastFrameSolidUploadCompletions;
-        private int _arenaPressureCursor;
         private ulong _observedArenaAllocationFailures;
         private ulong _arenaPressureEvictions;
         private ulong _observedGpuAllocationFailures;
@@ -933,7 +957,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         /// this bounds the relief work while still letting it keep pace with a frame's worth of
         /// failed publications.
         /// </summary>
-        private const int MaxArenaEvictionsPerFrame = 16;
 
         /// <summary>
         /// Counts chunks that stop being drawn and start again within a few frames.
@@ -1151,7 +1174,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         + $" flush={GpuSurfaceMirrorCoordinator.LastUploadFlushMs:0.000}"
                         + $" advance={GpuSurfaceMirrorCoordinator.LastBatchAdvanceMs:0.000}]"
                         + $" gpuPressure[allocFail={GpuSurfaceMirrorCoordinator.AllocationFailures}"
-                        + $" evicted={_arenaPressureEvictions}]");
+                        + $" evicted={_arenaPressureEvictions} capacityDispatch={GpuSurfaceMirrorCoordinator.CapacityPressureDispatches}"
+                        + $" allocationDispatch={GpuSurfaceMirrorCoordinator.AllocationPressureDispatches}]");
             int knownExits = 0, inBand = 0, inFrustum = 0;
             for (int i = 0; i < _allWorkers.Length; i++)
             {
@@ -1580,32 +1604,14 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _lastFrameSolidUploadCompletions = 0;
             double solidAdmissionMs = ElapsedMs(admissionStart);
 
-            // Arena pressure exists so geometry the player is waiting on can publish. Both passes
-            // below scan a worker's whole entry table and frustum-test every entry, which is far too
-            // much to spend on a frame that has nothing to gain from it.
-            //
-            // A converged view keeps failing allocations indefinitely: prefetch reaches 360 degrees
-            // around the camera and always wants more than the arena holds, so the failure counter
-            // rises every frame forever. Evicting for that only churns published geometry the player
-            // can see, to admit a chunk behind them. Once nothing visible is missing, a prefetch
-            // chunk that cannot get a lease simply waits.
+            // GPU selects and retires offscreen live pages. Host feedback only acknowledges
+            // exact retired identities; it never scans resident bounds or ranks victims.
             double arenaReliefStart = Time.realtimeSinceStartupAsDouble;
             ulong gpuFailures = GpuSurfaceMirrorCoordinator.AllocationFailures;
-            if (gpuFailures > _observedGpuAllocationFailures)
-            {
-                int remaining = Math.Min(MaxArenaEvictionsPerFrame,
-                    (int)Math.Min((ulong)MaxArenaEvictionsPerFrame,
-                        gpuFailures - _observedGpuAllocationFailures));
-                for (int offset = 0; offset < workerCount && remaining > 0; offset++)
-                {
-                    int index = (_arenaPressureCursor + offset) % workerCount;
-                    int freed = _allWorkers[index].EvictFarthest(camera, voxelSize,
-                        offscreenOnly: true, 0f, remaining, gpuOnly: true);
-                    remaining -= freed;
-                    _arenaPressureEvictions += (ulong)freed;
-                }
-                _arenaPressureCursor = (_arenaPressureCursor + 1) % Math.Max(1, workerCount);
-            }
+            ulong newGpuFailures = gpuFailures > _observedGpuAllocationFailures
+                ? gpuFailures - _observedGpuAllocationFailures : 0;
+            _arenaPressureEvictions += (ulong)GpuSurfaceMirrorCoordinator.RelieveGpuPressure(
+                camera, newGpuFailures, _allWorkers, Time.frameCount);
             _observedGpuAllocationFailures = gpuFailures;
             double arenaReliefMs = ElapsedMs(arenaReliefStart);
 
@@ -1628,11 +1634,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 LastFrameWaterUploadedBytes = waterUploadedBytes;
             }
             ulong waterArenaFailures = _water.ArenaAllocationFailures;
-            if (waterArenaFailures > _observedWaterArenaAllocationFailures)
-            {
-                _observedWaterArenaAllocationFailures = waterArenaFailures;
-                _water.TryEvictOneForArenaPressure(camera, voxelSize);
-            }
+            _water.RelieveGpuPressure(camera, waterArenaFailures > _observedWaterArenaAllocationFailures
+                ? waterArenaFailures - _observedWaterArenaAllocationFailures : 0);
+            _observedWaterArenaAllocationFailures = waterArenaFailures;
             double waterMs = ElapsedMs(waterStart);
 
             _workerPrepareTiming.Add(workerPrepareMs);
@@ -1834,7 +1838,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     _water.CollectVisible(camera, voxelSize);
                     _lastVisibilityWaterMs = ElapsedMs(waterStart);
                     double dispatchStart = Time.realtimeSinceStartupAsDouble;
-                    PrepareGpuDraws(frame);
+                    PrepareGpuDraws(frame, reuseInputImage: true);
                     _lastVisibilityDispatchMs = ElapsedMs(dispatchStart);
                     LastVisibilityMainThreadMs = ElapsedMs(reusedStart);
                     _visibilityTiming.Add(LastVisibilityMainThreadMs);
@@ -1958,7 +1962,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         private readonly Vector4[] _gpuDrawBands = new Vector4[4];
 
-        private void PrepareGpuDraws(int frame)
+        private void PrepareGpuDraws(int frame, bool reuseInputImage = false)
         {
             if (_gpuLodSelectionActive)
             {
@@ -1973,7 +1977,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 _gpuDrawDispatcher.PrepareLod(_gpuDrawableNodes, _visibleGpuHandles,
                     _lodCurrentCompleteNodes, frame, _gpuOwnedNodes, _visibilityFrustumPlanes,
                     _replacementVoxelSize, _gpuDrawBands,
-                    _replacementCamera != null ? _replacementCamera.transform.position : Vector3.zero);
+                    _replacementCamera != null ? _replacementCamera.transform.position : Vector3.zero, reuseInputImage);
                 _gpuDemandFrame = frame;
                 _beginGpuDemand ??= BeginGpuDemandFeedback;
                 _applyGpuDemand ??= ApplyGpuDemandFeedback;
@@ -2420,6 +2424,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _water.Dispose();
             for (int r = 0; r < _rings.Length; r++) _rings[r].Dispose();
             GpuSurfaceMirrorCoordinator.DetachPageArena(_gpuPageArena, Time.frameCount);
+            _gpuFarCoverage?.Dispose();
             _gpuDrawDispatcher?.Dispose();
             _gpuPageArena?.Dispose();
         }

@@ -21,6 +21,7 @@ namespace VoxelEngine.Showcase
         private readonly ProceduralFarFeatureRenderer _renderer;
         private readonly ShowcaseFarFeatureStateAdapter _source;
         private readonly int _sourceCount;
+        private ulong _submittedVersion;
 
         public ShowcaseFarFeatureRuntime(
             Transform parent,
@@ -67,6 +68,7 @@ namespace VoxelEngine.Showcase
             _root.transform.SetParent(parent, false);
             _renderer = _root.AddComponent<ProceduralFarFeatureRenderer>();
             _renderer.UseSurfaceReplacementHandoff = true;
+            _renderer.ConfigureGpuSelection(selection.GpuSettings, RadiusMetres, voxelSizeMetres);
         }
 
         public int VisibleInstanceCount => _renderer != null ? _renderer.InstanceCount : 0;
@@ -78,7 +80,12 @@ namespace VoxelEngine.Showcase
             float3 cameraPosition = camera != null
                 ? (float3)camera.transform.position
                 : fallbackCameraPosition;
-            _renderer.SetInstances(_source.Query(cameraPosition, RadiusMetres));
+            var candidates = _source.QueryCandidates(cameraPosition, RadiusMetres);
+            if (_submittedVersion != _source.CandidateVersion)
+            {
+                _renderer.SetInstances(candidates);
+                _submittedVersion = _source.CandidateVersion;
+            }
         }
 
         public string Describe() =>

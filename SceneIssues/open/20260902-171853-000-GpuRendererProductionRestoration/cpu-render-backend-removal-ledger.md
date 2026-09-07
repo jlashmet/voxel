@@ -1,3 +1,45 @@
+## Current PR checkpoint (2026-09-07)
+
+All pressure victim paths are GPU; water frustum/build ranking and helper/oracle cleanup remain.
+566Rendering tests pass; SolidGpu module completes. Latest Showcase172.17stationary/429.57walkingFPS,
+293missing,48failures/evictions. Stationary eviction dispatches0; investigate GPU/presentation cost.
+See plan.md and checkpoint-evidence.json. User requested a draft PR; issue and ledger stay open.
+
+## Latest checkpoint — GPU capacity filtering (2026-09-07)
+
+Solid allocation, water allocation and per-worker capacity victim selection now run on GPU.
+Owner step/shard transport and K-sized reduction pass566Rendering tests. First capacity player
+run175.52/424.77FPS failed stationary; subsequent fairness/reduction/counter edits need new player
+validation. Water CPU visibility/build ranking and legacy renderer helpers remain in audit.
+
+## Latest checkpoint — water GPU pressure and fused bounds (2026-09-07)
+
+Solid/water allocation-pressure victims and retirement run on GPU.558Rendering tests and WaterDemo
+standalone passed.180sShowcase423.25stationary/436.95walkingFPS;258missing,119failures/evictions.
+Both400FPS windows pass, screenshots reviewed. Per-worker capacity ranking remains CPU; goal open.
+
+## Latest checkpoint — production solid GPU pressure (2026-09-07)
+
+Solid allocation-pressure victim ranking and page retirement now run on GPU; host handles only
+identity-safe acknowledgments.556Rendering tests and standalone module passed.180sShowcase
+completed389.52FPS stationary/488.76walking,238missing,252failures/evictions; screenshots reviewed.
+Stationary400FPS gate remains open. Water/per-worker capacity eviction and dead helper cleanup remain.
+
+Fragment-cost checkpoint: Xcode Metal trace identified dominant fragment work in the solid/water
+encoder. Skipping unused projection/zero-strength normal texture samples passed544Rendering tests
+and module; standalone Showcase452/513FPS,266missing/302allocation failures. FPS exceeds400 in one
+standard run; CPU pressure eviction and coverage remain open. Index-stream reuse was tested and
+reverted (370/455FPS); it is not active. Exact sources, screenshots and trace evidence are in tasks.md.
+
+GPU far selection working-tree checkpoint: revisioned spatial/semantic sources keep candidate data
+resident; GPU owns active-query bounds, caps, projected tiers/hysteresis, replacement coverage and
+material compaction. Source changes remap history GPU-to-GPU without admission readback. Exact
+rolling timing maintenance also removes repeated diagnostic sorts.598tests across four modules plus
+2owned semantic-state tests pass; Rendering standalone passes. Showcase397/455FPS, main.87/1.10ms,
+240missing and215allocation failures/evictions. Pressure victim selection still scans on CPU; full
+400FPS/coverage acceptance is not achieved. Composition validation framing is inadequate. This
+checkpoint supersedes older CPU far replacement/submission descriptions below; details in tasks.md.
+
 Draw grouping checkpoint:64 GPU size buckets halve host solid submissions while preserving
 all selected live indices; padding stays below1.5x.527tests/module pass,Showcase339/288FPS,
 272missing,zero allocation failures/evictions,4074publications. This does not remove the host
