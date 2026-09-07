@@ -75,6 +75,26 @@ namespace Game.Composition.Kentridge.Tests
                 "Distinct authored settlements must not collapse to one generated site identity.");
         }
 
+        [Test]
+        public void FullRunRealizationProducesPhysicalNpcAndCutsceneStageBindings()
+        {
+            AuthoredFullRunCampaignContent content = BuildContent();
+            AuthoredFullRunPhysicalWorldPlan physical = BuildPhysical(content);
+            AuthoredFullRunCampaignGenerationPlan generation =
+                AuthoredFullRunCampaignGenerator.Plan(physical);
+
+            AuthoredFullRunCampaignWorldRealization realization =
+                AuthoredFullRunCampaignWorldRealizer.Realize(generation);
+
+            Assert.That(realization.Generation, Is.SameAs(generation));
+            Assert.That(realization.Npcs.Count, Is.EqualTo(generation.NpcAssignments.Count),
+                "Every semantic NPC assignment must receive a hierarchy-backed physical placement.");
+            Assert.That(realization.CutsceneStages.Count, Is.EqualTo(physical.Graph.CutsceneStages.Count),
+                "Every compiled authored cutscene stage must be realized from the same resolved physical sites.");
+            Assert.That(realization.CutsceneStages.Count, Is.GreaterThan(0),
+                "The full campaign must exercise the real cutscene-stage realization path rather than returning an empty fixture.");
+        }
+
         private static AuthoredFullRunCampaignContent BuildContent() =>
             AuthoredFullRunCampaignContent.Build(
                 new CutsceneDefinition(
