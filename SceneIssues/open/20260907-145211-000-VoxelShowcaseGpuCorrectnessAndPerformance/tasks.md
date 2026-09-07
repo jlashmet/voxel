@@ -16,13 +16,13 @@ This is a handoff specification, not a claim that any implementation or acceptan
   asmdef files, not just branch ancestry. Preserve user edits before repairing checkout state.
   Specifically verify obsolete `CpuWaterSurfaceChunkCache.cs` and `WaterBrickMeshBatchJobTests.cs`
   are absent; do not restore the retired CPU backend to satisfy references.
-- [ ] Prove a fresh compile completes without C#/shader/Burst errors. Inspect project-relative
+- [x] Prove a fresh compile completes without C#/shader/Burst errors. Inspect project-relative
   `Logs/Editor.log`, not only the redirecting user-library log. Use `tools/unity-run.sh` for local
   launches and ask first if the developer's editor may be open; remote workers use targeted CI.
-- [ ] Keep the production standalone capture path bounded but capable of completing a clean cold
+- [x] Keep the production standalone capture path bounded but capable of completing a clean cold
   build. The prior 12,288 MB RSS guard killed Unity at 12,311 MB with ~28 GB free before product
   validation; validate the narrow 14,336 MB guarded default and its tooling regression on exact SHA.
-- [ ] Obtain an exact-SHA standalone VoxelShowcase baseline using existing production capture
+- [x] Obtain an exact-SHA standalone VoxelShowcase baseline using existing production capture
   tooling and real generation/material/presentation paths. Record executable/source identity,
   baked-world identity, seed, camera poses/route, timings, hardware/API, resolution, render scale,
   frame caps/VSync, settings and full console log. No new custom player-build command.
@@ -33,11 +33,15 @@ This is a handoff specification, not a claim that any implementation or acceptan
   deadlines from existing scenarios/budgets before evaluating results; do not extend them to pass.
 
 Progress note: `experiment-001-source-and-baseline.md` records source/document review and the malformed
-first request. `experiment-002-cold-player-build-memory-guard.md` records corrected run `34151335102` /
-job `101834086315`: it entered the real player build but `unity-run.sh` killed the cold process tree at
-12,311 MB against the 12,288 MB guard, before player evidence; no compiler error preceded the kill. The
-narrow 14,336 MB guarded-build repair and regression are committed. GitHub remote state still cannot prove
-developer-machine untracked-file absence, so the checkout-audit checkbox remains open.
+first request. `experiment-002-cold-player-build-memory-guard.md` records the 12,288 MB cold-build guard
+failure and narrow 14,336 MB repair. Exact-SHA request `fd092c40e8d19ddc5f67d7a1f2165ae74f865864`,
+run `34155859120` / job `101847425373`, then completed the real cold build and 180-second production
+VoxelShowcase replay on Unity 6000.5.6f1 / Apple M4 Max / Metal without C#, shader or Burst compiler
+errors. It produced the full player log and stationary captures from startup through the 180-second
+window. The renderer still ended with `missingVisible=63`, mixed mirror `40270/40270`, `NoSlot=130550`
+and an oldest fine request near 151.7 seconds, so setup succeeded but correctness did not. GitHub remote
+state still cannot prove developer-machine untracked-file absence, and the baseline did not independently
+exercise the required annotated traversal/return route; those checkboxes remain open.
 
 ## 2. Find the first broken geometry invariant
 
