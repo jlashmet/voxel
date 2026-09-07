@@ -209,7 +209,7 @@ wait_for_unity_quiet
 BUILD_ARGS=(-batchmode -nographics -quit -voxelFrameTimingStats)
 
 echo "Building real player for $SCENE"
-UNITY_MAX_RSS_MB="${UNITY_MAX_RSS_MB:-12288}" UNITY_MAX_MINUTES="${UNITY_MAX_MINUTES:-25}" \
+UNITY_MAX_RSS_MB="${UNITY_MAX_RSS_MB:-14336}" UNITY_MAX_MINUTES="${UNITY_MAX_MINUTES:-25}" \
 UNITY_BIN="$UNITY_PATH" tools/unity-run.sh \
   "${BUILD_ARGS[@]}" -projectPath "$PWD" \
   -executeMethod VoxelEngine.Showcase.Editor.ShowcasePlayerBuild.Build \
