@@ -30,8 +30,11 @@ namespace Game.WorldBuilder.Voxel
             int front = o.z - 2;
             int portraitEave = upper + 31;
 
-            // Iteration 6 still read as a large blank plaster triangle. Preserve the roof mass but
-            // restore the reference's layered timber hierarchy and make the high window subordinate.
+            // Iteration 7 exposed a real depth-ordering defect: FillArch repaired the old oversized
+            // opening all the way forward to front-4, but the replacement ArchedPanel only carved
+            // from front-1. The glass therefore existed behind three opaque plaster layers while only
+            // its front-mounted muntins were visible. Refill the old opening, then carve through that
+            // complete repair depth so the smaller reference window is actually visible in player output.
             FillArch(a, centre, eave + 10, front, 15, 21, p.Plaster);
             ArchedPanel(a, centre, eave + 12, front, 11, 17,
                 p.Glass, p.Timber, p.Timber);
@@ -54,13 +57,14 @@ namespace Game.WorldBuilder.Voxel
             Line(a, centre + 13, portraitEave + 28, centre + 4, portraitEave + 38,
                 front - 4, p.Timber);
 
-            // The reference's front eaves hook outward and down rather than terminating as straight
-            // A-frame rails. Add a stepped quadratic sweep at both lower ends of the portrait roof.
+            // Iteration 7's ten-voxel extension only softened the straight A-frame termination.
+            // The reference has a materially longer hook that continues outward while dropping.
+            // Extend that same production roof skin sixteen voxels and increase the quadratic drop.
             const int halfGable = 27;
             int roofZ = o.z - c.RoofOverhang - 2;
-            for (int i = 1; i <= 10; i++)
+            for (int i = 1; i <= 16; i++)
             {
-                int drop = (i * i + 11) / 22;
+                int drop = (i * i + 24) / 32;
                 int y = portraitEave - 1 - drop;
                 int left = centre - halfGable - i;
                 int right = centre + halfGable + i;
@@ -78,13 +82,14 @@ namespace Game.WorldBuilder.Voxel
             int ridge = o.y + c.MainRidgeY;
             int z = o.z + 5;
 
-            // Both the base authoring and the earlier refinement contributed crest mass. Remove only
-            // the above-ridge ornament volume, then rebuild the compact warm finial from the reference.
-            a.Carve(new int3(centre - 8, ridge + 2, o.z), new int3(17, 17, 16));
+            // Iteration 7 still retained the ridge+1 layers from both earlier crest builders, which
+            // visually merged with the replacement into a tall rectangular gold post. Clear from
+            // ridge+1 upward (leaving the actual roof ridge intact), then rebuild one compact finial.
+            a.Carve(new int3(centre - 8, ridge + 1, o.z), new int3(17, 18, 16));
             a.Box(new int3(centre - 2, ridge + 1, z), new int3(5, 2, 5), p.Timber);
             a.Box(new int3(centre - 2, ridge + 3, z + 1), new int3(5, 2, 3), p.Ornament);
-            a.Box(new int3(centre - 1, ridge + 5, z + 1), new int3(3, 4, 3), p.Ornament);
-            a.Cone(centre, ridge + 9, z + 2, 1, 6, p.Ornament);
+            a.Box(new int3(centre - 1, ridge + 5, z + 1), new int3(3, 3, 3), p.Ornament);
+            a.Cone(centre, ridge + 8, z + 2, 2, 6, p.Ornament);
         }
 
         private static void RebuildHangingDetails(IStructureAuthoringSession a, int3 o,
@@ -143,8 +148,10 @@ namespace Game.WorldBuilder.Voxel
             for (int row = 0; row < height; row++)
             {
                 int half = ArchHalfWidth(radius, spring, row);
-                a.Carve(new int3(centreX - half, y + row, frontZ - 1),
-                    new int3(half * 2 + 1, 1, 8));
+                // Clear through the complete front repair layer created by FillArch. Starting at
+                // frontZ-1 left opaque plaster in front of the replacement glass in iteration 7.
+                a.Carve(new int3(centreX - half, y + row, frontZ - 4),
+                    new int3(half * 2 + 1, 1, 9));
                 a.Box(new int3(centreX - half, y + row, frontZ + 1),
                     new int3(half * 2 + 1, 1, 2), panel);
                 if (row >= spring)
