@@ -160,6 +160,36 @@
         "quantity": 1,
         "pickupEnabled": "false"
       }
+    },
+    {
+      "op": "wait",
+      "role": "authority",
+      "name": "progression-converged",
+      "timeoutSeconds": 30,
+      "fields": {
+        "sessionId": "gamesystem25-topology",
+        "progressionState": "Completed"
+      }
+    },
+    {
+      "op": "wait",
+      "role": "client-a",
+      "name": "progression-converged",
+      "timeoutSeconds": 30,
+      "fields": {
+        "sessionId": "gamesystem25-topology",
+        "progressionState": "Completed"
+      }
+    },
+    {
+      "op": "wait",
+      "role": "client-b",
+      "name": "progression-converged",
+      "timeoutSeconds": 30,
+      "fields": {
+        "sessionId": "gamesystem25-topology",
+        "progressionState": "Completed"
+      }
     }
   ],
   "assertions": {
