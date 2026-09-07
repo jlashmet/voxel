@@ -604,106 +604,22 @@ namespace Game.Composition.Kentridge.Playable
         private static GameObject CreateBandit(int index, Vector3 groundPosition)
         {
             GameObject prefab = Resources.Load<GameObject>(MaleCharacterResource);
-            GameObject root;
-            if (prefab != null)
-            {
-                root = Instantiate(prefab);
-                root.name = "Forest Bandit " + (index + 1);
-                root.transform.position = groundPosition;
-                root.transform.rotation = Quaternion.identity;
-                root.SetActive(true);
-            }
-            else
-            {
-                root = new GameObject("Forest Bandit " + (index + 1));
-                root.transform.position = groundPosition;
-                AddPrimitive(
-                    root.transform,
-                    PrimitiveType.Capsule,
-                    "Emergency Body",
-                    new Vector3(0f, 0.95f, 0f),
-                    new Vector3(0.68f, 0.82f, 0.54f),
-                    new Color(0.20f, 0.15f, 0.12f));
-            }
+            if (prefab == null)
+                throw new InvalidOperationException(
+                    "Kentridge forest bandit prefab is missing at Resources/" + MaleCharacterResource + ".");
+
+            GameObject root = Instantiate(prefab);
+            root.name = "Forest Bandit " + (index + 1);
+            root.transform.position = groundPosition;
+            root.transform.rotation = Quaternion.identity;
+            root.SetActive(true);
 
             CapsuleCollider rootCollider = root.GetComponent<CapsuleCollider>();
             if (rootCollider == null) rootCollider = root.AddComponent<CapsuleCollider>();
             rootCollider.center = new Vector3(0f, 0.95f, 0f);
             rootCollider.radius = 0.42f;
             rootCollider.height = 1.9f;
-
-            Color coat = index == 0
-                ? new Color(0.24f, 0.12f, 0.09f)
-                : index == 1
-                    ? new Color(0.13f, 0.20f, 0.12f)
-                    : new Color(0.16f, 0.15f, 0.18f);
-            Color leather = new Color(0.11f, 0.07f, 0.04f);
-
-            AddPrimitive(
-                root.transform,
-                PrimitiveType.Sphere,
-                "Hood",
-                new Vector3(0f, 1.70f, 0.01f),
-                new Vector3(0.50f, 0.42f, 0.48f),
-                coat * 0.72f);
-            AddPrimitive(
-                root.transform,
-                PrimitiveType.Cube,
-                "Belt",
-                new Vector3(0f, 0.91f, 0f),
-                new Vector3(0.70f, 0.09f, 0.30f),
-                leather);
-            AddPrimitive(
-                    root.transform,
-                    PrimitiveType.Cube,
-                    "Shoulder Strap",
-                    new Vector3(-0.12f, 1.18f, 0.15f),
-                    new Vector3(0.10f, 0.78f, 0.07f),
-                    leather)
-                .transform.localRotation = Quaternion.Euler(0f, 0f, -22f);
-            AddPrimitive(
-                root.transform,
-                PrimitiveType.Cube,
-                "Pouch",
-                new Vector3(-0.31f, 0.79f, 0.12f),
-                new Vector3(0.20f, 0.24f, 0.12f),
-                leather);
-            GameObject sword = AddPrimitive(
-                root.transform,
-                PrimitiveType.Cube,
-                "Sword",
-                new Vector3(0.48f, 0.82f, 0.11f),
-                new Vector3(0.07f, 0.86f, 0.09f),
-                new Color(0.55f, 0.58f, 0.60f));
-            sword.transform.localRotation = Quaternion.Euler(0f, 0f, -16f);
-            AddPrimitive(
-                sword.transform,
-                PrimitiveType.Cube,
-                "Guard",
-                new Vector3(0f, 0.36f, 0f),
-                new Vector3(0.30f, 0.06f, 0.12f),
-                leather);
             return root;
-        }
-
-        private static GameObject AddPrimitive(
-            Transform parent,
-            PrimitiveType type,
-            string name,
-            Vector3 localPosition,
-            Vector3 localScale,
-            Color color)
-        {
-            GameObject part = GameObject.CreatePrimitive(type);
-            part.name = name;
-            part.transform.SetParent(parent, false);
-            part.transform.localPosition = localPosition;
-            part.transform.localScale = localScale;
-            Collider collider = part.GetComponent<Collider>();
-            if (collider != null) Destroy(collider);
-            Renderer renderer = part.GetComponent<Renderer>();
-            if (renderer != null) renderer.material.color = color;
-            return part;
         }
 
         private static void FacePlayer(Transform bandit, Vector3 player)
