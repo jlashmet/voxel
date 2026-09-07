@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Game.Materials.Api;
 using Game.Structures.Api;
 using Game.Structures.Runtime;
 using NUnit.Framework;
@@ -97,7 +98,7 @@ namespace Game.Structures.Tests
         }
 
         [Test]
-        public void GenericProviderAuthorsThroughProductionGuildShellAndReportsMatchingCirculation()
+        public void GenericProviderAuthorsSdfGlassOpeningsAndMatchingCirculationThroughProductionShell()
         {
             Assert.That(
                 ArchitectureRegistry.TryGetProvider(GuildHouseArchitectureProvider.ProviderKey, out IArchitectureProvider provider),
@@ -120,6 +121,13 @@ namespace Game.Structures.Tests
             Assert.That(provider.TryAuthor(authoring, in request, out ArchitectureGenerationResult result, out string error),
                 Is.True, error);
             Assert.That(authoring.BoxCount, Is.GreaterThan(0));
+            Assert.That(authoring.RoundedBoxCount, Is.EqualTo(1),
+                "the production provider should exercise the rounded/SDF facade path");
+            Assert.That(authoring.CarveCount, Is.EqualTo(result.Summary.WindowCount),
+                "every semantic window must be a real aperture through the authoritative wall occupancy");
+            Assert.That(authoring.CountBoxes(box => box.Material == GameMaterialIds.Glass),
+                Is.EqualTo(result.Summary.WindowCount),
+                "every aperture must receive the production Glass material rather than a fake lit panel");
             Assert.That(result.Summary.StoreyCount, Is.EqualTo(2));
             Assert.That(result.Summary.StairCount, Is.EqualTo(1));
             Assert.That(
@@ -127,6 +135,12 @@ namespace Game.Structures.Tests
                 Is.True);
             Assert.That(
                 (result.Summary.Capabilities & ArchitecturePresentationCapabilities.MultiStoreyCirculation) != 0,
+                Is.True);
+            Assert.That(
+                (result.Summary.Capabilities & ArchitecturePresentationCapabilities.SignedDistancePresentation) != 0,
+                Is.True);
+            Assert.That(
+                (result.Summary.Capabilities & ArchitecturePresentationCapabilities.ProductionMaterialTextures) != 0,
                 Is.True);
         }
 
@@ -144,7 +158,7 @@ namespace Game.Structures.Tests
             }
         }
 
-        private sealed class RecordingAuthoringSession : IStructureAuthoringSession
+        private sealed class RecordingAuthoringSession : ICurvedStructureAuthoringSession
         {
             private readonly List<BoxOperation> _boxes = new List<BoxOperation>();
 
@@ -153,6 +167,8 @@ namespace Game.Structures.Tests
             public long TotalVoxelsWritten => OperationCount;
             public int OperationCount { get; private set; }
             public int BoxCount { get; private set; }
+            public int RoundedBoxCount { get; private set; }
+            public int CarveCount { get; private set; }
 
             public bool HasBox(System.Predicate<BoxOperation> predicate)
             {
@@ -191,6 +207,15 @@ namespace Game.Structures.Tests
                 OperationCount++;
                 BoxCount++;
             }
+            public void RoundedBox(int3 min, int3 size, int radius, byte material,
+                ushort surfaceStyle = SurfaceStyles.ArchitecturalRounded,
+                byte coating = Coatings.None,
+                VoxelSurfaceFlags flags = VoxelSurfaceFlags.PreserveFeature)
+            {
+                OperationCount++;
+                RoundedBoxCount++;
+                _boxes.Add(new BoxOperation(min, size, material));
+            }
             public void Cylinder(int cx, int baseY, int cz, int radius, int height, byte material, int innerRadius = 0) => OperationCount++;
             public void Disc(int cx, int y, int cz, int radius, byte material) => OperationCount++;
             public void Cone(int cx, int baseY, int cz, int radius, int height, byte material) => OperationCount++;
@@ -201,7 +226,11 @@ namespace Game.Structures.Tests
             public void Arch(int3 min, int width, int height, int depth, int depthAxis, byte material) => OperationCount++;
             public void Stairs(int3 min, int width, int steps, int rise, int run, int axis, byte material) => OperationCount++;
             public void SpiralStair(int cx, int baseY, int cz, int radius, int height, byte material) => OperationCount++;
-            public void Carve(int3 min, int3 size) => OperationCount++;
+            public void Carve(int3 min, int3 size)
+            {
+                OperationCount++;
+                CarveCount++;
+            }
             public void Weather(int3 min, int3 size, byte coating, uint seed, int chanceOutOf100) => OperationCount++;
         }
     }
