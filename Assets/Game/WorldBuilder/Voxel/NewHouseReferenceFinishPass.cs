@@ -89,7 +89,12 @@ namespace Game.WorldBuilder.Voxel
             a.Carve(new int3(centre - clearHalf, portraitEave, roofZ - 1),
                 new int3(clearHalf * 2 + 1, rise + 8, clearDepth));
 
-            const int baseHalf = 24;
+            // Iteration 10 restored the upper flower box, but direct target/front-left comparison
+            // still showed a needle-like portrait roof: its spring-line envelope was far narrower
+            // than the reference while the ridge height was already credible. Widen only the final
+            // swept profile so the three-register facade keeps its existing vertical datums and the
+            // gable gains the broad concave shoulders visible in the pinned image.
+            const int baseHalf = 29;
             const int apexHalf = 2;
             const int roofDepth = 20;
             for (int row = 0; row <= rise; row++)
@@ -125,9 +130,8 @@ namespace Game.WorldBuilder.Voxel
                     new int3(2, 2, TimberDepth), p.Timber);
             }
 
-            // Continue the lower roof skin outward and downward, but stop well short of iteration 8's
-            // blockout-width sixteen-voxel extension. This keeps the characteristic hook while the
-            // portrait gable itself remains narrow enough to match the binding reference.
+            // Continue the lower roof skin outward and downward so the tips remain visibly swept
+            // beyond the widened spring line rather than reading as a straight triangular cap.
             int sweptRoot = baseHalf + 3;
             for (int i = 1; i <= 9; i++)
             {
