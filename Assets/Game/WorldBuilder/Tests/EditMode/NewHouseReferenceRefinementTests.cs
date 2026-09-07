@@ -121,29 +121,29 @@ namespace VoxelEngine.Tests.EditMode
                 op.Size.Equals(new int3(config.Width - 2, 25, 3)));
             int smallerHighWindow = session.Operations.FindIndex(op =>
                 op.Kind == OperationKind.Carve &&
-                op.Position.Equals(new int3(centre - 5, eave + 12, origin.z - 3)) &&
-                op.Size.Equals(new int3(11, 1, 8)));
+                op.Position.Equals(new int3(centre - 5, eave + 12, origin.z - 6)) &&
+                op.Size.Equals(new int3(11, 1, 9)));
             int crestClear = session.Operations.FindIndex(op =>
                 op.Kind == OperationKind.Carve &&
-                op.Position.Equals(new int3(centre - 8, ridge + 2, origin.z)) &&
-                op.Size.Equals(new int3(17, 17, 16)));
+                op.Position.Equals(new int3(centre - 8, ridge + 1, origin.z)) &&
+                op.Size.Equals(new int3(17, 18, 16)));
             int compactFinial = session.Operations.FindIndex(op =>
                 op.Kind == OperationKind.Cone && op.Material == palette.Ornament &&
-                op.Position.Equals(new int3(centre, ridge + 9, origin.z + 7)) &&
-                op.Size.Equals(new int3(1, 6, 1)));
+                op.Position.Equals(new int3(centre, ridge + 8, origin.z + 7)) &&
+                op.Size.Equals(new int3(2, 6, 2)));
             int sweptLeftTip = session.Operations.FindIndex(op =>
                 op.Kind == OperationKind.Box && op.Material == palette.Roof &&
-                op.Position.x == centre - 37 && op.Position.z == origin.z - config.RoofOverhang - 2);
+                op.Position.x == centre - 43 && op.Position.z == origin.z - config.RoofOverhang - 2);
 
             Assert.That(rearShell, Is.GreaterThanOrEqualTo(0));
             Assert.That(smallerHighWindow, Is.GreaterThan(rearShell),
-                "Reference finish must run after structural shell repair and replace the oversized high window.");
+                "Reference finish must run after structural shell repair and carve through the front repair depth so the smaller high window is visible.");
             Assert.That(crestClear, Is.GreaterThan(smallerHighWindow),
-                "The above-ridge blockout crest must be cleared after the gable face is refined.");
+                "All duplicate above-ridge crest layers must be cleared after the gable face is refined.");
             Assert.That(compactFinial, Is.GreaterThan(crestClear),
-                "A compact one-voxel-radius finial must replace the oversized crest mass.");
+                "One compact tapered finial must replace the accumulated crest mass.");
             Assert.That(sweptLeftTip, Is.GreaterThan(rearShell),
-                "The portrait roof must gain an outward/downward swept eave tip in the final pass.");
+                "The portrait roof must gain the full outward/downward swept eave tip in the final pass.");
         }
 
         private static NewHouseReferencePalette Palette() =>
