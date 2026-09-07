@@ -91,6 +91,27 @@
         "rosterCount": 3,
         "signature": "0=gamesystem25-topology:member:1/kentridge-player-1;1=gamesystem25-topology:member:2/kentridge-player-2;2=gamesystem25-topology:member:3/kentridge-player-3"
       }
+    },
+    {
+      "op": "wait",
+      "role": "authority",
+      "name": "baseline-ready",
+      "timeoutSeconds": 45,
+      "fields": {"sessionId": "gamesystem25-topology", "rosterCount": 3}
+    },
+    {
+      "op": "wait",
+      "role": "client-a",
+      "name": "baseline-ready",
+      "timeoutSeconds": 45,
+      "fields": {"sessionId": "gamesystem25-topology", "rosterCount": 3}
+    },
+    {
+      "op": "wait",
+      "role": "client-b",
+      "name": "baseline-ready",
+      "timeoutSeconds": 45,
+      "fields": {"sessionId": "gamesystem25-topology", "rosterCount": 3}
     }
   ],
   "assertions": {
