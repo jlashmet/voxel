@@ -3,6 +3,7 @@
   "rootNamespace": "Game.Composition.WorldBuilderWorldGen.Runtime",
   "references": [
     "Game.Composition.WorldBuilderWorldGen",
+    "Game.Cutscenes.Api",
     "Game.WorldBuilder.Api",
     "Game.WorldBuilder.Runtime",
     "MountingForce.WorldGen.Core",
