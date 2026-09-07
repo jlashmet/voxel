@@ -22,7 +22,11 @@ namespace Game.Composition.Campaign.Content
         public IReadOnlyList<QuestDefinition> QuestDefinitions => _questDefinitions;
 
         public KnownOpeningCampaignRoles OpeningRoles { get; }
+        public SiteRef StartingPub => OpeningRoles.StartingPub.Ref;
+        public ObjectiveRef TravelObjective { get; }
+        public NpcRef DestinationNpc => OpeningRoles.DestinationNpc.Ref;
         public CutsceneRef IntroCutscene { get; }
+        public CutsceneRef DestinationCutscene { get; }
         public CutsceneRef MedrareToChurchCutscene { get; }
         public QuestRef OptionalWellQuest => KentridgeWellQuestDefinition.Ref;
 
@@ -73,7 +77,9 @@ namespace Game.Composition.Campaign.Content
 
             _questDefinitions = new[] { KentridgeWellQuestDefinition.Create() };
             OpeningRoles = opening.Roles;
+            TravelObjective = opening.TravelObjective.Ref;
             IntroCutscene = opening.IntroCutscene.Ref;
+            DestinationCutscene = opening.DestinationCutscene.Ref;
             MedrareToChurchCutscene = opening.MedrareToChurchCutscene.Ref;
 
             Church = continuation.Church.Ref;
