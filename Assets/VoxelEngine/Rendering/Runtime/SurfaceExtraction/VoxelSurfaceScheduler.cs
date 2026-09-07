@@ -1418,8 +1418,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         out int3 previousMaxExclusive,
                         out int3 currentMin,
                         out int3 currentMaxExclusive);
-                    if (!changed || !hadPrevious) continue;
+                    if (!changed) continue;
                     clipmapMoved = true;
+                    if (!hadPrevious) continue;
                     EnqueueClipmapRegionDifference(
                         previousMin, previousMaxExclusive,
                         currentMin, currentMaxExclusive);
@@ -1957,13 +1958,20 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 Mathf.FloorToInt(cameraPosition.y / safeVoxelSize),
                 Mathf.FloorToInt(cameraPosition.z / safeVoxelSize));
             int3 cameraRegion = FloorDiv(cameraVoxel, VoxelGrid.RegionVoxelEdge);
+            // Queue explicitly before the resident sweep, centre first, then face/edge/corner
+            // neighbours. This is also required on the first camera placement: background
+            // enumeration can otherwise spend seconds discovering distant terrain first.
+            for (int shell = 0; shell <= 3; shell++)
             for (int z = -1; z <= 1; z++)
             for (int y = -1; y <= 1; y++)
             for (int x = -1; x <= 1; x++)
             {
+                if (x * x + y * y + z * z != shell) continue;
                 int3 region = cameraRegion + new int3(x, y, z);
-                if (storage.IsRegionResident(region))
-                    _surfaceDiscoveryRegions.Add(region);
+                if (!storage.IsRegionResident(region)) continue;
+                EnqueueSurfaceDiscoveryRegion(region);
+                // The additive sweep must not immediately request a second scan of this region.
+                _sweptResidentRegions.Add(region);
             }
         }
 
@@ -2218,20 +2226,22 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         private void EnqueueSurfaceDiscovery(HashSet<int3> regions)
         {
-            foreach (int3 region in regions)
-            {
-                _replacementDiscovery.Invalidate(region);
-                if (_replacementStorage != null && !_replacementStorage.IsRegionResident(region))
-                    _replacementDiscovery.Forget(region);
-                if (_queuedSurfaceDiscoveryRegions.Add(region))
-                {
-                    _surfaceDiscoveryQueue.Enqueue(region);
-                    continue;
-                }
+            foreach (int3 region in regions) EnqueueSurfaceDiscoveryRegion(region);
+        }
 
-                if (_hasActiveSurfaceDiscovery && region.Equals(_activeSurfaceDiscoveryRegion))
-                    _surfaceDiscoveryRescanRegions.Add(region);
+        private void EnqueueSurfaceDiscoveryRegion(int3 region)
+        {
+            _replacementDiscovery.Invalidate(region);
+            if (_replacementStorage != null && !_replacementStorage.IsRegionResident(region))
+                _replacementDiscovery.Forget(region);
+            if (_queuedSurfaceDiscoveryRegions.Add(region))
+            {
+                _surfaceDiscoveryQueue.Enqueue(region);
+                return;
             }
+
+            if (_hasActiveSurfaceDiscovery && region.Equals(_activeSurfaceDiscoveryRegion))
+                _surfaceDiscoveryRescanRegions.Add(region);
         }
 
         private void ProcessSurfaceDiscovery(IRegionReadSource storage,

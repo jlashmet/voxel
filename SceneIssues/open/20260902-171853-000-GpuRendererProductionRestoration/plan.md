@@ -17,12 +17,9 @@ players passed. Showcase238/142 FPS stationary/walking, CPU4.06/7.065ms,330 miss
 zero allocation failures/evictions. No meaningful speed gain from arena retirement; terrain/far
 finish remains unacceptable. Module memory262MB;19 finalizer warnings persisted.
 
-The standalone CPU workspace now has no production callers. Remove it and its obsolete sizing/
-container-lifetime tests; preserve meshing/summary behavioral coverage until migrated to GPU.
+The unused CPU workspace and obsolete allocation tests are deleted; meshing regressions await GPU migration.
 
-H1: shutdown stops callbacks before deferred water disposal releases its six buffers and13-buffer
-arena. H2: batch resource replacement omits disposal. Reading complete batch Dispose falsified
-the suspected missing HLOD buffer releases; no replacement leak established.
+Shutdown stopped deferred water disposal callbacks. Suspected omitted batch releases were falsified; no batch leak established.
 
 Selected fix: water stays subscribed to Application.quitting until physical resource release;
 only that exit handler drains readbacks after logical disposal. Frame/scene-change disposal
@@ -34,14 +31,27 @@ unacceptable. No speed gain claimed; exact sources/hashes accompany both players
 
 ## Startup performance next
 
-User reports castle/house fill-in much slower than CPU; prioritize actual time-to-visible, without
-hiding content or adding a loading screen. Logs show first request around15s, first publication
-around19s, near publication462 by26s; coarse requests still pending. H1: source discovery/recovery
-and admission serialize readiness. H2: one global extraction stage per frame plus coarse summary
-work limits publication throughput. Add bounded stage/queue timing and early player captures to
-discriminate; preserve existing frame budgets and GPU queue safety. Dead-helper removal continues
-only where it supports this work. Direct GPU profile coverage is still required before deleting
-the retained CPU predicate; other CPU oracles and bridge remain.
+User reports castle/house fill-in much slower than CPU; prioritize actual time-to-visible and FPS.
+No hidden content/loading-screen workaround. CPU world generation stalls first frame14.9s;
+render requests begin15s, first publication19s, near publications462 by26s. Measure generation
+and renderer fill-in separately.
+
+H1: nearby discovery is skipped on initial camera placement, leaving resident background order
+in control. Confirmed code only calls immediate camera discovery after a move with a previous
+window. H2: global one-stage-per-frame extraction/coarse summaries limit subsequent throughput.
+
+Selected fix: queue initial camera region then resident neighbours before the background sweep;
+preserve distant demand and avoid duplicate initial scans. Two behavioral tests failed before;
+468/468 rendering tests pass after. Module48s/seven captures passes all lifecycle/edit/far checks.
+Showcase45s/30 captures: generation14.9s unchanged; first logged publication after generation
+~5.1→2.1s, previous462-near milestone ~11.1→9.1s. One run, coarse1s logs and different capture
+cadence: not full readiness or steady-FPS acceptance. Reviewed18.3/24.3/44.4s; castle still fills
+incrementally, terrain/far quality unacceptable. Exact sources/timing script retained.
+
+Next: reduce source coverage/recovery and GPU queue/stage latency without increasing frame
+budgets or unsafe queue depth; profile generation separately. Latest full-run FPS229/142 precedes
+this scheduling change. Current-source repeated full benchmark/integration remain. Dead-helper
+cleanup is secondary; CPU oracles/bridge and retained-profile regression remain outstanding.
 
 ## Remaining gates
 

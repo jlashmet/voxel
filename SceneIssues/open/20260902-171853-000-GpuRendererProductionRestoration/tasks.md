@@ -1,5 +1,39 @@
 # GPU-only VoxelShowcase — execution checklist
 
+### 2026-09-06 — Prioritize initial nearby discovery for startup performance
+
+User steering makes castle/house time-to-visible and FPS the priority. Confirmed startup skipped
+AddImmediateCameraDiscoveryRegions because the clipmap had no previous window; background
+resident enumeration admitted distant terrain first. Queue the initial camera region then resident
+face/edge/corner neighbours before the background sweep. Share existing invalidation/queue logic;
+mark those regions already swept to avoid duplicate initial discovery. Preserve all distant work,
+world truth, radius, presentation quality, GPU concurrency and frame budgets.
+
+Validation (`Artifacts/LocalGpuShowcase/`):
+- `gpu-startup-priority-before.xml`: both positive/negative-location behavioral tests fail,14s.
+  First queued region was distant(+12 X) instead of the actual camera region. Tests exercise
+  real Storage and scheduler Prepare; pause only the queue consumer to observe admission order.
+- `gpu-startup-priority.xml`:468/468 Rendering EditMode pass,20s, zero skips. Tests also verify
+  unchanged-camera/repeated resident sweeps do not duplicate demand; existing motion/edit tests pass.
+- `gpu-startup-priority-module`:32s build,48s/seven captures, exit0, all lifecycle/edit/far markers,
+  zero missing/fallback/blocking/context errors and zero ComputeBuffer-finalizer warnings. Frame
+  p95/p99 .895/.994ms, prepare .031/.046ms, allocated261.1MB (focused module, not Showcase FPS).
+  Reviewed42s fort: systems intact; diagnostic composition remains prototype/blockout quality.
+- `gpu-startup-priority-showcase`:18s build,45s/30 captures at1s cadence, exit0. Exact production
+  sources/hashes/diff retained; `summarize-startup.py` writes `startup-timing.json` comparing with
+  `gpu-water-exit-showcase`. CPU generation remains14.9s. First logged publication after generation
+  ~5.1→2.1s; previous462-near-resident milestone ~11.1→9.1s. These are one-run coarse1s-log
+  milestones, not complete-scene readiness or repeated performance acceptance. Different capture
+  cadence makes this a startup diagnostic, not a comparable steady-FPS benchmark.
+  Reviewed18.3s(partial castle),24.3s(main facade present) and44.4s(retained castle/roof details),
+  plus prior29.9s capture. Visible incremental fill-in persists; terrain/far finish unacceptable.
+
+Remaining performance work: quantify and reduce source recovery/coverage and GPU stage/queue
+latency; the initial ordering fix does not remove publication throughput limits or the CPU scene
+creation stall. Full current-source stationary/walking repetition and canonical Kentridge integration
+remain gates. Previous full-run FPS before this scheduling change was229/142. CPU helper/oracle
+retirement remains open but is secondary to time-to-visible now. Local only; no push.
+
 ### 2026-09-06 — Delete CPU workspace and fix deferred water release at exit
 
 Deleted TransvoxelBuildWorkspace and its metadata after confirming zero production callers;
