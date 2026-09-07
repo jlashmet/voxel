@@ -19,6 +19,8 @@ namespace Game.Composition.Kentridge.Playable
             _combat = combat ?? throw new ArgumentNullException(nameof(combat));
         }
 
+        public CharacterId LastTargetCharacterId { get; private set; }
+
         public bool TryAttack(CharacterId characterId)
         {
             if (!characterId.IsValid) return false;
@@ -28,7 +30,7 @@ namespace Game.Composition.Kentridge.Playable
             if (!combat.ActiveParticipant.Equals(actorId) || !combat.IsAlive(actorId)) return false;
 
             CombatParticipant actor = null;
-            CombatParticipantId target = default;
+            CombatParticipant targetParticipant = null;
             for (int i = 0; i < combat.ActiveParticipants.Count; i++)
             {
                 CombatParticipant participant = combat.ActiveParticipants[i];
@@ -38,12 +40,17 @@ namespace Game.Composition.Kentridge.Playable
                     continue;
                 }
                 if (participant.Team != CombatTeam.Enemy || !combat.IsAlive(participant.Id)) continue;
-                if (!target.IsValid || StringComparer.Ordinal.Compare(participant.Id.Value, target.Value) < 0)
-                    target = participant.Id;
+                if (targetParticipant == null ||
+                    StringComparer.Ordinal.Compare(participant.Id.Value, targetParticipant.Id.Value) < 0)
+                    targetParticipant = participant;
             }
 
-            if (actor == null || actor.Team != CombatTeam.Player || !target.IsValid) return false;
-            return combat.TryExecute(new AttackCombatantCommand(actorId, target)).Succeeded;
+            if (actor == null || actor.Team != CombatTeam.Player || targetParticipant == null) return false;
+            CombatCommandResult result = combat.TryExecute(
+                new AttackCombatantCommand(actorId, targetParticipant.Id));
+            if (!result.Succeeded) return false;
+            LastTargetCharacterId = targetParticipant.CharacterId;
+            return true;
         }
     }
 }
