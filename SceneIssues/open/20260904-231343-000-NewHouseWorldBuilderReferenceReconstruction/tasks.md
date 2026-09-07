@@ -133,8 +133,15 @@ Pinned reference Git blob: `6d87b08d4c7c9bddc1705c0f34343aa79bc18423`.
 ### Iteration 11 — portrait spring-line proportion
 - [x] Isolate the largest iteration-10 mismatch as gable-width geometry rather than camera or height: ridge height/framing are stable, while the final swept profile's base half-width is too narrow relative to the facade.
 - [x] Widen only the final swept portrait profile from half-width 24 to 29 voxels while preserving the same ridge/eave datums, nonlinear curve, roof/plaster seam closure, camera, lighting, materials, site, openings, flower boxes, shoulder roof, crest, and rear shell.
-- [ ] Run the current feature head through exact-SHA targeted CI with focused regression `VoxelEngine.Tests.EditMode.NewHouseReferenceRefinementTests.AuthorHouse_SweptPortraitProfileIsConcave_AndRestoresOpeningsAfterRebuild`.
-- [ ] Inspect exact iteration-11 pinned reference plus target/front-left/rear-right frames. Verify broader spring-line proportion, seam closure, flower-box survival, and closed rear shell; if still below production-quality, select only the next largest demonstrated mismatch.
+- [x] Run feature `470005099b19ae20f9ec422ff128513e5db5308e` through exact request `f015843332d5c793ebcc50d5ec60948b2b4a63c2` / run `34165061316`; full module validation, standalone-player replay, previews, artifact upload, and final status passed.
+- [x] Inspect exact iteration-11 pinned reference plus target/front-left/rear-right frames from artifact `single-test-34165061316`. The broader spring line improves the portrait proportion, roof/plaster seams remain closed, the upper flower box survives, and the rear shell is closed. Reject visual closure as **prototype/blockout quality**: the left chimney is now the largest silhouette mismatch, appearing as a short cross-like cap barely above the shoulder roof instead of the tall masonry stack in the reference.
+
+### Iteration 12 — left chimney silhouette
+- [x] Isolate the next largest mismatch as chimney-height geometry: its footprint/material are already in the correct left-side region, but the visible shaft terminates far too low relative to the gable ridge.
+- [x] Extend the late production chimney on the existing footprint using `p.Stone`, from inside the shoulder-roof penetration to a ridge-relative top near `ridge - 10`, without clearing surrounding roof geometry or changing camera/material/site/opening policy.
+- [x] Add focused regression `NewHouseReferenceFinishPassOrderTests.FinishPass_ExtendsReferenceChimneyAfterGableUsingRidgeRelativeStoneStack` proving late invocation, ridge-relative height, stone shaft, and stepped cap.
+- [ ] Run the iteration-12 feature head through exact-SHA targeted CI without replacing a queued/running request.
+- [ ] Inspect exact iteration-12 pinned reference plus target/front-left/rear-right frames. Verify the chimney reads as one tall masonry stack, the iteration-11 gable remains intact, and side/rear audits stay structurally closed; if still below production-quality, select only the next largest demonstrated mismatch.
 
 ### Final visual checks — required before closure
 - [ ] Overall silhouette very close to reference.
