@@ -48,6 +48,8 @@ Repeat identical FPS windows after each justified change.
   Audit far atlas caches and prove long-session resource retirement/flatness.
 - Fix Composition far-validation framing and remaining visual defects; rough water is permitted.
 - Integrate current master and run affected modules plus canonical standalone Kentridge validation.
-  Current master has four commits absent here. Draft PR is a checkpoint, not final promotion.
+  Current master has four commits absent here. Read-only merge analysis identifies a conflict in
+  tools/run-module-validation.py. Resolve it and revalidate before promotion.
+  Draft PR: https://github.com/jlashmet/voxel/pull/316.
 
 Detailed evidence: tasks.md. Retirement scope: cpu-render-backend-removal-ledger.md.

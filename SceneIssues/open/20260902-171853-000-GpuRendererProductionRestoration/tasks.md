@@ -1687,3 +1687,8 @@ portable result summaries and source provenance; raw local artifacts remain unde
 User requested committing work and opening a PR against master. Draft leaves issue and unfinished
 performance/migration/memory/visual/integration gates open; no auto-merge or remote CI success claim.
 Unrelated generated settings/import residue and crash artifacts are excluded from this task commit.
+
+Draft PR#316 opened against master from gpu-rendering-agent-1-resume; code checkpoint47c5f8a29.
+GitHub reports conflicting. Read-only git merge-tree identifies tools/run-module-validation.py as
+the conflict with origin/master18845c608. No working-tree merge performed; resolve and validate
+this integration before promotion.
