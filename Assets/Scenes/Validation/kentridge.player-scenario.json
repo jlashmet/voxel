@@ -16,7 +16,8 @@
   },
   "assertions": {
     "requiredLogPatterns": [
-      "KENTRIDGE_WORLD_LAYOUT"
+      "KENTRIDGE_WORLD_LAYOUT",
+      "KENTRIDGE_AUTHORED_FULL_RUN_READY"
     ],
     "forbiddenLogPatterns": [
       "NullReferenceException",
