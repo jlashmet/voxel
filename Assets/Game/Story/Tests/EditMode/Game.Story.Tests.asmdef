@@ -1,0 +1,22 @@
+{
+  "name": "Game.Story.Tests",
+  "rootNamespace": "Game.Story.Tests",
+  "references": [
+    "Game.Story.Api",
+    "Game.Story.Runtime",
+    "Game.WorldBuilder.Api",
+    "Game.Quests.Api",
+    "Game.Encounters.Api",
+    "Game.Outcomes.Api"
+  ],
+  "includePlatforms": ["Editor"],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "optionalUnityReferences": ["TestAssemblies"],
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

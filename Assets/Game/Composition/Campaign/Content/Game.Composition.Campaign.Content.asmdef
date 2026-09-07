@@ -5,6 +5,8 @@
     "Game.WorldBuilder.Api",
     "Game.Cutscenes.Api",
     "Game.Cutscenes.Content",
+    "Game.Encounters.Api",
+    "Game.Outcomes.Api",
     "Game.Quests.Api",
     "Game.Composition.Kentridge.Api"
   ],

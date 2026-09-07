@@ -11,6 +11,7 @@
     "Game.Composition.WorldObjects.Runtime",
     "Game.Composition.Campaign",
     "Game.Composition.Campaign.Runtime",
+    "Game.Outcomes.Api",
     "Game.Cutscenes.Api",
     "Game.Cutscenes.Runtime",
     "Game.Quests.Api",

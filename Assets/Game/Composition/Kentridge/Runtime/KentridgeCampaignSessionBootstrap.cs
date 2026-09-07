@@ -8,6 +8,7 @@ using Game.Composition.WorldBuilderWorldGen.Runtime;
 using Game.Cutscenes.Api;
 using Game.Inventory.Api;
 using Game.Inventory.Runtime;
+using Game.Outcomes.Api;
 using Game.Quests.Api;
 using Game.WorldBuilder.Api;
 
@@ -122,7 +123,8 @@ namespace Game.Composition.Kentridge.Runtime
             KentridgeCampaignRealizationFacts realizationFacts,
             IKentridgeCampaignActorHost actors,
             ICutscenePresentation presentation,
-            IKentridgeCampaignSecretHost secretHost = null)
+            IKentridgeCampaignSecretHost secretHost = null,
+            Action<OutcomeConditionRef> outcomeConditionObserver = null)
         {
             if (blueprint == null) throw new ArgumentNullException(nameof(blueprint));
             if (generation == null) throw new ArgumentNullException(nameof(generation));
@@ -157,7 +159,8 @@ namespace Game.Composition.Kentridge.Runtime
                 world.CutsceneStages,
                 actors,
                 presentation,
-                KentridgeWellQuestDefinition.CreateDefinitions());
+                KentridgeWellQuestDefinition.CreateDefinitions(),
+                outcomeConditionObserver);
 
             ItemRef reward = new ItemRef(KentridgeWellQuestDefinition.RewardItemId);
             CharacterId primaryCharacter = CharacterId.FromStableKey("player-slot", "0");
