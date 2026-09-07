@@ -19,6 +19,9 @@ This is a handoff specification, not a claim that any implementation or acceptan
 - [ ] Prove a fresh compile completes without C#/shader/Burst errors. Inspect project-relative
   `Logs/Editor.log`, not only the redirecting user-library log. Use `tools/unity-run.sh` for local
   launches and ask first if the developer's editor may be open; remote workers use targeted CI.
+- [ ] Keep the production standalone capture path bounded but capable of completing a clean cold
+  build. The prior 12,288 MB RSS guard killed Unity at 12,311 MB with ~28 GB free before product
+  validation; validate the narrow 14,336 MB guarded default and its tooling regression on exact SHA.
 - [ ] Obtain an exact-SHA standalone VoxelShowcase baseline using existing production capture
   tooling and real generation/material/presentation paths. Record executable/source identity,
   baked-world identity, seed, camera poses/route, timings, hardware/API, resolution, render scale,
@@ -29,11 +32,12 @@ This is a handoff specification, not a claim that any implementation or acceptan
   historical local Artifacts paths alone are insufficient. Define explicit settle/convergence
   deadlines from existing scenarios/budgets before evaluating results; do not extend them to pass.
 
-Progress note: `experiment-001-source-and-baseline.md` records the assigned source, Unity version,
-required-document review, tracked retired-file audit and exact targeted-CI request. GitHub remote state
-cannot prove developer-machine untracked-file absence, so the checkout-audit checkbox remains open.
-Baseline run `34137307109` / job `101791149168` is queued unchanged while repository Actions reports
-15 queued runs and zero in progress; per the CI rules it is not replaced.
+Progress note: `experiment-001-source-and-baseline.md` records source/document review and the malformed
+first request. `experiment-002-cold-player-build-memory-guard.md` records corrected run `34151335102` /
+job `101834086315`: it entered the real player build but `unity-run.sh` killed the cold process tree at
+12,311 MB against the 12,288 MB guard, before player evidence; no compiler error preceded the kill. The
+narrow 14,336 MB guarded-build repair and regression are committed. GitHub remote state still cannot prove
+developer-machine untracked-file absence, so the checkout-audit checkbox remains open.
 
 ## 2. Find the first broken geometry invariant
 
