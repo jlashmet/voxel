@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "runSeconds": 78,
+  "capture": {
+    "width": 1600,
+    "height": 900,
+    "intervalSeconds": 4,
+    "minimumFrames": 16,
+    "evidenceAfterSeconds": 2
+  },
+  "timeline": {},
+  "assertions": {
+    "requiredLogPatterns": [
+      "HOUSE_SHOWCASE_VALIDATION start profile=kentridge provider=guild-house archetype=adventurers",
+      "HOUSE_SHOWCASE_REVIEW_PAIR review=house-foundation-neutral",
+      "HOUSE_SHOWCASE_VALIDATION canonical exterior",
+      "HOUSE_SHOWCASE_VALIDATION interior profile=kentridge archetype=adventurers",
+      "HOUSE_SHOWCASE_VALIDATION deterministic",
+      "HOUSE_SHOWCASE_VALIDATION seed-variant index=1",
+      "HOUSE_SHOWCASE_VALIDATION seed-variant index=2",
+      "HOUSE_SHOWCASE_VALIDATION seed-variant index=3",
+      "HOUSE_SHOWCASE_VALIDATION config-switched width=136 depth=120 storeys=3 floorHeight=32 rooms=6",
+      "HOUSE_SHOWCASE_VALIDATION profile-switched profile=hightown provider=guild-house archetype=adventurers",
+      "HOUSE_SHOWCASE_VALIDATION complete profile=kentridge provider=guild-house archetype=adventurers"
+    ],
+    "forbiddenLogPatterns": [
+      "HOUSE_SHOWCASE_VALIDATION failure:",
+      "InvalidOperationException",
+      "NullReferenceException",
+      "MissingReferenceException",
+      "Architecture production authoring failed"
+    ]
+  }
+}
