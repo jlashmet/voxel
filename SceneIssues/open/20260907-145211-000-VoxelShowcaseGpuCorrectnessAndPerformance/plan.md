@@ -2,41 +2,18 @@
 
 ## Observed state and acceptance
 
-This continuation owns the remaining GPU renderer correctness, full-scene quality, performance,
-presentation migration and lifetime/budget work after PR #316. Historical evidence from the superseded
-restoration issue reported 293 missing chunks, allocation pressure, terrain gaps/incomplete houses and
-mixed stationary/traversal FPS, but it is not current acceptance evidence. `fixes/agent-3` has been
-reconciled with current master while preserving this issue's existing investigation.
+This continuation owns remaining GPU renderer correctness, full-scene quality, performance, presentation migration and lifetime/budget work after PR #316. Correctness gates optimization. Never reduce content, distance, quality, device budgets or integer CPU world truth to pass.
 
-Correctness gates optimization. First prove a fresh exact-source standalone VoxelShowcase build and
-reproduction. Then prove canonical occupied content reaches current visible geometry during startup,
-stationary convergence, traversal/return, LOD/far handoff, edits and restart, with independent behavioral
-regressions plus production-quality full-scene images. Never reduce content, distance, quality or integer
-CPU world truth to pass.
+Exact-SHA request `fd092c40e8d19ddc5f67d7a1f2165ae74f865864` / run `34155859120` completed the real cold build and 180-second production VoxelShowcase replay on Apple M4 Max/Metal. The narrow 14,336 MB cold-build guard is therefore validated. The player still ended with `missingVisible=63`; the shared source mirror saturated at `40270/40270`, `NoSlot` reached `130550`, and one fine request waited about 151.7 seconds. Page allocation failures and pressure evictions were zero. Late whole-frame windows also degraded from early ~500–600 FPS to roughly 150–220 FPS while this backlog accumulated. See experiment 003.
 
-The corrected baseline request reached the real player build but the guarded wrapper killed cold Unity
-at 12,311 MB against a 12,288 MB RSS ceiling while about 28 GB was free; no compiler error preceded it.
-`experiment-002-cold-player-build-memory-guard.md` records the evidence. The selected prerequisite repair
-raises only that build guard to 14,336 MB, matching the existing targeted-workflow Unity envelope while
-retaining the 8,192 MB free-memory floor and swap protection, with a tooling regression. Fresh compile
-and player evidence remain unverified until the next exact-SHA replay.
+## Proven first invariant and repair
 
-## Hypotheses and discriminators
+H1 is supported: fine requests retained whole source neighbourhoods through `RequestCoverage` while the newer count-batch path already owns source residency in bounded `RequestSourceRange` preparation slices. Mirror reclamation protects all demanded blocks, so overlapping requests can pin essentially the entire shared mirror and prevent the recovery slices they need from making progress. Missing persistent-directory source can resolve as air, explaining occupied-visible holes.
 
-Geometry H1: source readiness/admission starves valid occupied chunks. H2: current geometry is published
-then wrongly retired, suppressed or culled during replacement/LOD handoff. Trace one annotated gap from
-canonical occupancy/material through source version/residency, demand, admission, extraction, allocation,
-publication, retirement and draw eligibility. GPU readback is diagnostics only.
+H2 premature pressure retirement was falsified: victim selection excludes protected/current replacement state and host acknowledgment validates live handle/generation. Clipmap rediscovery and GPU cutover for steps 1/2/4/8 were also traced and do not explain the baseline.
 
-Performance follows correctness. Compare matched stationary CPU preparation/submission/compute/draw/shader
-cost against waits/presentation/external GPU contention with repeatable whole-frame tails and a Metal trace.
-The latest plan targets 400 FPS at 1920×1080, scale 1.0 on M4 Max/Metal; historical metadata says 1,000 FPS,
-so numeric signoff remains blocked on coordinator reconciliation.
+Selected repair: every admitted step keeps only a whole-request edit/version watch; source residency belongs solely to bounded preparation slices and submitted GPU readers. Product commit `0c65f67b4e1ef1518923fb24a19eb4c8170eb707`. A real-context red regression is queued on exact pre-fix source and must remain untouched until complete.
 
-## Ownership and remaining gates
+## Remaining gates
 
-Rendering owns GPU caches, extraction, selection and draws; use its SolidGpu, FarWorld and Water validation
-surfaces. Composition owns Showcase/far orchestration and must use its local validation surface when changed.
-Storage remains deterministic integer authority. Follow `tasks.md` in order. Final gates are exact-SHA owned
-tests/module players, full VoxelShowcase visual+coverage evidence, canonical Kentridge standalone integration,
-device budgets, closure bookkeeping, current-master merge, PR and auto-merge.
+After red→green evidence, replay Rendering/SolidGpu and full VoxelShowcase. Require bounded source service and no persistent occupied-visible holes before performance work. Then run matched stationary/traversal benchmarks and Metal trace; numeric signoff remains blocked until the task's 400-versus-historical-1,000-FPS reconciliation is explicit. Finish Water presentation migration, device budgets/lifetime cycles, canonical Kentridge integration, exact-SHA validation, closure bookkeeping, current-master merge, PR and auto-merge per `tasks.md`.
