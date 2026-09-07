@@ -1,5 +1,3 @@
-using System;
-using System.Reflection;
 using NUnit.Framework;
 using Unity.Mathematics;
 using UnityEngine;
@@ -10,9 +8,6 @@ namespace VoxelEngine.Rendering.Tests.EditMode
 {
     public sealed class GpuPersistentSourceDemandOwnershipTests
     {
-        private static readonly BindingFlags InstancePrivate =
-            BindingFlags.Instance | BindingFlags.NonPublic;
-
         [TestCase(1)]
         [TestCase(2)]
         [TestCase(4)]
@@ -47,26 +42,30 @@ namespace VoxelEngine.Rendering.Tests.EditMode
                 Assert.That(arenaShader, Is.Not.Null);
                 arena = new GpuSurfacePageArena(arenaShader, 65536, 65536, 8);
                 GpuSurfaceMirrorCoordinator.ConfigurePageArena(arena);
-                Assert.That(
-                    GpuSurfaceMirrorCoordinator.PrepareFromBridge(storage.Reads.Version),
-                    Is.True);
 
                 var request = new GpuChunkExtraction(int3.zero, int3.zero, step, 0.1f);
-                MethodInfo admit = typeof(GpuSurfaceExtractionContext).GetMethod(
-                    "BeginPersistentStage", InstancePrivate);
-                Assert.That(admit, Is.Not.Null);
                 Assert.That(
-                    (bool)admit.Invoke(context, new object[] { request, storage.Reads.Version }),
-                    Is.True);
-
-                bool watching = (bool)typeof(GpuSurfaceExtractionContext).GetField(
-                    "_coverageRequested", InstancePrivate).GetValue(context);
-                Assert.That(watching, Is.True,
-                    "An admitted request must retain its whole-request edit/version watch.");
+                    context.TryBeginStage(default, default, default, default,
+                                          request, storage.Reads.Version),
+                    Is.EqualTo(GpuStageOutcome.Staged));
                 Assert.That(GpuSurfaceMirrorCoordinator.DemandFootprintCount, Is.Zero,
                     "Whole-request admission must not pin source residency. GPU source preparation "
                   + "owns only bounded RequestSourceRange slices so overlapping requests can recycle "
                   + "the shared mirror while they wait.");
+
+                uint beforeEdit = GpuSurfaceMirrorCoordinator.CoverageEpochFor(
+                    request.BrickCacheOrigin, context.BrickCacheEdge);
+                Assert.That(storage.Mutations.SetWholeBlock(int3.zero, 1, false), Is.True);
+                storage.PublishAllResidentRegions();
+                GpuSurfaceMirrorCoordinator.PrepareFrame(
+                    storage.Reads, storage.Changes, Time.frameCount + 1, 1.0);
+                Assert.That(
+                    GpuSurfaceMirrorCoordinator.CoverageEpochFor(
+                        request.BrickCacheOrigin, context.BrickCacheEdge),
+                    Is.Not.EqualTo(beforeEdit),
+                    "The whole-request edit/version watch must still invalidate an admitted build.");
+                Assert.That(GpuSurfaceMirrorCoordinator.DemandFootprintCount, Is.Zero,
+                    "Processing the edit must not promote the whole request into a residency lease.");
             }
             finally
             {
