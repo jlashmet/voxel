@@ -8,6 +8,7 @@ using Game.Composition.Kentridge.Api;
 using Game.Composition.Kentridge.Playable;
 using Game.Composition.Kentridge.Runtime;
 using Game.Composition.WorldBuilderWorldGen.Runtime;
+using Game.Continuity.Api;
 using Game.Cutscenes.Api;
 using Game.GameplayReplication.Api;
 using Game.Input.Api;
@@ -41,13 +42,14 @@ namespace Game.Composition.Kentridge.Playable.Validation
     /// Build-once, separate-process smoke for the production Kentridge multiplayer composition.
     /// The harness supplies only deterministic process role/port/player setup and public player input.
     /// Application, Sessions, UTP admission, authoritative world interaction, inventory/progression/combat mutation,
-    /// gameplay replication, and the authority campaign graph are production types.
+    /// gameplay replication, Continuity, and the authority campaign graph are production types.
     /// </summary>
     public sealed class KentridgeMultiplayerTopologyValidation : MonoBehaviour
     {
         private const string SessionValue = "gamesystem25-topology";
         private const string Protocol = "gamesystem25-v1";
         private const string Content = "kentridge-generated-world";
+        private const string ClientAMemberValue = "gamesystem25-topology:member:2";
         private const string ContentionObjectValue = KentridgeWellQuestDefinition.WellTargetId;
         private const string WellObjectiveValue = "rescue-boy-at-well.completion";
         private const string ForestNodeValue = "forest";
@@ -56,6 +58,7 @@ namespace Game.Composition.Kentridge.Playable.Validation
         private static readonly CharacterVector3 ContentionPosition = new CharacterVector3(12f, 0f, -4f);
 
         private string _role;
+        private int _attempt;
         private ushort _port;
         private KentridgeAuthoritativeMultiplayerApplication _authority;
         private KentridgeClientMultiplayerApplication _client;
@@ -81,8 +84,13 @@ namespace Game.Composition.Kentridge.Playable.Validation
         private bool _contentionInputSent;
         private bool _contentionReported;
         private bool _progressionReported;
+        private bool _continuityInterruptedReported;
+        private bool _continuityRecoveredReported;
         private bool _combatTriggered;
         private bool _combatReported;
+        private bool _recoveryCurrentStateReported;
+        private bool _leaveRequested;
+        private bool _leaveReported;
         private bool _startRequested;
         private string _failure;
 
@@ -92,7 +100,9 @@ namespace Game.Composition.Kentridge.Playable.Validation
             try
             {
                 _role = Environment.GetEnvironmentVariable("VOXEL_VALIDATION_ROLE") ?? string.Empty;
-                _port = ParsePort(Environment.GetCommandLineArgs());
+                string[] args = Environment.GetCommandLineArgs();
+                _port = ParsePort(args);
+                _attempt = ParseAttempt(args);
                 if (_role == "authority") StartAuthority();
                 else if (_role == "client-a" || _role == "client-b") StartClient();
                 else throw new InvalidOperationException("Unsupported GameSystem25 validation role: " + _role);
@@ -276,7 +286,7 @@ namespace Game.Composition.Kentridge.Playable.Validation
                 _baselineReported = true;
                 Emit(new Milestone
                 {
-                    name = "baseline-ready",
+                    name = _attempt > 1 ? "recovery-baseline-ready" : "baseline-ready",
                     role = _role,
                     sessionId = party.SessionId.Value,
                     rosterCount = party.Members.Count,
@@ -286,10 +296,14 @@ namespace Game.Composition.Kentridge.Playable.Validation
             }
 
             if (!_baselineReported) return;
-            if (_client != null) TrySendContentionInput();
+            if (_client != null && _attempt == 1) TrySendContentionInput();
             TickContentionMilestone(readState);
             if (_contentionReported) TickProgressionMilestone(readState);
+            if (_authority != null) TickContinuityMilestones();
             if (_progressionReported) TickCombatMilestone(readState);
+            if (_client != null && _attempt > 1 && _contentionReported && _progressionReported && _combatReported)
+                TickRecoveryCurrentState(application, party, readState);
+            if (_authority != null) TickExplicitLeaveObserved();
         }
 
         private void EnsureContentionFixture()
@@ -418,12 +432,52 @@ namespace Game.Composition.Kentridge.Playable.Validation
             });
         }
 
+        private void TickContinuityMilestones()
+        {
+            if (_authority?.Continuity == null) return;
+            var memberId = new PartyMemberId(ClientAMemberValue);
+            if (!_authority.Continuity.TryGetRecovery(memberId, out RecoverySnapshot recovery)) return;
+
+            if (!_continuityInterruptedReported && recovery.State == RecoveryState.ConnectionInterrupted)
+            {
+                _continuityInterruptedReported = true;
+                Emit(new Milestone
+                {
+                    name = "continuity-interrupted",
+                    role = _role,
+                    sessionId = SessionValue,
+                    memberId = ClientAMemberValue,
+                    characterId = KentridgeMultiplayerCharacterRoster.CharacterIdForSlot(1).Value,
+                    slot = 1,
+                    recoveryState = recovery.State.ToString()
+                });
+            }
+
+            if (!_continuityRecoveredReported && recovery.State == RecoveryState.Recovered)
+            {
+                _continuityRecoveredReported = true;
+                Emit(new Milestone
+                {
+                    name = "continuity-recovered",
+                    role = _role,
+                    sessionId = SessionValue,
+                    memberId = ClientAMemberValue,
+                    characterId = KentridgeMultiplayerCharacterRoster.CharacterIdForSlot(1).Value,
+                    slot = 1,
+                    recoveryState = recovery.State.ToString()
+                });
+            }
+        }
+
         private void TickCombatMilestone(IGameplayReplicationReadState readState)
         {
             if (_combatReported || readState == null) return;
 
             if (_authority != null)
             {
+                // The real combat mutation is deliberately held until client A has been observed as
+                // interrupted by production Continuity. This makes the Vitality delta absent-period state.
+                if (!_continuityInterruptedReported) return;
                 if (_forestEncounter == null || _forestRoot == null || _gameplayCommands == null || _combatActions == null)
                     return;
 
@@ -449,9 +503,6 @@ namespace Game.Composition.Kentridge.Playable.Validation
                 if (vitality.Current >= vitality.Maximum)
                     throw new InvalidOperationException("Authenticated combat action produced no Vitality delta for " + target + ".");
 
-                // Bound the proof after the real production attack. This is the extension's public lifecycle
-                // boundary, not a gameplay-state mutation seam; it prevents autonomous follow-up turns from
-                // racing the exact replicated 4/6 evidence while clients converge.
                 _forestEncounter.StopCommands();
                 _combatReported = true;
                 Emit(new Milestone
@@ -480,6 +531,89 @@ namespace Game.Composition.Kentridge.Playable.Validation
                 currentVitality = current,
                 maximumVitality = maximum,
                 revision = readState.Revision.Value.ToString(CultureInfo.InvariantCulture)
+            });
+        }
+
+        private void TickRecoveryCurrentState(
+            Game.Application.Runtime.ApplicationFlowCoordinator application,
+            PartyScreenPresentationSnapshot party,
+            IGameplayReplicationReadState readState)
+        {
+            if (_recoveryCurrentStateReported || _role != "client-a" || _attempt <= 1) return;
+            PartyMemberPresentationSnapshot local = FindLocal(party);
+            if (local == null || local.MemberId.Value != ClientAMemberValue ||
+                local.Slot.Value != 1 ||
+                local.CharacterId != KentridgeMultiplayerCharacterRoster.CharacterIdForSlot(1))
+                throw new InvalidOperationException("Recovered client A did not preserve durable member/slot/character identity.");
+
+            if (!TryReadContentionProjection(readState, out int quantity, out bool pickupEnabled) ||
+                !TryReadProgressionProjection(readState, out string progressionState) ||
+                !TryReadDamagedEnemyVitality(readState, out string damagedCharacter, out int current, out int maximum))
+                return;
+            if (quantity != 1 || pickupEnabled ||
+                !string.Equals(progressionState, "Completed", StringComparison.Ordinal) ||
+                current != 4 || maximum != 6)
+                throw new InvalidOperationException(
+                    "Recovered current state diverged: quantity=" + quantity +
+                    " pickupEnabled=" + pickupEnabled +
+                    " progression=" + progressionState +
+                    " vitality=" + current + "/" + maximum + ".");
+
+            _recoveryCurrentStateReported = true;
+            Emit(new Milestone
+            {
+                name = "recovery-current-state",
+                role = _role,
+                sessionId = SessionValue,
+                memberId = local.MemberId.Value,
+                characterId = local.CharacterId.Value,
+                slot = local.Slot.Value,
+                quantity = quantity,
+                pickupEnabled = pickupEnabled ? "true" : "false",
+                progressionState = progressionState,
+                damagedCharacter = damagedCharacter,
+                currentVitality = current,
+                maximumVitality = maximum,
+                revision = readState.Revision.Value.ToString(CultureInfo.InvariantCulture),
+                recoveryMode = "current-projections-only"
+            });
+
+            if (_leaveRequested) return;
+            Require(application.RequestLeaveGame(), "recovered client explicit leave");
+            _leaveRequested = true;
+            Emit(new Milestone
+            {
+                name = "explicit-leave-requested",
+                role = _role,
+                sessionId = SessionValue,
+                memberId = local.MemberId.Value,
+                characterId = local.CharacterId.Value,
+                slot = local.Slot.Value
+            });
+        }
+
+        private void TickExplicitLeaveObserved()
+        {
+            if (_leaveReported || !_continuityRecoveredReported || _authority?.Continuity == null ||
+                _authority.PartySession == null)
+                return;
+            var memberId = new PartyMemberId(ClientAMemberValue);
+            if (_authority.PartySession.TryGetMember(memberId, out _)) return;
+            if (!_authority.Continuity.TryGetRecovery(memberId, out RecoverySnapshot recovery) ||
+                recovery.State != RecoveryState.Left)
+                return;
+
+            _leaveReported = true;
+            Emit(new Milestone
+            {
+                name = "explicit-leave-observed",
+                role = _role,
+                sessionId = SessionValue,
+                memberId = ClientAMemberValue,
+                characterId = KentridgeMultiplayerCharacterRoster.CharacterIdForSlot(1).Value,
+                slot = 1,
+                rosterCount = _authority.PartySession.Snapshot().Members.Count,
+                recoveryState = recovery.State.ToString()
             });
         }
 
@@ -787,6 +921,16 @@ namespace Game.Composition.Kentridge.Playable.Validation
             throw new InvalidOperationException(flag + " requires a non-zero UInt16 port.");
         }
 
+        private static int ParseAttempt(string[] args)
+        {
+            const string flag = "-voxel-validation-attempt";
+            for (int i = 0; i < args.Length - 1; i++)
+                if (string.Equals(args[i], flag, StringComparison.Ordinal) &&
+                    int.TryParse(args[i + 1], NumberStyles.Integer, CultureInfo.InvariantCulture, out int value) && value > 0)
+                    return value;
+            return 1;
+        }
+
         private static void Require(ApplicationOperationResult result, string operation)
         {
             if (!result.Succeeded)
@@ -862,6 +1006,8 @@ namespace Game.Composition.Kentridge.Playable.Validation
             public int currentVitality;
             public int maximumVitality;
             public int appliedCombatActions;
+            public string recoveryState;
+            public string recoveryMode;
         }
 
         private sealed class EmptySaveCatalog : ISessionSaveCatalog
