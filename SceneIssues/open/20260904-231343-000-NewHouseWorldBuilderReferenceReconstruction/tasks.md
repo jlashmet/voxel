@@ -46,7 +46,10 @@ Pinned reference Git blob: `6d87b08d4c7c9bddc1705c0f34343aa79bc18423`.
 - [x] Restore front openings after the destructive roof-clear pass.
 - [x] Repair side/rear shell infill and rear gable after roof clear; exact iteration-6 rear-right audit no longer shows the previous wall-sized voids.
 - [x] Implement iteration-7 finish pass for layered portrait-gable timber, smaller high arch, swept eave tips, compact crest, and rebuilt hanging details.
-- [ ] Validate the new finish pass in exact-SHA CI and inspect the target/front-left/rear-right frames.
+- [x] Validate iteration-7 finish pass in exact-SHA run `34145422534` and inspect target/front-left/rear-right frames; mechanical proof passed but direct visual inspection rejected the result.
+- [x] Isolate iteration-7 high-window depth-ordering defect: opaque `FillArch` repair extended to `frontZ-4` while replacement carve began at `frontZ-1`, hiding the glass behind plaster.
+- [x] Implement iteration-8 correction to carve through the full repair depth, clear duplicate crest layers from `ridge+1`, and extend/increase the swept-eave hook.
+- [ ] Validate the iteration-8 correction in a new exact-SHA run and directly inspect target/front-left/rear-right frames.
 - [ ] Match final roof pitch/rise, ridge direction, transverse shoulder height, swept-eave silhouette, fascia/edge depth, intersections, and chimney relationship closely.
 - [ ] Remove/verify absence of roof overlap, z-fighting, holes, and unsupported roof pieces across multiple frames.
 - [x] Dormer roof: N/A from the pinned reference.
@@ -57,6 +60,7 @@ Pinned reference Git blob: `6d87b08d4c7c9bddc1705c0f34343aa79bc18423`.
 - [x] Use production carve/inset authoring for the central arched portal and arched windows rather than flat evidence geometry.
 - [x] Restore the middle-storey blue-shuttered arched window after roof replacement.
 - [x] Implement a smaller high-gable arched window in the iteration-7 finish pass.
+- [x] Prove the iteration-7 high window was structurally authored but visually occluded by the front plaster repair depth; regression now checks a full-depth replacement carve.
 - [ ] Match final entry arch/door width-height, lower side-window size/spacing, middle window/shutters, high window, sill/head heights, surrounds, frames/muntins, and recess depth to the reference.
 - [ ] Render/compare all visible opening shapes and proportions after the last product change.
 
@@ -66,7 +70,7 @@ Pinned reference Git blob: `6d87b08d4c7c9bddc1705c0f34343aa79bc18423`.
 - [ ] Match left chimney silhouette and cap detailing.
 - [x] Implement a compact replacement crest/finial in the iteration-7 finish pass.
 - [x] Implement a pointed blue-gold banner and a closer-to-wall bracketed hanging sign in the iteration-7 finish pass.
-- [ ] Validate crest, banner, sign, and swept-eave proportions against the new standalone render; refine if still blockout-like.
+- [x] Validate crest, banner, sign, and swept-eave proportions in iteration 7; crest/eave remained blockout-like and require the iteration-8 production correction.
 - [ ] Refine flower boxes, ivy/foliage masses, and blossoms so they read as connected intentional planting rather than thick voxel columns/dotted primitives.
 - [x] Porch columns/posts: N/A from the visible reference.
 - [x] Materially visible gutters/downspouts: N/A at the target reference scale.
@@ -91,11 +95,20 @@ Pinned reference Git blob: `6d87b08d4c7c9bddc1705c0f34343aa79bc18423`.
 - [x] Confirm previous side/rear wall-sized shell holes are repaired in rear-right audit and surface diagnostics report `missingVisible=0` / complete coverage.
 - [x] Reject iteration 6 as **prototype/blockout quality** despite green CI. Concrete target defects: blank/straight portrait gable, oversized high opening, large blocky gold crest, insufficient swept eaves, flat banner/sign, coarse facade/foliage detail density.
 
-### Iteration 7 — selected correction
+### Iteration 7 — exact result
 - [x] Add a production finish pass after audit-shell repair for layered gable framing, smaller high arch, swept eave tips, compact crest, and rebuilt hanging details.
-- [x] Add a focused regression proving the finish pass runs after shell repair and emits the smaller high opening, crest replacement, and swept tip.
-- [ ] Run exact-SHA targeted CI for the final iteration-7 feature head; never replace it while queued/running.
-- [ ] Inspect exact iteration-7 target/front-left/rear-right frames and classify visual quality.
+- [x] Add focused regression proving the finish pass runs after shell repair and emits the smaller high opening, crest replacement, and swept tip.
+- [x] Run feature `cd9ae8c2ed0f8789e5f2ddf858365ef78e0ba9a1` with exact request `02d3bf547696212b0530e42cb797884c687b7bae` / run `34145422534`; module validation, standalone replay, previews, artifact upload, and final status all passed.
+- [x] Inspect exact iteration-7 reference plus target/front-left/rear-right frames from artifact `single-test-34145422534` and classify visual quality.
+- [x] Reject iteration 7 as **prototype/blockout quality**. Largest demonstrated defect: the intended smaller high window is occluded by three opaque plaster layers left in front of its glass; crest still accumulates duplicate ridge layers and eave hook remains too short.
+
+### Iteration 8 — selected correction
+- [x] Fix the high-window production depth ordering by carving from `frontZ-4` through the repair layer before drawing glass/frame.
+- [x] Clear duplicate crest mass from `ridge+1` and rebuild one compact tapered finial.
+- [x] Extend the portrait eave hook to sixteen voxels with a stronger quadratic drop.
+- [x] Update the focused refinement regression to prove all three corrected invariants.
+- [ ] Run exact-SHA targeted CI for the final iteration-8 feature head; never replace it while queued/running.
+- [ ] Inspect exact iteration-8 target/front-left/rear-right frames and classify visual quality.
 - [ ] If below production-quality, record the largest failed visual relationship here and fix the production cause before another broad pass.
 
 ### Final visual checks — required before closure
