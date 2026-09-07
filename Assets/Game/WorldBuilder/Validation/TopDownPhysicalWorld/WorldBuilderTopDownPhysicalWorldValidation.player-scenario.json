@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "runSeconds": 42,
+  "capture": {
+    "width": 1280,
+    "height": 720,
+    "intervalSeconds": 6,
+    "minimumFrames": 6,
+    "evidenceAfterSeconds": 3
+  },
+  "assertions": {
+    "requiredLogPatterns": [
+      "WORLDBUILDER_MACRO_PHYSICAL_READY",
+      "WORLDBUILDER_MACRO_PHYSICAL_CATALOGUE PASS",
+      "WORLDBUILDER_MACRO_PHYSICAL_RENDER target=moordell PASS",
+      "WORLDBUILDER_MACRO_PHYSICAL_RENDER target=rossdam PASS",
+      "WORLDBUILDER_MACRO_PHYSICAL_RENDER target=water PASS",
+      "WORLDBUILDER_MACRO_PHYSICAL_VALIDATION PASS"
+    ],
+    "forbiddenLogPatterns": [
+      "NullReferenceException",
+      "MissingReferenceException",
+      "InvalidOperationException",
+      "Shader error"
+    ]
+  }
+}
