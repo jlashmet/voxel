@@ -61,7 +61,8 @@ namespace Game.Composition.Kentridge.Runtime
             uint seed,
             Int2 kentridgeCentreDm,
             int voxelsPerDecimetre,
-            Action<CutsceneAuthoringBuilder, KnownOpeningCampaignRoles> configureDestinationCutscene = null)
+            Action<CutsceneAuthoringBuilder, KnownOpeningCampaignRoles> configureDestinationCutscene = null,
+            KentridgeCampaignWorldRealization richOpeningWorld = null)
         {
             if (destinationCutsceneDefinition == null)
                 throw new ArgumentNullException(nameof(destinationCutsceneDefinition));
@@ -80,6 +81,12 @@ namespace Game.Composition.Kentridge.Runtime
                 AuthoredFullRunCampaignGenerator.Plan(physical);
             AuthoredFullRunCampaignWorldRealization world =
                 AuthoredFullRunCampaignWorldRealizer.Realize(generation);
+            if (richOpeningWorld != null)
+            {
+                world = AuthoredFullRunCampaignWorldRealizer.OverlayRichOpeningRealization(
+                    world,
+                    richOpeningWorld);
+            }
 
             return new AuthoredFullRunKentridgeComposition(
                 content,
