@@ -46,10 +46,12 @@ namespace VoxelEngine.Rendering.Api
         TerrainCorridor = 10,
     }
 
+    public enum FarFeaturePrismProfile : byte { Gable = 0, Shed = 1, Arch = 2 }
+
     /// <summary>
-    /// One normalized conservative mass in a far-feature geometry resource. X/Z are centered around
-    /// the instance origin while Y is measured upward from it, matching the renderer transform.
-    /// Radial scales preserve shape profile for tapered primitives without exposing producer types.
+    /// One normalized mass in a far-feature geometry resource. X/Z are centered around the
+    /// instance origin while Y is measured upward from it, matching the renderer transform.
+    /// Frusta require their resolved cap geometry; a bounding box cannot describe their taper.
     /// </summary>
     public readonly struct FarFeatureGeometryPrimitive
     {
@@ -58,28 +60,55 @@ namespace VoxelEngine.Rendering.Api
             float3 min,
             float3 max,
             byte axis = 1,
-            float startRadiusScale = 1f,
-            float endRadiusScale = 1f)
+            FarFeatureFrustum frustum = default,
+            sbyte direction = 1,
+            int rampRunCells = 2,
+            FarFeaturePrismProfile prismProfile = FarFeaturePrismProfile.Gable,
+            int prismWidthCells = 1,
+            int prismHeightCells = 1,
+            int presentationSlot = 0)
         {
             if (math.any(max < min)) throw new ArgumentException("Far geometry primitive bounds must be ordered.");
-            if (!math.isfinite(startRadiusScale) || startRadiusScale < 0f)
-                throw new ArgumentOutOfRangeException(nameof(startRadiusScale));
-            if (!math.isfinite(endRadiusScale) || endRadiusScale < 0f)
-                throw new ArgumentOutOfRangeException(nameof(endRadiusScale));
+            if (shape == FarFeatureGeometryShape.Frustum)
+            {
+                if (axis > 2 || !frustum.IsDefined)
+                    throw new ArgumentException("Far frusta require a valid axis and explicit resolved cap geometry.");
+                int radialA = (axis + 1) % 3;
+                int radialB = (axis + 2) % 3;
+                if (!(frustum.UpperCenter[axis] > frustum.LowerCenter[axis])
+                    || !(frustum.LowerRadii[radialA] > 0f) || !(frustum.LowerRadii[radialB] > 0f)
+                    || !(frustum.UpperRadii[radialA] > 0f) || !(frustum.UpperRadii[radialB] > 0f))
+                    throw new ArgumentException("Far frustum cell-envelope caps must have positive depth and radial extents.");
+            }
+            if (shape == FarFeatureGeometryShape.Ramp && axis != 0 && axis != 2)
+                throw new ArgumentException("Far ramp slopes must use X or Z; resolve vertical occupancy before submission.");
+            if (shape == FarFeatureGeometryShape.Ramp && rampRunCells < 2)
+                throw new ArgumentException("Single-cell ramps must be resolved to their occupied box.");
+            if (presentationSlot < 0) throw new ArgumentOutOfRangeException(nameof(presentationSlot));
+            PresentationSlot = presentationSlot;
             Shape = shape;
             Min = min;
             Max = max;
             Axis = axis <= 2 ? axis : (byte)1;
-            StartRadiusScale = startRadiusScale;
-            EndRadiusScale = endRadiusScale;
+            Frustum = frustum;
+            Direction = direction < 0 ? (sbyte)-1 : (sbyte)1;
+            RampRunCells = rampRunCells;
+            PrismProfile = prismProfile;
+            PrismWidthCells = math.max(1, prismWidthCells);
+            PrismHeightCells = math.max(1, prismHeightCells);
         }
 
+        public int PresentationSlot { get; }
         public FarFeatureGeometryShape Shape { get; }
         public float3 Min { get; }
         public float3 Max { get; }
         public byte Axis { get; }
-        public float StartRadiusScale { get; }
-        public float EndRadiusScale { get; }
+        public FarFeatureFrustum Frustum { get; }
+        public sbyte Direction { get; }
+        public int RampRunCells { get; }
+        public FarFeaturePrismProfile PrismProfile { get; }
+        public int PrismWidthCells { get; }
+        public int PrismHeightCells { get; }
     }
 
     /// <summary>
@@ -89,18 +118,46 @@ namespace VoxelEngine.Rendering.Api
     public sealed class FarFeatureGeometry
     {
         private readonly FarFeatureGeometryPrimitive[] _primitives;
+        private readonly FarFeaturePresentation[] _presentations;
 
-        public FarFeatureGeometry(FarFeatureGeometryPrimitive[] primitives)
+        public FarFeatureGeometry(FarFeatureGeometryPrimitive[] primitives, FarFeaturePresentation[] presentations = null)
         {
             if (primitives == null) throw new ArgumentNullException(nameof(primitives));
             if (primitives.Length == 0)
                 throw new ArgumentException("Far feature geometry requires at least one primitive.", nameof(primitives));
+            _presentations = presentations == null ? Array.Empty<FarFeaturePresentation>()
+                : (FarFeaturePresentation[])presentations.Clone();
+            foreach (var primitive in primitives)
+                if (primitive.PresentationSlot >= Math.Max(1, _presentations.Length))
+                    throw new ArgumentException("Primitive presentation slot is outside its geometry table.", nameof(primitives));
             _primitives = new FarFeatureGeometryPrimitive[primitives.Length];
             Array.Copy(primitives, _primitives, primitives.Length);
         }
 
+        public int PresentationCount => _presentations.Length;
+        public FarFeaturePresentation GetPresentation(int index) => _presentations[index];
         public int PrimitiveCount => _primitives.Length;
         public FarFeatureGeometryPrimitive GetPrimitive(int index) => _primitives[index];
+    }
+
+    /// <summary>
+    /// Semantic-free coarse presentation resolved by composition from the application's installed
+    /// material/coating catalogue. Rendering receives values rather than game material IDs, keeping
+    /// the far-feature API independent of palette indices and application material vocabulary.
+    /// </summary>
+    public readonly struct FarFeaturePresentation : IEquatable<FarFeaturePresentation>
+    {
+        public FarFeaturePresentation(float4 albedo, float roughness)
+        {
+            Albedo = albedo;
+            Roughness = math.saturate(roughness);
+        }
+
+        public float4 Albedo { get; }
+        public float Roughness { get; }
+        public bool Equals(FarFeaturePresentation other) => Albedo.Equals(other.Albedo) && Roughness.Equals(other.Roughness);
+        public override bool Equals(object obj) => obj is FarFeaturePresentation other && Equals(other);
+        public override int GetHashCode() => HashCode.Combine(Albedo, Roughness);
     }
 
     /// <summary>
@@ -120,8 +177,36 @@ namespace VoxelEngine.Rendering.Api
             string styleKey,
             FarFeatureTier tier,
             FarFeatureVisualFlags flags = FarFeatureVisualFlags.None,
-            FarFeatureGeometry geometry = null,
-            byte materialIndex = 0)
+            FarFeatureGeometry geometry = null)
+            : this(
+                stableId,
+                position,
+                rotation,
+                scale,
+                boundsCenter,
+                boundsExtents,
+                geometryKey,
+                styleKey,
+                tier,
+                flags,
+                geometry,
+                default)
+        {
+        }
+
+        public FarFeatureInstance(
+            ulong stableId,
+            float3 position,
+            quaternion rotation,
+            float3 scale,
+            float3 boundsCenter,
+            float3 boundsExtents,
+            string geometryKey,
+            string styleKey,
+            FarFeatureTier tier,
+            FarFeatureVisualFlags flags,
+            FarFeatureGeometry geometry,
+            FarFeaturePresentation presentation)
         {
             StableId = stableId;
             Position = position;
@@ -134,7 +219,7 @@ namespace VoxelEngine.Rendering.Api
             Tier = tier;
             Flags = flags;
             Geometry = geometry;
-            MaterialIndex = materialIndex;
+            Presentation = presentation;
         }
 
         public ulong StableId { get; }
@@ -148,7 +233,7 @@ namespace VoxelEngine.Rendering.Api
         public FarFeatureTier Tier { get; }
         public FarFeatureVisualFlags Flags { get; }
         public FarFeatureGeometry Geometry { get; }
-        public byte MaterialIndex { get; }
+        public FarFeaturePresentation Presentation { get; }
     }
 
     /// <summary>

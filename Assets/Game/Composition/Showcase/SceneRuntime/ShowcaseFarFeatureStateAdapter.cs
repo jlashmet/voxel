@@ -17,6 +17,23 @@ namespace VoxelEngine.Showcase
         private readonly FarFeaturePresentationAdapter _presentation;
         private readonly IStructureVisualStateSource _states;
         private readonly List<FarFeatureInstance> _instances = new();
+        private ulong _candidateVersion, _stateRevision;
+        private bool _hasCandidates;
+        public ulong CandidateVersion { get; private set; }
+
+        public IReadOnlyList<FarFeatureInstance> QueryCandidates(float3 cameraPosition, float radiusMetres)
+        {
+            var candidates = _presentation.QueryCandidates(cameraPosition, radiusMetres);
+            var versioned = _states as IVersionedStructureVisualStateSource;
+            if (versioned != null && _hasCandidates && _candidateVersion == _presentation.CandidateVersion
+                && _stateRevision == versioned.Revision) return _instances;
+            Apply(candidates);
+            _hasCandidates = true;
+            _candidateVersion = _presentation.CandidateVersion;
+            _stateRevision = versioned?.Revision ?? 0;
+            CandidateVersion++;
+            return _instances;
+        }
 
         public ShowcaseFarFeatureStateAdapter(
             FarFeaturePresentationAdapter presentation,
@@ -26,33 +43,20 @@ namespace VoxelEngine.Showcase
             _states = states ?? throw new ArgumentNullException(nameof(states));
         }
 
-        public IReadOnlyList<FarFeatureInstance> Query(
-            float3 cameraPosition,
-            float radiusMetres,
-            float nearSurfaceRadiusMetres = 0f)
+        public IReadOnlyList<FarFeatureInstance> Query(float3 cameraPosition, float radiusMetres)
         {
-            return Apply(
-                _presentation.Query(cameraPosition, radiusMetres),
-                cameraPosition,
-                nearSurfaceRadiusMetres);
+            return Apply(_presentation.Query(cameraPosition, radiusMetres));
         }
 
         /// <summary>
         /// Applies authoritative semantic state to already-selected render instances. Keeping this
         /// operation independent of voxel residency makes removal/ruin survive detailed-region unload.
-        /// The optional near-surface radius comes from the same published-coverage handoff used by
-        /// far terrain. Semantic proxies are whole-feature conservative masses and cannot clip against
-        /// the detailed surface, so they retire as soon as their horizontal bounds overlap published
-        /// near coverage; otherwise a landmark spanning the handoff boundary is drawn on top of its
-        /// detailed representation as one large duplicate mass.
         /// </summary>
-        public IReadOnlyList<FarFeatureInstance> Apply(
-            IReadOnlyList<FarFeatureInstance> selected,
-            float3 nearSurfaceCentre = default,
-            float nearSurfaceRadiusMetres = 0f)
+        public IReadOnlyList<FarFeatureInstance> Apply(IReadOnlyList<FarFeatureInstance> selected)
         {
             if (selected == null) throw new ArgumentNullException(nameof(selected));
 
+            _hasCandidates = false;
             _instances.Clear();
             if (_instances.Capacity < selected.Count) _instances.Capacity = selected.Count;
 
@@ -61,8 +65,6 @@ namespace VoxelEngine.Showcase
                 FarFeatureInstance instance = selected[i];
                 StructureVisualState state = _states.Get(instance.StableId);
                 if (state == StructureVisualState.Removed)
-                    continue;
-                if (OverlapsPublishedNearSurface(instance, nearSurfaceCentre, nearSurfaceRadiusMetres))
                     continue;
 
                 FarFeatureVisualFlags flags = instance.Flags;
@@ -81,28 +83,10 @@ namespace VoxelEngine.Showcase
                     instance.Tier,
                     flags,
                     instance.Geometry,
-                    instance.MaterialIndex));
+                    instance.Presentation));
             }
 
             return _instances;
-        }
-
-        private static bool OverlapsPublishedNearSurface(
-            FarFeatureInstance instance,
-            float3 nearSurfaceCentre,
-            float nearSurfaceRadiusMetres)
-        {
-            if (!(nearSurfaceRadiusMetres > 0f) || !math.isfinite(nearSurfaceRadiusMetres))
-                return false;
-
-            float2 offset = math.abs(new float2(
-                instance.BoundsCenter.x - nearSurfaceCentre.x,
-                instance.BoundsCenter.z - nearSurfaceCentre.z));
-            float2 extents = math.max(
-                new float2(instance.BoundsExtents.x, instance.BoundsExtents.z),
-                float2.zero);
-            float2 distanceToBounds = math.max(offset - extents, float2.zero);
-            return math.lengthsq(distanceToBounds) <= nearSurfaceRadiusMetres * nearSurfaceRadiusMetres;
         }
     }
 }

@@ -144,6 +144,13 @@ namespace VoxelEngine.Composition
             return selected;
         }
 
+        public FarFeatureSelectionSettings GpuSettings => new(
+            new float4(_thresholds.MidEnterPixels, _thresholds.MidExitPixels,
+                _thresholds.FarEnterPixels, _thresholds.FarExitPixels),
+            new float2(_thresholds.HorizonEnterPixels, _thresholds.HorizonExitPixels),
+            new float3(_distanceCaps.DefaultMetres, _distanceCaps.ImportantMetres, _distanceCaps.HorizonMetres),
+            _verticalFovDegrees, _viewportHeightPixels);
+
         public void Forget(ulong stableId) => _previous.Remove(stableId);
         public void ClearHistory() => _previous.Clear();
 
@@ -209,6 +216,57 @@ namespace VoxelEngine.Composition
         private readonly float _voxelSizeMetres;
         private readonly Func<FeaturePresentationBake, FarFeatureImportance> _importance;
         private readonly List<FarFeatureInstance> _instances = new();
+        private readonly List<FarFeatureInstance> _candidates = new();
+        private FeaturePresentationBounds _residentBounds;
+        private ulong _residentRevision;
+        private bool _hasResidents;
+        public ulong CandidateVersion { get; private set; }
+
+        /// <summary>Bounded spatial working set; the GPU selects visibility and tiers each frame.</summary>
+        public IReadOnlyList<FarFeatureInstance> QueryCandidates(float3 cameraPosition, float radiusMetres,
+                                                                float paddingMetres = 256f)
+        {
+            if (!(radiusMetres > 0) || !math.isfinite(radiusMetres))
+                throw new ArgumentOutOfRangeException(nameof(radiusMetres));
+            if (!(paddingMetres >= 0) || !math.isfinite(paddingMetres))
+                throw new ArgumentOutOfRangeException(nameof(paddingMetres));
+            var active = BuildQueryBounds(cameraPosition, radiusMetres);
+            var versioned = _source as IVersionedFeaturePresentationSource;
+            if (versioned != null && _hasResidents && _residentRevision == versioned.Revision
+                && math.all(active.Min >= _residentBounds.Min) && math.all(active.Max <= _residentBounds.Max))
+                return _candidates;
+            _residentBounds = BuildQueryBounds(cameraPosition, radiusMetres + paddingMetres);
+            _residentRevision = versioned?.Revision ?? 0;
+            var realised = QueryCore(_residentBounds, cameraPosition, false);
+            _candidates.Clear();
+            _candidates.AddRange(realised);
+            _hasResidents = true;
+            CandidateVersion++;
+            return _candidates;
+        }
+        private readonly Dictionary<ulong, CachedPresentation> _cache = new();
+        private readonly HashSet<ulong> _queriedIds = new();
+        private readonly List<ulong> _retiredIds = new();
+
+        private readonly struct CachedPresentation
+        {
+            public readonly ulong Revision;
+            public readonly FarFeatureGeometry Geometry;
+            public readonly string GeometryKey;
+            public readonly string StyleKey;
+            public readonly FarFeaturePresentation Presentation;
+
+            public CachedPresentation(FeaturePresentationBake bake)
+            {
+                Revision = bake.Revision;
+                Geometry = GeometryFor(bake);
+                GeometryKey = GeometryKeyFor(bake);
+                StyleKey = StyleKeyFor(bake);
+                Presentation = PresentationFor(bake);
+            }
+        }
+
+        public int CachedGeometryCount => _cache.Count;
 
         public FarFeaturePresentationAdapter(
             IFeaturePresentationSource source,
@@ -229,36 +287,46 @@ namespace VoxelEngine.Composition
             if (!(radiusMetres > 0f) || !math.isfinite(radiusMetres))
                 throw new ArgumentOutOfRangeException(nameof(radiusMetres));
 
-            FeaturePresentationBounds queryBounds = BuildQueryBounds(cameraPosition, radiusMetres);
+            return QueryCore(BuildQueryBounds(cameraPosition, radiusMetres), cameraPosition, true);
+        }
+
+        private IReadOnlyList<FarFeatureInstance> QueryCore(FeaturePresentationBounds queryBounds,
+                                                           float3 cameraPosition, bool select)
+        {
             IReadOnlyList<FeaturePresentationBake> bakes = _source.Query(queryBounds);
             _instances.Clear();
+            _queriedIds.Clear();
             if (_instances.Capacity < bakes.Count) _instances.Capacity = bakes.Count;
 
             for (int i = 0; i < bakes.Count; i++)
             {
                 FeaturePresentationBake bake = bakes[i];
-                if (!TryGetPositiveBounds(bake, out int3 geometryMinVoxel, out int3 geometryMaxVoxel))
-                {
-                    // Bounds on carve/paint/corridor operations describe where an operation acts;
-                    // they are not positive geometry. Publishing them with null geometry asks the
-                    // renderer for its generic fallback box, which turns operation volumes into
-                    // giant solid slabs. Do not create a render instance unless this bake projects
-                    // actual Fill/FillIfEmpty geometry.
-                    _selection.Forget(bake.SourceId);
-                    continue;
-                }
-
-                FarFeatureGeometry geometry = GeometryFor(bake, geometryMinVoxel, geometryMaxVoxel);
-                BoundsFor(geometryMinVoxel, geometryMaxVoxel,
-                    out float3 position, out float3 center, out float3 extents, out float3 scale);
+                _queriedIds.Add(bake.SourceId);
+                BoundsFor(bake, out float3 position, out float3 center, out float3 extents, out float3 scale);
                 FarFeatureImportance importance = _importance?.Invoke(bake) ?? FarFeatureImportance.Default;
-                FarFeatureTier tier = _selection.Select(
+                FarFeatureTier tier = select ? _selection.Select(
                     bake.SourceId,
                     center,
                     extents,
                     cameraPosition,
-                    importance);
+                    importance) : FarFeatureTier.Mid;
                 if (tier == FarFeatureTier.Culled) continue;
+
+                // The renderer caches immutable geometry by identity. Recreating its payload on
+                // each camera query used to destroy/rebuild every selected mesh every frame.
+                if (!_cache.TryGetValue(bake.SourceId, out CachedPresentation cached)
+                    || cached.Revision != bake.Revision)
+                {
+                    cached = new CachedPresentation(bake);
+                    _cache[bake.SourceId] = cached;
+                }
+
+                // Modifiers describe where existing cells are repainted/carved, not a solid
+                // object. Passing null geometry to the renderer invokes its legacy box fixture
+                // fallback and turns those non-occupying volumes into visible walls.
+                // Keep the canonical bake and its application to the real terrain/structures;
+                // only additive geometry can own a standalone semantic surface instance.
+                if (cached.Geometry == null) continue;
 
                 _instances.Add(new FarFeatureInstance(
                     bake.SourceId,
@@ -267,13 +335,19 @@ namespace VoxelEngine.Composition
                     scale,
                     center,
                     extents,
-                    GeometryKeyFor(bake),
-                    StyleKeyFor(bake),
+                    cached.GeometryKey,
+                    cached.StyleKey,
                     tier,
                     FlagsFor(importance),
-                    geometry,
-                    MaterialFor(bake)));
+                    cached.Geometry,
+                    cached.Presentation));
             }
+
+            // Retain only the current spatial query's working set, not the traversal history.
+            _retiredIds.Clear();
+            foreach (ulong id in _cache.Keys)
+                if (!_queriedIds.Contains(id)) _retiredIds.Add(id);
+            for (int i = 0; i < _retiredIds.Count; i++) _cache.Remove(_retiredIds[i]);
 
             return _instances;
         }
@@ -288,14 +362,14 @@ namespace VoxelEngine.Composition
         }
 
         private void BoundsFor(
-            int3 minVoxel,
-            int3 maxVoxel,
+            FeaturePresentationBake bake,
             out float3 position,
             out float3 center,
             out float3 extents,
             out float3 scale)
         {
-            int3 maxVoxelExclusive = maxVoxel + new int3(1);
+            int3 minVoxel = bake.BoundsMin;
+            int3 maxVoxelExclusive = bake.BoundsMax + new int3(1);
             float3 min = new float3(minVoxel.x, minVoxel.y, minVoxel.z) * _voxelSizeMetres;
             float3 maxExclusive = new float3(
                 maxVoxelExclusive.x,
@@ -307,29 +381,25 @@ namespace VoxelEngine.Composition
             position = new float3(center.x, min.y, center.z);
         }
 
-        private static FarFeatureGeometry GeometryFor(
-            FeaturePresentationBake bake,
-            int3 geometryMinVoxel,
-            int3 geometryMaxVoxel)
+        private static FarFeatureGeometry GeometryFor(FeaturePresentationBake bake)
         {
             var primitives = new List<FarFeatureGeometryPrimitive>(bake.PrimitiveCount);
-            float3 geometryMin = new float3(
-                geometryMinVoxel.x,
-                geometryMinVoxel.y,
-                geometryMinVoxel.z);
-            int3 maxExclusiveVoxel = geometryMaxVoxel + new int3(1);
-            float3 geometrySize = math.max(
+            float3 bakeMin = new float3(bake.BoundsMin.x, bake.BoundsMin.y, bake.BoundsMin.z);
+            int3 maxExclusiveVoxel = bake.BoundsMax + new int3(1);
+            float3 bakeSize = math.max(
                 new float3(
-                    maxExclusiveVoxel.x - geometryMinVoxel.x,
-                    maxExclusiveVoxel.y - geometryMinVoxel.y,
-                    maxExclusiveVoxel.z - geometryMinVoxel.z),
+                    maxExclusiveVoxel.x - bake.BoundsMin.x,
+                    maxExclusiveVoxel.y - bake.BoundsMin.y,
+                    maxExclusiveVoxel.z - bake.BoundsMin.z),
                 new float3(1f));
             var originOffset = new float3(0.5f, 0f, 0.5f);
 
+            var presentations = new List<FarFeaturePresentation>();
+            var slots = new Dictionary<string, int>(StringComparer.Ordinal);
             for (int i = 0; i < bake.PrimitiveCount; i++)
             {
                 Primitive primitive = bake.GetPrimitive(i);
-                if (!ProjectsPositiveGeometry(primitive.Mode))
+                if (primitive.Mode != PrimitiveMode.Fill && primitive.Mode != PrimitiveMode.FillIfEmpty)
                     continue;
 
                 primitive.Bounds(out int3 primitiveMinVoxel, out int3 primitiveMaxVoxel);
@@ -342,66 +412,79 @@ namespace VoxelEngine.Composition
                     primitiveMaxExclusiveVoxel.x,
                     primitiveMaxExclusiveVoxel.y,
                     primitiveMaxExclusiveVoxel.z);
-                float3 normalizedMin = (primitiveMin - geometryMin) / geometrySize - originOffset;
-                float3 normalizedMax = (primitiveMaxExclusive - geometryMin) / geometrySize - originOffset;
-                ProfileFor(in primitive, out float startRadiusScale, out float endRadiusScale);
+                float3 normalizedMin = (primitiveMin - bakeMin) / bakeSize - originOffset;
+                float3 normalizedMax = (primitiveMaxExclusive - bakeMin) / bakeSize - originOffset;
+                FarFeatureFrustum frustum = primitive.Shape == PrimitiveShape.Frustum
+                    ? FrustumFor(in primitive, bakeMin, bakeSize, originOffset, normalizedMin, normalizedMax)
+                    : default;
+                FarFeatureGeometryShape shape = (FarFeatureGeometryShape)(byte)primitive.Shape;
+                byte axis = primitive.Axis;
+                int rampRunCells = 2;
+                if (primitive.Shape == PrimitiveShape.Ramp)
+                {
+                    axis &= ShapeOps.RampAxisMask;
+                    // BoxEmitter treats non-X/Z ramps as vertical occupancy. Positive vertical
+                    // ramps fill their box; negative ones fill its lower ceil(height / 2) cells.
+                    int alongAxis = axis == 0 || axis == 2 ? axis : 1;
+                    rampRunCells = primitive.B[alongAxis] - primitive.A[alongAxis] + 1;
+                    if (primitive.B[alongAxis] == primitive.A[alongAxis] || alongAxis == 1)
+                    {
+                        shape = FarFeatureGeometryShape.Box;
+                        if (alongAxis == 1 && primitive.Direction < 0)
+                        {
+                            int height = primitive.B.y - primitive.A.y + 1;
+                            normalizedMax.y = (primitive.A.y + (height + 1) / 2 - bakeMin.y) / bakeSize.y;
+                        }
+                    }
+                }
+                string styleKey = $"m{primitive.Material:X2}-s{primitive.SurfaceStyle:X4}-c{primitive.Coating:X2}";
+                if (!slots.TryGetValue(styleKey, out int slot))
+                {
+                    slot = presentations.Count;
+                    slots.Add(styleKey, slot);
+                    presentations.Add(MaterialPresentationComposition.ResolveFarFeaturePresentation(
+                        primitive.Material, primitive.SurfaceStyle, primitive.Coating));
+                }
                 primitives.Add(new FarFeatureGeometryPrimitive(
-                    (FarFeatureGeometryShape)(byte)primitive.Shape,
+                    shape,
                     normalizedMin,
                     normalizedMax,
-                    primitive.Axis,
-                    startRadiusScale,
-                    endRadiusScale));
+                    axis,
+                    frustum,
+                    primitive.Direction,
+                    rampRunCells,
+                    (FarFeaturePrismProfile)(byte)primitive.Profile,
+                    primitive.B[primitive.Axis == 0 ? 2 : 0] - primitive.A[primitive.Axis == 0 ? 2 : 0] + 1,
+                    primitive.B.y - primitive.A.y + 1, slot));
             }
 
-            return new FarFeatureGeometry(primitives.ToArray());
+            return primitives.Count == 0 ? null : new FarFeatureGeometry(primitives.ToArray(), presentations.ToArray());
         }
 
-        private static bool TryGetPositiveBounds(
-            FeaturePresentationBake bake,
-            out int3 minVoxel,
-            out int3 maxVoxel)
+        private static FarFeatureFrustum FrustumFor(
+            in Primitive primitive, float3 bakeMin, float3 bakeSize, float3 originOffset,
+            float3 normalizedMin, float3 normalizedMax)
         {
-            minVoxel = default;
-            maxVoxel = default;
-            bool found = false;
-            for (int i = 0; i < bake.PrimitiveCount; i++)
-            {
-                Primitive primitive = bake.GetPrimitive(i);
-                if (!ProjectsPositiveGeometry(primitive.Mode)) continue;
-
-                primitive.Bounds(out int3 primitiveMinVoxel, out int3 primitiveMaxVoxel);
-                if (!found)
-                {
-                    minVoxel = primitiveMinVoxel;
-                    maxVoxel = primitiveMaxVoxel;
-                    found = true;
-                }
-                else
-                {
-                    minVoxel = math.min(minVoxel, primitiveMinVoxel);
-                    maxVoxel = math.max(maxVoxel, primitiveMaxVoxel);
-                }
-            }
-            return found;
-        }
-
-        private static void ProfileFor(
-            in Primitive primitive,
-            out float startRadiusScale,
-            out float endRadiusScale)
-        {
-            startRadiusScale = 1f;
-            endRadiusScale = 1f;
-            if (primitive.Shape != PrimitiveShape.Frustum) return;
-
-            int maxRadius = math.max(primitive.Radius, primitive.InnerRadius);
-            if (maxRadius <= 0) return;
-
-            int startRadius = primitive.Direction < 0 ? primitive.InnerRadius : primitive.Radius;
-            int endRadius = primitive.Direction < 0 ? primitive.Radius : primitive.InnerRadius;
-            startRadiusScale = math.max(0f, startRadius / (float)maxRadius);
-            endRadiusScale = math.max(0f, endRadius / (float)maxRadius);
+            int axis = primitive.Axis;
+            if (axis > 2) throw new ArgumentException("Canonical frustum axis must be X, Y or Z.");
+            int length = math.max(1, primitive.B[axis] - primitive.A[axis]);
+            int direction = primitive.Direction < 0 ? -1 : 1;
+            int alongLower = direction * (primitive.A[axis] - primitive.C[axis]);
+            int alongUpper = direction * (primitive.B[axis] - primitive.C[axis]);
+            long deltaRadius = (long)primitive.InnerRadius - primitive.Radius;
+            // Match the canonical membership's signed taper at the included end-cell centres.
+            // The half-cell envelope also gives a zero-radius endpoint its one occupied cell.
+            float lowerRadius = primitive.Radius + deltaRadius * alongLower / length + 0.5f;
+            float upperRadius = primitive.Radius + deltaRadius * alongUpper / length + 0.5f;
+            float3 lowerCenter = ((float3)primitive.C + new float3(0.5f) - bakeMin) / bakeSize - originOffset;
+            float3 upperCenter = lowerCenter;
+            lowerCenter[axis] = normalizedMin[axis];
+            upperCenter[axis] = normalizedMax[axis];
+            float3 lowerRadii = new float3(lowerRadius) / bakeSize;
+            float3 upperRadii = new float3(upperRadius) / bakeSize;
+            lowerRadii[axis] = 0f;
+            upperRadii[axis] = 0f;
+            return new FarFeatureFrustum(lowerCenter, upperCenter, lowerRadii, upperRadii);
         }
 
         private static string GeometryKeyFor(FeaturePresentationBake bake) =>
@@ -412,25 +495,25 @@ namespace VoxelEngine.Composition
             for (int i = 0; i < bake.PrimitiveCount; i++)
             {
                 Primitive primitive = bake.GetPrimitive(i);
-                if (!ProjectsPositiveGeometry(primitive.Mode)) continue;
+                if (primitive.Mode == PrimitiveMode.Carve) continue;
                 return $"m{primitive.Material:X2}-s{primitive.SurfaceStyle:X4}-c{primitive.Coating:X2}";
             }
             return "empty";
         }
 
-        private static byte MaterialFor(FeaturePresentationBake bake)
+        private static FarFeaturePresentation PresentationFor(FeaturePresentationBake bake)
         {
             for (int i = 0; i < bake.PrimitiveCount; i++)
             {
                 Primitive primitive = bake.GetPrimitive(i);
-                if (ProjectsPositiveGeometry(primitive.Mode))
-                    return primitive.Material;
+                if (primitive.Mode == PrimitiveMode.Carve) continue;
+                return MaterialPresentationComposition.ResolveFarFeaturePresentation(
+                    primitive.Material,
+                    primitive.SurfaceStyle,
+                    primitive.Coating);
             }
-            return 0;
+            return default;
         }
-
-        private static bool ProjectsPositiveGeometry(PrimitiveMode mode) =>
-            mode == PrimitiveMode.Fill || mode == PrimitiveMode.FillIfEmpty;
 
         private static FarFeatureVisualFlags FlagsFor(FarFeatureImportance importance)
         {

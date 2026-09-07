@@ -21,7 +21,7 @@ namespace VoxelEngine.Showcase
         private readonly ProceduralFarFeatureRenderer _renderer;
         private readonly ShowcaseFarFeatureStateAdapter _source;
         private readonly int _sourceCount;
-        private float _publishedNearSurfaceRadiusMetres;
+        private ulong _submittedVersion;
 
         public ShowcaseFarFeatureRuntime(
             Transform parent,
@@ -67,41 +67,29 @@ namespace VoxelEngine.Showcase
             _root = new GameObject("Showcase Semantic Far Features");
             _root.transform.SetParent(parent, false);
             _renderer = _root.AddComponent<ProceduralFarFeatureRenderer>();
+            _renderer.UseSurfaceReplacementHandoff = true;
+            _renderer.ConfigureGpuSelection(selection.GpuSettings, RadiusMetres, voxelSizeMetres);
         }
 
         public int VisibleInstanceCount => _renderer != null ? _renderer.InstanceCount : 0;
         public int SourceCount => _sourceCount;
-        internal float PublishedNearSurfaceRadiusMetres => _publishedNearSurfaceRadiusMetres;
 
-        public void Update(
-            Camera camera,
-            float3 fallbackCameraPosition,
-            float nearSurfaceRadiusMetres = -1f)
+        public void Update(Camera camera, float3 fallbackCameraPosition)
         {
             if (_renderer == null) return;
             float3 cameraPosition = camera != null
                 ? (float3)camera.transform.position
                 : fallbackCameraPosition;
-            float observedHandoffRadius = nearSurfaceRadiusMetres >= 0f
-                ? nearSurfaceRadiusMetres
-                : PublishedNearSurfaceCoverage.RadiusMetres;
-
-            // Published near coverage is a scene-lifetime handoff, not a per-frame visibility bit.
-            // Once detailed surface ownership has been published for a radius, a transient missing
-            // visible chunk while streaming must not resurrect the whole coarse semantic proxy on
-            // top of already-detailed terrain. A new Showcase runtime starts at zero, so cold-start
-            // fallback remains available until Rendering first proves near coverage.
-            if (math.isfinite(observedHandoffRadius) && observedHandoffRadius > _publishedNearSurfaceRadiusMetres)
-                _publishedNearSurfaceRadiusMetres = observedHandoffRadius;
-
-            _renderer.SetInstances(_source.Query(
-                cameraPosition,
-                RadiusMetres,
-                _publishedNearSurfaceRadiusMetres));
+            var candidates = _source.QueryCandidates(cameraPosition, RadiusMetres);
+            if (_submittedVersion != _source.CandidateVersion)
+            {
+                _renderer.SetInstances(candidates);
+                _submittedVersion = _source.CandidateVersion;
+            }
         }
 
         public string Describe() =>
-            $"semantic={VisibleInstanceCount}/{SourceCount} radius={RadiusMetres:0}m";
+            $"semantic={VisibleInstanceCount}/{SourceCount} near={_renderer.NearReplacementCount} radius={RadiusMetres:0}m";
 
         public void Dispose()
         {
