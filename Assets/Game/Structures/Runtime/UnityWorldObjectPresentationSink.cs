@@ -19,9 +19,10 @@ namespace Game.Structures.Runtime
     }
 
     /// <summary>
-    /// Minimal gameplay-first Unity presentation backend for dynamic generated objects. It creates one owned proxy
+    /// Gameplay-first Unity presentation backend for dynamic generated objects. It creates one owned proxy
     /// per object and applies runtime pose/collider/light/particle changes without mutating unrelated terrain voxels.
-    /// Rich generated meshes can replace the primitive proxy later without changing the sink contract.
+    /// Mechanism kinds with shared construction semantics use generated production proxy geometry; other kinds keep
+    /// the bounded primitive fallback until their own reusable presentation is defined.
     /// </summary>
     public sealed class UnityWorldObjectPresentationSink : MonoBehaviour, IWorldObjectPresentationSink
     {
@@ -34,6 +35,16 @@ namespace Game.Structures.Runtime
         private readonly Dictionary<WorldObjectId, Proxy> _proxies = new Dictionary<WorldObjectId, Proxy>();
 
         public int ProxyCount => _proxies.Count;
+        public int DetailedProxyCount
+        {
+            get
+            {
+                int count = 0;
+                foreach (var pair in _proxies)
+                    if (pair.Value.OwnedMesh != null) count++;
+                return count;
+            }
+        }
 
         public void CreateOrUpdate(in WorldObjectPresentationPlan plan)
         {
@@ -46,13 +57,13 @@ namespace Game.Structures.Runtime
         {
             if (!_proxies.TryGetValue(id, out Proxy proxy)) return;
             _proxies.Remove(id);
-            if (proxy.Root != null) Destroy(proxy.Root);
+            DestroyProxy(proxy, true);
         }
 
         public void Clear()
         {
             foreach (var pair in _proxies)
-                if (pair.Value.Root != null) Destroy(pair.Value.Root);
+                DestroyProxy(pair.Value, true);
             _proxies.Clear();
         }
 
@@ -73,6 +84,8 @@ namespace Game.Structures.Runtime
 
         private void OnDestroy()
         {
+            foreach (var pair in _proxies)
+                DestroyProxy(pair.Value, false);
             _proxies.Clear();
         }
 
@@ -81,10 +94,28 @@ namespace Game.Structures.Runtime
             if (_proxies.TryGetValue(plan.Id, out Proxy existing) && existing.Root != null)
                 return existing;
 
-            GameObject root = GameObject.CreatePrimitive(PrimitiveFor(plan.Kind));
-            root.name = $"WorldObject_{plan.Kind}_{plan.Id}";
+            Mesh ownedMesh = null;
+            GameObject root;
+            MeshRenderer renderer;
+            Collider collider;
+            if (WorldObjectProxyGeometry.TryCreateMesh(plan.Kind, out ownedMesh))
+            {
+                root = new GameObject($"WorldObject_{plan.Kind}_{plan.Id}");
+                var filter = root.AddComponent<MeshFilter>();
+                filter.sharedMesh = ownedMesh;
+                renderer = root.AddComponent<MeshRenderer>();
+                collider = root.AddComponent<BoxCollider>();
+            }
+            else
+            {
+                root = GameObject.CreatePrimitive(PrimitiveFor(plan.Kind));
+                root.name = $"WorldObject_{plan.Kind}_{plan.Id}";
+                renderer = root.GetComponent<MeshRenderer>();
+                collider = root.GetComponent<Collider>();
+            }
+
             root.transform.SetParent(transform, false);
-            bool canRender = ApplyProxyMaterial(root, plan.Kind);
+            bool canRender = ApplyProxyMaterial(renderer, plan.Kind);
 
             int3 size = plan.BaselineBounds.Size;
             root.transform.localScale = new Vector3(
@@ -98,10 +129,11 @@ namespace Game.Structures.Runtime
             var proxy = new Proxy
             {
                 Root = root,
-                Renderer = root.GetComponent<MeshRenderer>(),
+                Renderer = renderer,
                 CanRender = canRender,
-                Collider = root.GetComponent<Collider>(),
+                Collider = collider,
                 Identity = identity,
+                OwnedMesh = ownedMesh,
             };
             _proxies.Add(plan.Id, proxy);
             return proxy;
@@ -123,13 +155,11 @@ namespace Game.Structures.Runtime
         }
 
         /// <summary>
-        /// Replaces the primitive's built-in material with a render-pipeline-safe semantic material. The compact
-        /// kind palette is presentation only, but it keeps generated sources, traversal mechanisms, and discovery
-        /// markers visually distinguishable in diagnostics/showcases without teaching gameplay code about scenes.
+        /// Applies a render-pipeline-safe semantic material. The compact kind palette is presentation only,
+        /// keeping generated mechanisms distinguishable without leaking scene policy into gameplay code.
         /// </summary>
-        private static bool ApplyProxyMaterial(GameObject root, WorldObjectKind kind)
+        private static bool ApplyProxyMaterial(MeshRenderer renderer, WorldObjectKind kind)
         {
-            var renderer = root.GetComponent<MeshRenderer>();
             if (renderer == null) return false;
 
             if (!s_ProxyMaterials.TryGetValue(kind, out Material material) || material == null)
@@ -148,6 +178,8 @@ namespace Game.Structures.Runtime
                     hideFlags = HideFlags.HideAndDontSave,
                     color = ColorForKind(kind),
                 };
+                if (material.HasProperty("_Smoothness"))
+                    material.SetFloat("_Smoothness", 0.22f);
                 s_ProxyMaterials[kind] = material;
             }
 
@@ -167,7 +199,9 @@ namespace Game.Structures.Runtime
                 case WorldObjectKind.Trapdoor:
                 case WorldObjectKind.Gate:
                 case WorldObjectKind.Portcullis:
-                    return new Color(0.28f, 0.43f, 0.58f, 1f);
+                    return new Color(0.34f, 0.22f, 0.12f, 1f);
+                case WorldObjectKind.SecretDoor:
+                    return new Color(0.34f, 0.31f, 0.27f, 1f);
                 case WorldObjectKind.Elevator:
                 case WorldObjectKind.Drawbridge:
                     return new Color(0.30f, 0.55f, 0.42f, 1f);
@@ -273,6 +307,14 @@ namespace Game.Structures.Runtime
             if (!active && proxy.Particles.isPlaying) proxy.Particles.Stop(true, ParticleSystemStopBehavior.StopEmitting);
         }
 
+        private static void DestroyProxy(Proxy proxy, bool destroyRoot)
+        {
+            if (proxy == null) return;
+            if (proxy.OwnedMesh != null) Destroy(proxy.OwnedMesh);
+            proxy.OwnedMesh = null;
+            if (destroyRoot && proxy.Root != null) Destroy(proxy.Root);
+        }
+
         private sealed class Proxy
         {
             public GameObject Root;
@@ -282,6 +324,7 @@ namespace Game.Structures.Runtime
             public UnityWorldObjectProxyIdentity Identity;
             public Light Light;
             public ParticleSystem Particles;
+            public Mesh OwnedMesh;
             public Vector3 TargetPosition;
             public Quaternion TargetRotation;
             public bool Initialized;

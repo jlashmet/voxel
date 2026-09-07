@@ -5,6 +5,7 @@ using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
 using VoxelEngine.Storage.Api;
+using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 
 namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 {
@@ -162,6 +163,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         {
             internal readonly int Capacity;
             internal readonly GpuBrickCachePreparation PreparedCache;
+            internal readonly int BrickCacheEdge;
             internal readonly ComputeBuffer Chunks;
             internal readonly ComputeBuffer Density;
             internal readonly ComputeBuffer SampleMaterial;
@@ -177,12 +179,34 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             internal readonly uint[] CounterZeros;
             internal ComputeBuffer Profiles;
             internal GpuProfileBlock[] ProfileStaging = Array.Empty<GpuProfileBlock>();
+            internal bool UsesBlockHlod;
+            internal bool UsesHlodFallback;
+            internal ComputeBuffer HlodSelection;
+            internal ComputeBuffer HlodSummaries;
+            internal ComputeShader HlodSummaryShader, HlodMeshShader;
+
+            internal void PrepareSourceResolution()
+            {
+                if (HlodSummaryShader == null)
+                    HlodSummaryShader = UnityEngine.Object.Instantiate(Resources.Load<ComputeShader>("GpuBlockHlodSummary"));
+            }
+
+            internal void PrepareHlod()
+            {
+                if (HlodSummaries != null) return;
+                PrepareSourceResolution();
+                HlodMeshShader = UnityEngine.Object.Instantiate(Resources.Load<ComputeShader>("GpuBlockHlodMesher"));
+                HlodSummaries = new ComputeBuffer(Capacity * BrickCacheEdge * BrickCacheEdge * BrickCacheEdge
+                    * GpuBlockHlodSummary.WordsPerBlock, sizeof(uint), ComputeBufferType.Structured);
+            }
+
             internal int ProfileCount;
 
             internal CountBatchResources(int capacity, int sampleCount, int cellCount,
                                          int faceSampleCount, int brickCacheEdge)
             {
                 Capacity = capacity;
+                BrickCacheEdge = brickCacheEdge;
                 PreparedCache = new GpuBrickCachePreparation(capacity, brickCacheEdge);
                 Chunks = new ComputeBuffer(capacity, BatchChunkDescriptor.Stride,
                                            ComputeBufferType.Structured);
@@ -245,6 +269,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
             public void Dispose()
             {
+                HlodSelection?.Release();
+                HlodSummaries?.Release();
+                if (HlodSummaryShader != null) UnityEngine.Object.DestroyImmediate(HlodSummaryShader);
+                if (HlodMeshShader != null) UnityEngine.Object.DestroyImmediate(HlodMeshShader);
                 PreparedCache?.Dispose();
                 Chunks?.Release();
                 Density?.Release();
@@ -273,6 +301,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private static readonly int IdSampleMaterial = Shader.PropertyToID("_SampleMaterial");
         private static readonly int IdSampleSurface = Shader.PropertyToID("_SampleSurface");
         private static readonly int IdSampleBoundary = Shader.PropertyToID("_SampleBoundary");
+        private static readonly int IdDirectoryProbeCount = Shader.PropertyToID("_PersistentDirectoryProbeCount");
         private static readonly int IdBrickMaterials = Shader.PropertyToID("_BrickMaterials");
         private static readonly int IdBrickSurface = Shader.PropertyToID("_BrickSurfaceSemantics");
         private static readonly int IdBrickBoundary = Shader.PropertyToID("_BrickBoundarySamples");
@@ -508,6 +537,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         /// </summary>
         public int FaceSamplesPerAxis { get; }
 
+        private int FacetedPlaneGroups => 6 * CellsPerAxis
+            * ((CellsPerAxis + 63) / 64) * ((CellsPerAxis + 63) / 64);
+
         /// <param name="brickCacheEdge">
         /// Bricks per axis in the neighbourhood the caller will describe. Zero derives a value that
         /// covers the padded grid, which is right for a standalone caller; production passes the
@@ -647,10 +679,14 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         /// Layout matches _BrickCache in VoxelBrickDensity.hlsl.
         /// </summary>
         public static uint PackBrickCacheEntry(VoxelBrickContent content, byte uniformMaterial,
-                                               int slot) =>
-            (uint)content
-            | ((uint)uniformMaterial << 8)
-            | (content == VoxelBrickContent.Mixed && slot >= 0 ? (uint)slot << 16 : 0u);
+                                               int slot)
+        {
+            if (content == VoxelBrickContent.Mixed
+                && (slot < 0 || slot >= GpuBrickBufferLayout.MaximumAddressableSlots))
+                throw new ArgumentOutOfRangeException(nameof(slot));
+            return (uint)content | ((uint)uniformMaterial << 8)
+                | (content == VoxelBrickContent.Mixed ? (uint)slot << 16 : 0u);
+        }
 
         public void SetBrickCacheEntry(int3 localBrick, uint entry)
         {
@@ -720,10 +756,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _shader.Dispatch(_sampleKernel, Groups(samples), 1, 1);
             _shader.Dispatch(_countKernel, Groups(cells), 1, 1);
             int semanticCells = CellsPerAxis * CellsPerAxis * CellsPerAxis;
-            _shader.Dispatch(_countFacetedKernel, Groups(semanticCells), 1, 1);
+            _shader.Dispatch(_countFacetedKernel, FacetedPlaneGroups, 1, 1);
             _shader.Dispatch(_countDecorationsKernel, Groups(semanticCells), 1, 1);
             _shader.Dispatch(_writeKernel, Groups(cells), 1, 1);
-            _shader.Dispatch(_writeFacetedKernel, Groups(semanticCells), 1, 1);
+            _shader.Dispatch(_writeFacetedKernel, FacetedPlaneGroups, 1, 1);
             _shader.Dispatch(_writeDecorationsKernel, Groups(semanticCells), 1, 1);
 
             return ReadCounters(vertexCapacity, indexCapacity);
@@ -839,6 +875,28 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         internal const int BatchHeaderWords = 4;
         internal const int BatchRecordWords = 17;
 
+        internal void PrepareCountBatchResources(ref CountBatchResources resources, int capacity)
+        {
+            // Call only for an idle lane, after its completion fence. Layout changes affect the
+            // resolver's flattening stride as well as buffer sizes; extra capacity is not enough.
+            if (resources != null && resources.Capacity == capacity
+                && MatchesCountBatchResources(resources)) return;
+            resources?.Dispose();
+            resources = CreateCountBatchResources(capacity);
+        }
+
+        internal bool HasSameBatchLayout(GpuSurfaceExtractor other) => other != null
+            && CellsPerAxis == other.CellsPerAxis && Padding == other.Padding
+            && BrickCacheEdge == other.BrickCacheEdge;
+
+        private bool MatchesCountBatchResources(CountBatchResources resources) =>
+            resources.BrickCacheEdge == BrickCacheEdge
+            && resources.Density.count == resources.Capacity * GridSize * GridSize * GridSize
+            && resources.CellVertexCounts.count == resources.Capacity
+                * (CellsPerAxis + 1) * (CellsPerAxis + 1) * (CellsPerAxis + 1)
+            && resources.FaceDensity.count == resources.Capacity * 6
+                * FaceSamplesPerAxis * FaceSamplesPerAxis;
+
         internal CountBatchResources CreateCountBatchResources(int capacity)
         {
             if (capacity <= 0) throw new ArgumentOutOfRangeException(nameof(capacity));
@@ -860,7 +918,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                                          GpuChunkExtraction[] requests,
                                          int recordCount,
                                          ComputeBuffer batchCounters,
-                                         CountBatchResources resources)
+                                         CountBatchResources resources,
+                                         bool summariesPrepared = false)
         {
             ThrowIfDisposed();
             if (mirror == null) throw new ArgumentNullException(nameof(mirror));
@@ -868,9 +927,22 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (requests == null) throw new ArgumentNullException(nameof(requests));
             if (batchCounters == null) throw new ArgumentNullException(nameof(batchCounters));
             if (resources == null) throw new ArgumentNullException(nameof(resources));
+            if (!MatchesCountBatchResources(resources))
+                throw new ArgumentException("Batch resources do not match the extractor layout.", nameof(resources));
             if (recordCount <= 0 || recordCount > resources.Capacity
                 || recordCount > requests.Length)
                 throw new ArgumentOutOfRangeException(nameof(recordCount));
+
+            resources.UsesBlockHlod = requests[0].SourceStep == 8;
+            for (int i = 1; i < recordCount; i++)
+                if ((requests[i].SourceStep == 8) != resources.UsesBlockHlod)
+                    throw new ArgumentException("Coarse and regular extraction require separate lanes.");
+            resources.UsesHlodFallback = false;
+            for (int i = 0; i < recordCount; i++)
+                resources.UsesHlodFallback |= requests[i].SourceStep == 4;
+            if (resources.UsesBlockHlod || resources.UsesHlodFallback) resources.PrepareHlod();
+            if (resources.UsesHlodFallback && resources.HlodSelection == null)
+                resources.HlodSelection = new ComputeBuffer(resources.Capacity, sizeof(uint));
 
             for (int i = 0; i < recordCount; i++)
             {
@@ -890,7 +962,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             }
             resources.StageProfiles(requests, recordCount);
             resources.Chunks.SetData(resources.Descriptors, 0, 0, recordCount);
-            resources.PreparedCache.Dispatch(mirror, requests, recordCount);
+            if (!summariesPrepared) resources.PreparedCache.Dispatch(mirror, requests, recordCount);
+            else if (!resources.UsesBlockHlod) resources.PreparedCache.PrepareRequests(requests, recordCount);
             batchCounters.SetData(resources.CounterZeros, 0, 0,
                                   BatchHeaderWords + recordCount * BatchRecordWords);
 
@@ -908,23 +981,54 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             BindTransitionTables(_batchCountTransitionsKernel, tables);
             _shader.SetInt(IdFaceSamplesPerAxis, FaceSamplesPerAxis);
 
-            int samples = GridSize * GridSize * GridSize;
-            int regularCellsPerAxis = CellsPerAxis + 1;
-            int cells = regularCellsPerAxis * regularCellsPerAxis * regularCellsPerAxis;
-            int semanticCells = CellsPerAxis * CellsPerAxis * CellsPerAxis;
-            _shader.Dispatch(_batchSampleKernel, Groups(samples), recordCount, 1);
-            _shader.Dispatch(_batchCountKernel, Groups(cells), recordCount, 1);
-            _shader.Dispatch(_batchCountFacetedKernel,
-                             Groups(semanticCells), recordCount, 1);
-            _shader.Dispatch(_batchCountDecorationsKernel,
-                             Groups(semanticCells), recordCount, 1);
-            int faceSamples = FaceSamplesPerAxis * FaceSamplesPerAxis;
-            _shader.Dispatch(_batchSampleFacesKernel, Groups(faceSamples), recordCount * 6, 1);
-            _shader.Dispatch(_batchCountTransitionsKernel,
-                             Groups(CellsPerAxis * CellsPerAxis), recordCount * 6, 1);
+            if (resources.UsesBlockHlod)
+            {
+                if (!summariesPrepared)
+                    GpuBlockHlodSummary.DispatchDense(resources.HlodSummaryShader, mirror,
+                        resources.PreparedCache.DenseEntries, resources.HlodSummaries,
+                        resources.PreparedCache.BricksPerRequest, recordCount,
+                        SolidMaterialClassification.WaterMaterialMask);
+                int core = BrickCacheEdge - 2, total = GpuBlockHlodMesher.PlaneCount(core);
+                for (int start = 0; start < total; start += GpuBlockHlodMesher.MaximumPlanesPerSlice)
+                    GpuBlockHlodMesher.Count(resources.HlodMeshShader, resources.HlodSummaries,
+                        resources.Chunks, batchCounters, core, recordCount, start,
+                        Math.Min(GpuBlockHlodMesher.MaximumPlanesPerSlice, total - start));
+            }
+            else
+            {
+                int samples = GridSize * GridSize * GridSize;
+                int regularCellsPerAxis = CellsPerAxis + 1;
+                int cells = regularCellsPerAxis * regularCellsPerAxis * regularCellsPerAxis;
+                int semanticCells = CellsPerAxis * CellsPerAxis * CellsPerAxis;
+                _shader.Dispatch(_batchSampleKernel, Groups(samples), recordCount, 1);
+                _shader.Dispatch(_batchCountKernel, Groups(cells), recordCount, 1);
+                _shader.Dispatch(_batchCountFacetedKernel,
+                                 FacetedPlaneGroups, recordCount, 1);
+                _shader.Dispatch(_batchCountDecorationsKernel,
+                                 Groups(semanticCells), recordCount, 1);
+                int faceSamples = FaceSamplesPerAxis * FaceSamplesPerAxis;
+                _shader.Dispatch(_batchSampleFacesKernel, Groups(faceSamples), recordCount * 6, 1);
+                _shader.Dispatch(_batchCountTransitionsKernel,
+                                 Groups(CellsPerAxis * CellsPerAxis), recordCount * 6, 1);
+            }
             if (resources.ProfileCount > 0)
                 _shader.Dispatch(_batchCountProfilesKernel,
                                  Groups(resources.ProfileCount * 24), 1, 1);
+            if (resources.UsesHlodFallback)
+            {
+                GpuBlockHlodMesher.SelectFallback(resources.HlodMeshShader, resources.Chunks,
+                    batchCounters, resources.HlodSelection, recordCount);
+                GpuBlockHlodSummary.DispatchDense(resources.HlodSummaryShader, mirror,
+                    resources.PreparedCache.DenseEntries, resources.HlodSummaries,
+                    resources.PreparedCache.BricksPerRequest, recordCount,
+                    SolidMaterialClassification.WaterMaterialMask);
+                int core = BrickCacheEdge - 2, total = GpuBlockHlodMesher.PlaneCount(core);
+                for (int start = 0; start < total; start += GpuBlockHlodMesher.MaximumPlanesPerSlice)
+                    GpuBlockHlodMesher.Count(resources.HlodMeshShader, resources.HlodSummaries,
+                        resources.Chunks, batchCounters, core, recordCount, start,
+                        Math.Min(GpuBlockHlodMesher.MaximumPlanesPerSlice, total - start),
+                        resources.HlodSelection);
+            }
         }
 
         /// <summary>
@@ -949,6 +1053,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (tables == null) throw new ArgumentNullException(nameof(tables));
             if (batchCounters == null) throw new ArgumentNullException(nameof(batchCounters));
             if (resources == null) throw new ArgumentNullException(nameof(resources));
+            if (!MatchesCountBatchResources(resources))
+                throw new ArgumentException("Batch resources do not match the extractor layout.", nameof(resources));
             if (vertices == null) throw new ArgumentNullException(nameof(vertices));
             if (indices == null) throw new ArgumentNullException(nameof(indices));
             if (recordCount <= 0 || recordCount > resources.Capacity)
@@ -1003,18 +1109,40 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 _shader.SetInt(IdBatchMaxIndexPages,
                                GpuSurfacePageArena.MaxIndexPagesPerChunk);
             }
-            int regularAxis = CellsPerAxis + 1;
-            _shader.Dispatch(_batchWriteKernel,
-                             Groups(regularAxis * regularAxis * regularAxis), recordCount, 1);
-            _shader.Dispatch(_batchWriteFacetedKernel,
-                             Groups(CellsPerAxis * CellsPerAxis * CellsPerAxis), recordCount, 1);
-            _shader.Dispatch(_batchWriteDecorationsKernel,
-                             Groups(CellsPerAxis * CellsPerAxis * CellsPerAxis), recordCount, 1);
-            _shader.Dispatch(_batchWriteTransitionsKernel,
-                             Groups(CellsPerAxis * CellsPerAxis), recordCount * 6, 1);
+            if (resources.UsesBlockHlod)
+            {
+                if (pageArena == null) throw new InvalidOperationException("Coarse GPU output requires the paged arena.");
+                int core = BrickCacheEdge - 2, total = GpuBlockHlodMesher.PlaneCount(core);
+                for (int start = 0; start < total; start += GpuBlockHlodMesher.MaximumPlanesPerSlice)
+                    GpuBlockHlodMesher.Write(resources.HlodMeshShader, resources.HlodSummaries,
+                        resources.Chunks, batchCounters, pageArena, core, recordCount, start,
+                        Math.Min(GpuBlockHlodMesher.MaximumPlanesPerSlice, total - start));
+            }
+            else
+            {
+                int regularAxis = CellsPerAxis + 1;
+                _shader.Dispatch(_batchWriteKernel,
+                                 Groups(regularAxis * regularAxis * regularAxis), recordCount, 1);
+                _shader.Dispatch(_batchWriteFacetedKernel,
+                                 FacetedPlaneGroups, recordCount, 1);
+                _shader.Dispatch(_batchWriteDecorationsKernel,
+                                 Groups(CellsPerAxis * CellsPerAxis * CellsPerAxis), recordCount, 1);
+                _shader.Dispatch(_batchWriteTransitionsKernel,
+                                 Groups(CellsPerAxis * CellsPerAxis), recordCount * 6, 1);
+            }
             if (resources.ProfileCount > 0)
                 _shader.Dispatch(_batchWriteProfilesKernel,
                                  Groups(resources.ProfileCount * 24), 1, 1);
+            if (resources.UsesHlodFallback)
+            {
+                if (pageArena == null) throw new InvalidOperationException("GPU fallback requires the paged arena.");
+                int core = BrickCacheEdge - 2, total = GpuBlockHlodMesher.PlaneCount(core);
+                for (int start = 0; start < total; start += GpuBlockHlodMesher.MaximumPlanesPerSlice)
+                    GpuBlockHlodMesher.Write(resources.HlodMeshShader, resources.HlodSummaries,
+                        resources.Chunks, batchCounters, pageArena, core, recordCount, start,
+                        Math.Min(GpuBlockHlodMesher.MaximumPlanesPerSlice, total - start),
+                        resources.HlodSelection);
+            }
             if (args != null)
             {
                 _shader.SetBuffer(_batchPublishArgsKernel, IdBatchCounters, batchCounters);
@@ -1110,7 +1238,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             int semanticCells = CellsPerAxis * CellsPerAxis * CellsPerAxis;
             commands.DispatchCompute(_shader, _sampleKernel, Groups(samples), 1, 1);
             commands.DispatchCompute(_shader, _countKernel, Groups(cells), 1, 1);
-            commands.DispatchCompute(_shader, _countFacetedKernel, Groups(semanticCells), 1, 1);
+            commands.DispatchCompute(_shader, _countFacetedKernel, FacetedPlaneGroups, 1, 1);
             commands.DispatchCompute(_shader, _countDecorationsKernel, Groups(semanticCells), 1, 1);
             RecordTransitionFaces(commands, mirror, tables, request, countOnly: true);
 
@@ -1175,7 +1303,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _shader.Dispatch(_sampleKernel, Groups(samples), 1, 1);
             _shader.Dispatch(_countKernel, Groups(cells), 1, 1);
             int semanticCells = CellsPerAxis * CellsPerAxis * CellsPerAxis;
-            _shader.Dispatch(_countFacetedKernel, Groups(semanticCells), 1, 1);
+            _shader.Dispatch(_countFacetedKernel, FacetedPlaneGroups, 1, 1);
             _shader.Dispatch(_countDecorationsKernel, Groups(semanticCells), 1, 1);
 
             DispatchTransitionFaces(mirror, tables, request, countOnly: true);
@@ -1239,7 +1367,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             int cells = regularCellsPerAxis * regularCellsPerAxis * regularCellsPerAxis;
             _shader.Dispatch(_writeKernel, Groups(cells), 1, 1);
             int semanticCells = CellsPerAxis * CellsPerAxis * CellsPerAxis;
-            _shader.Dispatch(_writeFacetedKernel, Groups(semanticCells), 1, 1);
+            _shader.Dispatch(_writeFacetedKernel, FacetedPlaneGroups, 1, 1);
             _shader.Dispatch(_writeDecorationsKernel, Groups(semanticCells), 1, 1);
 
             DispatchTransitionFaces(mirror, tables, request, countOnly: false,
@@ -1442,7 +1570,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             int cells = regularCellsPerAxis * regularCellsPerAxis * regularCellsPerAxis;
             int semanticCells = CellsPerAxis * CellsPerAxis * CellsPerAxis;
             commands.DispatchCompute(_shader, _writeKernel, Groups(cells), 1, 1);
-            commands.DispatchCompute(_shader, _writeFacetedKernel, Groups(semanticCells), 1, 1);
+            commands.DispatchCompute(_shader, _writeFacetedKernel, FacetedPlaneGroups, 1, 1);
             commands.DispatchCompute(_shader, _writeDecorationsKernel, Groups(semanticCells), 1, 1);
             RecordTransitionFaces(commands, mirror, tables, request, countOnly: false,
                                   vertices, indices);
@@ -1528,7 +1656,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             int cells = regularCellsPerAxis * regularCellsPerAxis * regularCellsPerAxis;
             _shader.Dispatch(_writeKernel, Groups(cells), 1, 1);
             int semanticCells = CellsPerAxis * CellsPerAxis * CellsPerAxis;
-            _shader.Dispatch(_writeFacetedKernel, Groups(semanticCells), 1, 1);
+            _shader.Dispatch(_writeFacetedKernel, FacetedPlaneGroups, 1, 1);
             _shader.Dispatch(_writeDecorationsKernel, Groups(semanticCells), 1, 1);
 
             DispatchTransitionFaces(mirror, tables, request, countOnly: false, vertices, indices);
@@ -1771,6 +1899,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _shader.SetBuffer(kernel, IdSampleSurface, _sampleSurface);
             _shader.SetBuffer(kernel, IdSampleBoundary, _sampleBoundary);
             _shader.SetBuffer(kernel, IdBrickMaterials, mirror.Materials);
+            _shader.SetInt(IdDirectoryProbeCount, mirror.MaximumDirectoryProbeCount);
             _shader.SetBuffer(kernel, IdBrickSurface, mirror.SurfaceSemantics);
             _shader.SetBuffer(kernel, IdBrickBoundary, mirror.BoundarySamples);
             _shader.SetBuffer(kernel, IdBrickCache, _brickCache);
@@ -1796,6 +1925,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                                      CountBatchResources resources)
         {
             _shader.SetBuffer(kernel, IdBrickMaterials, mirror.Materials);
+            _shader.SetInt(IdDirectoryProbeCount, mirror.MaximumDirectoryProbeCount);
             _shader.SetBuffer(kernel, IdBrickSurface, mirror.SurfaceSemantics);
             _shader.SetBuffer(kernel, IdBrickBoundary, mirror.BoundarySamples);
             _shader.SetBuffer(kernel, IdBrickCache, resources.PreparedCache.DenseEntries);
@@ -1892,6 +2022,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             commands.SetComputeBufferParam(_shader, kernel, IdSampleSurface, _sampleSurface);
             commands.SetComputeBufferParam(_shader, kernel, IdSampleBoundary, _sampleBoundary);
             commands.SetComputeBufferParam(_shader, kernel, IdBrickMaterials, mirror.Materials);
+            commands.SetComputeIntParam(_shader, IdDirectoryProbeCount, mirror.MaximumDirectoryProbeCount);
             commands.SetComputeBufferParam(_shader, kernel, IdBrickSurface,
                                            mirror.SurfaceSemantics);
             commands.SetComputeBufferParam(_shader, kernel, IdBrickBoundary,
@@ -1966,10 +2097,26 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (_disposed) throw new ObjectDisposedException(nameof(GpuSurfaceExtractor));
         }
 
+        private GpuSubmissionLifetime _submissionLifetime;
+
+        internal void RetainSubmission()
+        {
+            if (_disposed) throw new ObjectDisposedException(nameof(GpuSurfaceExtractor));
+            (_submissionLifetime ??= new GpuSubmissionLifetime(ReleaseResources)).Retain();
+        }
+
+        internal void ReleaseSubmission() => _submissionLifetime.Release();
+
         public void Dispose()
         {
             if (_disposed) return;
             _disposed = true;
+            if (_submissionLifetime == null) ReleaseResources();
+            else _submissionLifetime.Dispose();
+        }
+
+        private void ReleaseResources()
+        {
             _density?.Release();
             _sampleMaterial?.Release();
             _sampleSurface?.Release();

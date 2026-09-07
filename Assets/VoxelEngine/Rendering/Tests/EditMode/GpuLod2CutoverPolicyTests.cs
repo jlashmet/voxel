@@ -10,27 +10,16 @@ namespace VoxelEngine.Tests.EditMode
     public sealed class GpuLod2CutoverPolicyTests
     {
         [Test]
-        public void ProductionGpuCutoverDefaultsOnWithExplicitDisableFallback()
+        public void GpuCutoverTargetsNearExactRingsAndBlockHlod()
         {
-            Assert.False(GpuSurfaceProductionPolicy.ShouldDisableLegacyGpuCutover(null, null),
-                "Supported near-ring GPU extraction must be enabled in production by default.");
-            Assert.True(GpuSurfaceProductionPolicy.ShouldDisableLegacyGpuCutover("1", null),
-                "VOXEL_DISABLE_GPU_CUTOVER=1 must retain an emergency/A-B CPU fallback.");
-            Assert.False(GpuSurfaceProductionPolicy.ShouldDisableLegacyGpuCutover(null, "1"),
-                "The retired experimental opt-in must not be required for production GPU cutover.");
-        }
-
-        [Test]
-        public void SceneIssue20260823014011920GpuCutoverTargetsOnlyNearExactRings()
-        {
-            Assert.True(CpuTransvoxelChunkCache.SupportsGpuSurfaceStep(1),
+            Assert.True(GpuSolidChunkCache.SupportsGpuSurfaceStep(1),
                 "Full-resolution surface extraction must be GPU-capable.");
-            Assert.True(CpuTransvoxelChunkCache.SupportsGpuSurfaceStep(2),
+            Assert.True(GpuSolidChunkCache.SupportsGpuSurfaceStep(2),
                 "LOD2 must remain GPU-capable, including its transition-face path.");
-            Assert.False(CpuTransvoxelChunkCache.SupportsGpuSurfaceStep(4),
-                "The step-4 feature-preserving exact/fallback ring stays on CPU until GPU parity exists.");
-            Assert.False(CpuTransvoxelChunkCache.SupportsGpuSurfaceStep(8),
-                "Block HLOD remains the step-8 backend.");
+            Assert.True(GpuSolidChunkCache.SupportsGpuSurfaceStep(4),
+                "Step-4 ordinary extraction and conditional feature preservation must stay on GPU.");
+            Assert.True(GpuSolidChunkCache.SupportsGpuSurfaceStep(8),
+                "Feature-preserving block HLOD now counts and writes in the GPU page arena.");
         }
 
         [Test]
@@ -58,14 +47,14 @@ namespace VoxelEngine.Tests.EditMode
 
             Assert.True(counts.Unsupported);
             Assert.False(counts.IsEmpty,
-                "An unsupported decorated/faceted chunk must take the CPU fidelity path; "
+                "Unsupported GPU extraction must remain an explicit failure; "
               + "publishing it as empty would create a visible hole.");
         }
 
         [Test]
         public void SceneIssue20260823014011920GpuLod2CarriesInnerTransitionFaceMask()
         {
-            using var cache = new CpuTransvoxelChunkCache(sourceStep: 2)
+            using var cache = new GpuSolidChunkCache(sourceStep: 2)
             {
                 MinViewDistanceMetres = 130f
             };

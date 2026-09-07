@@ -70,7 +70,7 @@ namespace VoxelEngine.Tests.EditMode
             // admission path. Water and mutation invalidation continue to receive the original
             // coordinates. The production scheduler establishes the clipmap slot window before
             // discovery, so the focused cache fixture must mirror that precondition.
-            using var cache = new CpuTransvoxelChunkCache(sourceStep: 4);
+            using var cache = new GpuSolidChunkCache(sourceStep: 4);
             cache.SetClipmapWindow(int3.zero, 1);
             var canonical = new List<int3>
             {
@@ -136,7 +136,7 @@ namespace VoxelEngine.Tests.EditMode
                     int3 chunk = SurfaceDiscoveryChunkOwner.OwningChunk(
                         canonical, bricksPerChunk);
                     Assert.AreEqual(shard,
-                        CpuTransvoxelChunkCache.ShardForChunk(chunk, buckets.Length),
+                        GpuSolidChunkCache.ShardForChunk(chunk, buckets.Length),
                         $"Canonical chunk {chunk} was routed to a shard that cannot admit it.");
                     Assert.True(routedChunks.Add(chunk),
                         $"Chunk {chunk} was routed more than once in one discovery publication.");

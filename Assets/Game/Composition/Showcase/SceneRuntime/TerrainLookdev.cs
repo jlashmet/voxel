@@ -60,7 +60,7 @@ namespace VoxelEngine.Showcase
             _storage.RegisterMaterial(Mat.Sand, 28, DestructionClass.Powder,
                               SurfaceStyles.Smooth, weather);
             // Limestone and pavers deliberately use the production faceted path. Planar styles
-            // are emitted as merged faces by CpuTransvoxelChunkCache instead of being melted by
+            // are emitted as merged faces by GpuSolidChunkCache instead of being melted by
             // continuous rounded reconstruction, which gives the reference's squat cuboid rocks.
             _storage.RegisterMaterial(Mat.TerrainLimestone, 210, DestructionClass.Crumble,
                               SurfaceStyles.Planar, weather);

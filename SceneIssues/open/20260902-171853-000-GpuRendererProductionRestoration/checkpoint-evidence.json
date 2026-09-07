@@ -1,0 +1,257 @@
+{
+  "status": "unfinished checkpoint for draft PR",
+  "sourceParentHead": "5a511cb9f80dec9a606f3d26002e3d6fb24022b0",
+  "sourceSha256": {
+    "Assets/Game/Composition/Showcase/SceneRuntime/ShowcaseFarFeatureRuntime.cs": "d501fec3f7ab367cf3d73c8c4806201093acab849199ff93e790d34a9e49c6de",
+    "Assets/Game/Composition/Showcase/SceneRuntime/ShowcaseFarFeatureRuntime.cs.meta": "3568a1593a14e66492a33f2bb01c8ba17757ce0b451e20df75b978c475947083",
+    "Assets/Game/Composition/Showcase/SceneRuntime/ShowcaseFarFeatureStateAdapter.cs": "973a11e66ac954401dd3afe71ce84eb01a700c1cd02ef2df883f151efe665b4d",
+    "Assets/Game/Composition/Showcase/SceneRuntime/ShowcaseFarFeatureStateAdapter.cs.meta": "6e92b6efed7fb2ef164e104e620462c94b990cebb228a2e8c694cafd4ea0669e",
+    "Assets/Game/Composition/Showcase/SceneRuntime/ShowcasePlayerHarness.cs": "00da736ea2dbbe48adfcfb3b53c47b22492ab68591af56febb97a6bbf51a1734",
+    "Assets/Game/Composition/Showcase/SceneRuntime/ShowcasePlayerHarness.cs.meta": "d80ac45f8585ce81da10fad2b72a011da2d4bf380523fda91846858596c6b8c5",
+    "Assets/Game/Composition/Showcase/SceneRuntime/Tests/EditMode/ShowcaseFarFeatureStateAdapterTests.cs": "6b017b28ca21a26426b09ac4b854424a769e4542427bd059032734d35cf79ecd",
+    "Assets/Game/Composition/Showcase/SceneRuntime/Tests/EditMode/ShowcaseFarFeatureStateAdapterTests.cs.meta": "f13b0fe5c7ec7b7eb41fa5a1fc55bf1b2c91020ab61d411ae64407af8a797f30",
+    "Assets/Game/WorldBuilder/Api/StructureVisualState.cs": "501b4eb2364aa2fdac5d9d424312ed0e8baa64d9084062a543a5d45bd487fe95",
+    "Assets/Game/WorldBuilder/Api/StructureVisualState.cs.meta": "a300ab7ee226318653b1b790599c92df233e238cb785d5395e94f5957539ea4a",
+    "Assets/Game/WorldBuilder/Runtime/StructureVisualStateStore.cs": "3e855f564cb6239de3ae4b9343120ceef58942c16a8832a71d30022dce4338c3",
+    "Assets/Game/WorldBuilder/Runtime/StructureVisualStateStore.cs.meta": "9e4975f7d2cd8bc0a80ba52dd64ece1893a4f8fbe07a090755c8b1981c235973",
+    "Assets/Game/WorldBuilder/Tests/EditMode/StructureVisualStatePersistenceTests.cs": "caddbe7f567e1bd892ac5b799444325a5791102e12cac46a0316b0c71521c7ef",
+    "Assets/Game/WorldBuilder/Tests/EditMode/StructureVisualStatePersistenceTests.cs.meta": "167c7ada32a14a2eb565cc72c05d40dd663ea889db87d07da5566efb29c1c003",
+    "Assets/VoxelEngine/Composition/FarFeaturePresentationSelection.cs": "5a3e461d1b7bc253df75181f6fb3996f2b3976f740a5bc2cbf05ab1e92303237",
+    "Assets/VoxelEngine/Composition/FarFeaturePresentationSelection.cs.meta": "961b32be47056f77da49eef432070e7c018693b49f3912a79b38f92fa68d774d",
+    "Assets/VoxelEngine/Composition/Tests/EditMode/FarFeaturePresentationCacheTests.cs": "f0195a182ee73aa30c6d3c4b6cc17e64e04d63d201bd9b4afa6f1d7b1cfcdf75",
+    "Assets/VoxelEngine/Composition/Tests/EditMode/FarFeaturePresentationCacheTests.cs.meta": "df202c7246c64d3ca972ae366ac52fa15d6ed34c63674b434a83ea9644f46d4f",
+    "Assets/VoxelEngine/Composition/Validation/FarModifiers/FarModifierCompositionValidation.cs": "91949144e7d9ff21e4a66fb219f6c3aa3784d3d43d7c0e2637e39c3556d563d2",
+    "Assets/VoxelEngine/Composition/Validation/FarModifiers/FarModifierCompositionValidation.cs.meta": "49ba8297183882baae8e11aeb2ab6738241ba6634165ce40d519869ee5828d81",
+    "Assets/VoxelEngine/Rendering/Api/FarFeatureSelectionSettings.cs": "6e21f8c180b6214ebc7fa3b3324046db37afad2c5815a88c9fe0d92a4347c833",
+    "Assets/VoxelEngine/Rendering/Api/FarFeatureSelectionSettings.cs.meta": "a326d1f83c7335b4e4c33561b85f1d9bd8455f74ce1f05fdc16c5f18176574fa",
+    "Assets/VoxelEngine/Rendering/Api/FarWorldRendering.cs.meta": "e0c373431733d78dea6641442b829cc5c89a856b5cdc3acaf76b072a6d3c5fd4",
+    "Assets/VoxelEngine/Rendering/Resources/GpuFarCoverage.compute": "7adeaf5849fa2f340129a4d82aa31bdcc8071dfc93826429ab8ef427c323f784",
+    "Assets/VoxelEngine/Rendering/Resources/GpuFarCoverage.compute.meta": "b28995794283ef00b94bb0584921e43fcc4c3fd5b7d274341a5521713d61cdbc",
+    "Assets/VoxelEngine/Rendering/Resources/GpuFarFeatureLit.shader": "4b29a8b9345f9f180c341b594480f5a42e55c5ef20ff25db90e76a2ab3d1bfe1",
+    "Assets/VoxelEngine/Rendering/Resources/GpuFarFeatureLit.shader.meta": "c6375c320d83b8e3ea31e75a83bcf6c6e4645e5c700a7bd7ac941549e94604d6",
+    "Assets/VoxelEngine/Rendering/Resources/GpuFarInstanceCompact.compute": "e0ddf15d59b45eb06fb2cb78570cc0ed4756150f4a3cd6b19005250afb1d61ba",
+    "Assets/VoxelEngine/Rendering/Resources/GpuFarInstanceCompact.compute.meta": "8863140a08f5aa92ffa7ae683a2b0d4e38b8218d2d9897e34a11ec08e52093b0",
+    "Assets/VoxelEngine/Rendering/Resources/GpuFarMaterialCompact.compute": "4bf388c50aca4aab7fb18a09485b1b7926fd379cdf351f10766ae94ef66afe99",
+    "Assets/VoxelEngine/Rendering/Resources/GpuFarMaterialCompact.compute.meta": "7b87a32330f3afd600a7b343e24501df35239270992e390d3ce8ca39485cc2ff",
+    "Assets/VoxelEngine/Rendering/Resources/GpuFarSelection.compute": "08cbbfb7900cabc890ba037db39af06855a74babb305d60a49eae5e74997e454",
+    "Assets/VoxelEngine/Rendering/Resources/GpuFarSelection.compute.meta": "7e32df9bff20fc4584082ba1c732434ea1788e892e66f3221a3399f9390c0292",
+    "Assets/VoxelEngine/Rendering/Resources/GpuSurfaceDiscovery.compute": "909cfbe3dc24d02d951b01d3c1a8870612e54b1ab9df26be65e88096e7551d15",
+    "Assets/VoxelEngine/Rendering/Resources/GpuSurfaceDiscovery.compute.meta": "ade4fceef9b0ac0e74c0587e173fa2af2212818af67f68a9aa67651d0c37488b",
+    "Assets/VoxelEngine/Rendering/Resources/GpuSurfaceDiscovery.hlsl": "9a9b48373eda22f85fd75c32ebf77bcc531dfe94552b769f087ecf964d55cf8c",
+    "Assets/VoxelEngine/Rendering/Resources/GpuSurfaceDiscovery.hlsl.meta": "c41e966c10bdc2c65eeaa47d5475853aa93f4806030a796f82901929f082756f",
+    "Assets/VoxelEngine/Rendering/Resources/GpuSurfaceDrawCompact.compute": "f17d286656302e782cdf5f68f7fd25d6ed7bd43235d5119b0f944fdc8f611ffc",
+    "Assets/VoxelEngine/Rendering/Resources/GpuSurfaceDrawCompact.compute.meta": "df8e4d9b0fb701a0ffaf2e475758c4771f95dc290f35749cf6403c7c2c696de6",
+    "Assets/VoxelEngine/Rendering/Resources/GpuSurfaceIndexCompact.compute": "d5e14523d14957274d09a0ad30959c07312a9def6bc39376b7bb61401e57c181",
+    "Assets/VoxelEngine/Rendering/Resources/GpuSurfaceIndexCompact.compute.meta": "17f64a94239acfe7052aa5fea72c38e10b1b33c089daffc1771a305b70612864",
+    "Assets/VoxelEngine/Rendering/Resources/GpuSurfacePageArena.compute": "611a0331d9b2e241b4946e7f50ecab1b643a73849920188db0f9979af5649fc6",
+    "Assets/VoxelEngine/Rendering/Resources/GpuSurfacePageArena.compute.meta": "8845799695a3d8997a909a16bc4229182bb8ab54a0fa4a95a1f8ea58ae048ce5",
+    "Assets/VoxelEngine/Rendering/Resources/GpuSurfacePressure.compute": "7866620041bc6a1a90eb8c0a80b57e587c44f0a206e0fcc8552d5ec1126286db",
+    "Assets/VoxelEngine/Rendering/Resources/GpuSurfacePressure.compute.meta": "cde87e8e5e277e3f75beac1fce76a1184fe9d9636a96e320074bc4575681f429",
+    "Assets/VoxelEngine/Rendering/Runtime/FarWorld.meta": "737c6027f563b847dd2e3d81ca113ead92ed495ad6f941be276280dcd87c6190",
+    "Assets/VoxelEngine/Rendering/Runtime/FarWorld/GpuFarDrawSet.cs": "693eea050a324459df3e860d01a52253fd1b9c9016f12858f903b664caf0ca3d",
+    "Assets/VoxelEngine/Rendering/Runtime/FarWorld/GpuFarDrawSet.cs.meta": "b928337c9dab7200349ac1a57c7e365334f10ee407c8382f510d33a63c643340",
+    "Assets/VoxelEngine/Rendering/Runtime/FarWorld/GpuFarInstanceBatch.cs": "19a76f692a2a853b797607810fcdf53709178e5fcb0f7e31ea908246bec74dd5",
+    "Assets/VoxelEngine/Rendering/Runtime/FarWorld/GpuFarInstanceBatch.cs.meta": "2cf14b6c50a5ab854655f45bcf317a25071b8d1d4c526ffd71627ed98a6e0bd0",
+    "Assets/VoxelEngine/Rendering/Runtime/FarWorld/GpuFarMaterialDraws.cs": "6d184f07711f8b02fff0328ed4411217de840384e7dbe0fe9ce2d771c3bfbded",
+    "Assets/VoxelEngine/Rendering/Runtime/FarWorld/GpuFarMaterialDraws.cs.meta": "c574a4810f282f0b2e23773cf9fe6bdb10909e872cd7fa990e6c6afe1eb00291",
+    "Assets/VoxelEngine/Rendering/Runtime/FarWorld/ProceduralFarFeatureRenderer.cs": "7b1f8e1e3ad10d7b19d6c12db27a496d14871561e7472516372b3d5b1d24cb49",
+    "Assets/VoxelEngine/Rendering/Runtime/FarWorld/ProceduralFarFeatureRenderer.cs.meta": "1a69573fd1761a248d5ab01426aaef742978bf462a78ec649113d4deaba36b93",
+    "Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/GpuFarCoverageDispatcher.cs": "d3b0a6ece78c42a0240c896eda644dda2c24bcdff457cdab9c572dc0b3b8c0ab",
+    "Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/GpuFarCoverageDispatcher.cs.meta": "9315a366704061cf8b7c85c2ee0ccb5aa756e1a6996f26e1909d40bc9e298cdf",
+    "Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/GpuFarSelectionDispatcher.cs": "9b6c248d18812d9eef149d339deca3b2b153eeb34e6c20293dd3a6ce9762294f",
+    "Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/GpuFarSelectionDispatcher.cs.meta": "344cd310f5d93c6f2d68c04369daaba7b4217a3261a2b6ef9a42bc7c722fdd0e",
+    "Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/GpuSurfaceDrawDispatcher.cs": "5b2d672757444d120393c23f3927637e1947271a1bd8857de074793ed5138d19",
+    "Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/GpuSurfaceDrawDispatcher.cs.meta": "4b08d8e3693895fffc0e33e97c843a309a6f52e1129d60554772a63c9d2db191",
+    "Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/GpuSurfaceExtractionContext.cs": "1a8a974c21cd0c69bbfee80cb42d034bdd848930b744ac166361dd480e9beba4",
+    "Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/GpuSurfaceExtractionContext.cs.meta": "e1371e85e0bc68d63d756947972bf351cb13fdbb39a2b04a63838344de302edc",
+    "Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/GpuSurfaceIndexDispatcher.cs": "3eb6397027ceeb35cb321c7a196f3ecb5c345bce061731bcbbc95dee82060221",
+    "Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/GpuSurfaceIndexDispatcher.cs.meta": "ce6aff3701d7a8dda2e9f50ea62cfcfc5259aec4e96b7af7eb9ccbcd781a1cdf",
+    "Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/GpuSurfaceMirrorCoordinator.cs": "f76162b3c93954b91bc6e601713471872e9c0e82ea0d8d2c238a89377ef6a545",
+    "Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/GpuSurfaceMirrorCoordinator.cs.meta": "35bd8ec0c29a859109a986ea4f8daa34b71d263c744903554a30681247d96d0d",
+    "Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/GpuSurfacePageArena.cs": "490b9ec5a1085b654f4b30b4fec09aba8c35a0151a616ddb41a8ecb353e00902",
+    "Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/GpuSurfacePageArena.cs.meta": "5f55b7114b0f1a0807a36e9e3265785264c68805c29229347bf68c0789f6a698",
+    "Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/GpuSurfacePressureDispatcher.cs": "223e46e8006c49246eb87b1a668dec710a18631f0981499e82492c034c843c86",
+    "Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/GpuSurfacePressureDispatcher.cs.meta": "7fcd5f467f9ea97986644c9e83a3a5a5f9e01e0218a38ddd305ed72b1e1cba4e",
+    "Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelRenderPass.cs": "de8aab8770475b17870f84fa27a79502272468033004abfcb7a24f0bf778e742",
+    "Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelRenderPass.cs.meta": "05b458be84095825928f9501f38f5ee4ea336062fbfaf5b3b4d92914f7732602",
+    "Assets/VoxelEngine/Rendering/Runtime/Shaders/SmoothSurface.shader": "04a2a79e3a21603be73890e17fbba9d3877e7a2bb90b433eef844f40e4712aef",
+    "Assets/VoxelEngine/Rendering/Runtime/Shaders/SmoothSurface.shader.meta": "59aa2a5453864bdee066beca32a7a899f322d6c390d313ce34997a0b3981e75b",
+    "Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/GpuSolidChunkCache.cs": "dbcfd3e286fb182bb65bc6642bdafcea17c4809526a3e2522f57adff1dba8911",
+    "Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/GpuSolidChunkCache.cs.meta": "5bacfd2583a73e8eef8c92254442b30b734e75cdd4dc3bab4cb99284d6952838",
+    "Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/SurfaceDiscoveryCoverage.cs": "6864c8e7d32b076b443946c7ae7fa13d8d907421742e3baf61f32c809bd071c6",
+    "Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/SurfaceDiscoveryCoverage.cs.meta": "f35c7cee69e6f1ef200a61180910a21e7359f8e2316adbd81d781f57f5b9d46b",
+    "Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs": "279f693d011d4c5372b9079803ae63fbe21e1273703caca6ce7aa7c75b8ec471",
+    "Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs.meta": "c20f0306dddfe50671e4d2a9fde30035d6ef9b1fdae76b935061a5c18a88fa6a",
+    "Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelTiming.cs": "a8e98b46701ff0228679e021ad79535295f54da8398573c580219e0c40ae15ba",
+    "Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelTiming.cs.meta": "d53ef56b7050e4f54290b600589a8af3c97a9ca07b8dd67226b163786ad0fdec",
+    "Assets/VoxelEngine/Rendering/Tests.meta": "9410e258bf66563190db5a9cf02f8b4e31eb532d050eed7f6a35988e0111d875",
+    "Assets/VoxelEngine/Rendering/Tests/EditMode.meta": "5677b6823c9fa8e4410aa79a87d8793feae1ad3346b32623405d33eb082cb559",
+    "Assets/VoxelEngine/Rendering/Tests/EditMode/GeometryPipelineArchitectureTests.cs": "d61fd7b4def566e3eab267fca9e565d28ced7b315f067f60362497b453f32134",
+    "Assets/VoxelEngine/Rendering/Tests/EditMode/GeometryPipelineArchitectureTests.cs.meta": "e0d19d5cc0c159c8bf636bfca85a7cb639683721b7e63395e0fb7cb2455e19a0",
+    "Assets/VoxelEngine/Rendering/Tests/EditMode/GpuFarCoverageDispatcherTests.cs": "0904c30329765f2cdb22c4dff52281868a05cbb337eb5a9eae8173424c916fe2",
+    "Assets/VoxelEngine/Rendering/Tests/EditMode/GpuFarCoverageDispatcherTests.cs.meta": "5bd9044ff48a375760c1fe8967d624399fd1566acd3d0d40edf7d2a30212a4d7",
+    "Assets/VoxelEngine/Rendering/Tests/EditMode/GpuFarInstanceBatchTests.cs": "3182693cc40e7207adea1b781895718b8f46483761c6fb90b5682af692a1ea80",
+    "Assets/VoxelEngine/Rendering/Tests/EditMode/GpuFarInstanceBatchTests.cs.meta": "460291ee9667df1de7b5863742e0c160276ed25d19a37174b8fa0ab90cfc24c5",
+    "Assets/VoxelEngine/Rendering/Tests/EditMode/GpuFarSelectionDispatcherTests.cs": "34cf4490984b252c7b3aa02a72ec274eaf2222b1d91c2efa0df0d5fc6b020471",
+    "Assets/VoxelEngine/Rendering/Tests/EditMode/GpuFarSelectionDispatcherTests.cs.meta": "3def6c32d9d8297d5f14163ea710843adf58607eb6800e185d8095c934259329",
+    "Assets/VoxelEngine/Rendering/Tests/EditMode/GpuLod2CutoverPolicyTests.cs.meta": "9367badb312e33db7e7a84eb6c39db87f3bfd3a0d124994ebbf086a8893b2e4e",
+    "Assets/VoxelEngine/Rendering/Tests/EditMode/GpuPageArenaHandleCommandTests.cs": "c0a9925e0bf163f71108e7ffbc015a9b02bee0d517e7d610246156ffb11f2134",
+    "Assets/VoxelEngine/Rendering/Tests/EditMode/GpuPageArenaHandleCommandTests.cs.meta": "a069896b52e9c172bb5bea9a9d2f3c5bea738db45d29d69810cb03877f6f28fe",
+    "Assets/VoxelEngine/Rendering/Tests/EditMode/GpuPagedPublicationTransactionTests.cs": "6a0deaf63d0c3dfdb3a2984ebc10f1b96e62f04954a47a6c5ceb8f7e7a416f7e",
+    "Assets/VoxelEngine/Rendering/Tests/EditMode/GpuPagedPublicationTransactionTests.cs.meta": "31a9d931333a1ae4c2aa5c598d95262624552394836093bd511c28843a3ba02d",
+    "Assets/VoxelEngine/Rendering/Tests/EditMode/GpuSurfaceDrawDispatcherScaleTests.cs": "fa85ec3ff0d8cce065576b10e62782100da6f2148018db89c5eb7ecd99919ecd",
+    "Assets/VoxelEngine/Rendering/Tests/EditMode/GpuSurfaceDrawDispatcherScaleTests.cs.meta": "a6c3020b18608a64619f79adaea9b8808c29be43bd9f58dd60a5016fabc79df5",
+    "Assets/VoxelEngine/Rendering/Tests/EditMode/GpuSurfaceEligibilitySemanticTests.cs.meta": "be853635482864aebad80d008329dac0092166382f730b298fd475ca7384d4c2",
+    "Assets/VoxelEngine/Rendering/Tests/EditMode/GpuSurfaceLodSelectionTests.cs": "2e5a84575927e19f71275e2e61a1c537fae6e36b99852bdbacfeddb80dba7788",
+    "Assets/VoxelEngine/Rendering/Tests/EditMode/GpuSurfaceLodSelectionTests.cs.meta": "53e9291f3550710d334dde38c8e1dd71aa56d7a390351a7bc5efdf5bc95cb23f",
+    "Assets/VoxelEngine/Rendering/Tests/EditMode/GpuWaterSurfaceChunkCacheTests.cs": "2a205af5cc99b4744fc35f50f842955b7ecf0bc623f1cd8d1b6f6d5af7b74a68",
+    "Assets/VoxelEngine/Rendering/Tests/EditMode/GpuWaterSurfaceChunkCacheTests.cs.meta": "55e16173d142ae8b593cfbc6aa74862740fa9e855f5283c554c0cb785240fcf7",
+    "Assets/VoxelEngine/Rendering/Tests/EditMode/SolidRenderDiagnosticsArchitectureTests.cs": "bb9231db4752560ad1f62ff537cd1d470baa628115576587ca7b687604e54ddb",
+    "Assets/VoxelEngine/Rendering/Tests/EditMode/SolidRenderDiagnosticsArchitectureTests.cs.meta": "acfb8f8bbc722b3c203b428fa3fbc09354808069878ad35052349051caa10229",
+    "Assets/VoxelEngine/Rendering/Tests/EditMode/SurfaceDiscoveryCoverageTests.cs": "30938f97cd54f81fd4fc1aa233b8564ffacdedcf3859279fc908f583a94d8eba",
+    "Assets/VoxelEngine/Rendering/Tests/EditMode/SurfaceDiscoveryCoverageTests.cs.meta": "27021248830d4fc2f2d8f987f36fd9b7627a653041568e28ec646ff8d4eab153",
+    "Assets/VoxelEngine/Rendering/Tests/EditMode/SurfaceVisibilityGeometryCacheTests.cs": "64a7b1e72a66bc092446bcd483bb2c407805e0f76df8f909ddd6e0c0e81009ce",
+    "Assets/VoxelEngine/Rendering/Tests/EditMode/SurfaceVisibilityGeometryCacheTests.cs.meta": "be156720231fccdb4c5f289e77afcb22110dc68c9c1d68934e2bb0760f906caf",
+    "Assets/VoxelEngine/Rendering/Tests/EditMode/VoxelSurfaceArchitectureTests.cs": "9eeea7938e6b9c74f376473a6a94f4b12189a5d6909d4d431450efaf47b94adf",
+    "Assets/VoxelEngine/Rendering/Tests/EditMode/VoxelSurfaceArchitectureTests.cs.meta": "d45ba497424f6f3af80a44598c808cf0bf1d281f1420d9815f17fb50599cd7da",
+    "Assets/VoxelEngine/Rendering/Validation.meta": "c92bc323853b8e5754c39ccfbf93dc5e97b1fc7982d7c7c0ab4b3aabfce7af71",
+    "Assets/VoxelEngine/Rendering/Validation/FarWorld.meta": "baf8ef9bdb0514046fde6eb645a2576b7e715a9e9bfeb64080e2bd8d860b2b2f",
+    "Assets/VoxelEngine/Rendering/Validation/FarWorld/FarWorldVisibilityDemo.player-scenario.json.meta": "7446fe924c10045d584f900417267ff86d8413693082cbe55e36ef453bf971cc",
+    "Assets/VoxelEngine/Rendering/Validation/FarWorld/FarWorldVisibilityDemo.unity.meta": "23e19bc3a02ca06b3d4735f4168115865fcc5eae404e5faaa966c974c928e7a2",
+    "Assets/VoxelEngine/Rendering/Validation/SolidGpu.meta": "626bdaa5f037f281055ee24f609e155c837321854b6a52a723e9c9e58e2959d7",
+    "Assets/VoxelEngine/Rendering/Validation/SolidGpu/SolidGpuMinimalValidation.player-scenario.json.meta": "c4cd57ebd7bbedf823a37db68620ad8036150619b8f4fee543bee32b188dc23b",
+    "Assets/VoxelEngine/Rendering/Validation/SolidGpu/SolidGpuMinimalValidation.unity.meta": "664835c6837130d2758b35649c3cbf940827ab167f2a3916bcb8e1e662a27e88",
+    "Assets/VoxelEngine/Rendering/Validation/SolidGpu/SolidGpuProductionValidation.cs": "679ca3a97525bf3ca0658822c15cf08b1de866124c76c8b16c22fa538480060b",
+    "Assets/VoxelEngine/Rendering/Validation/SolidGpu/SolidGpuProductionValidation.cs.meta": "0cbcc8d2795bde8f06f56591f287e50f1b415324667dc2e8971789668cc33a4f",
+    "Assets/VoxelEngine/Rendering/Validation/SolidGpu/SolidGpuProductionValidation.player-scenario.json.meta": "adc0ecf38d537dff4ca8794985a95d50e53560131e273bac5fb647584a80c37f",
+    "Assets/VoxelEngine/Rendering/Validation/SolidGpu/SolidGpuProductionValidation.unity.meta": "27464f1323e33d1b82937373fa7fdc30de4ac2a9532270496ee64cf5b332ee57",
+    "Assets/VoxelEngine/Rendering/Validation/Water.meta": "f2e4f7d3821d0862fcaf103e1a8f6bad03828957ed939be21a846f588090197e",
+    "Assets/VoxelEngine/Rendering/Validation/Water/WaterDemo.player-scenario.json.meta": "ee4f94a18ab7069ee3f4d07dee329fe63d7b3ec1a993dc136ce08a10240f4817",
+    "Assets/VoxelEngine/Rendering/Validation/Water/WaterDemo.unity.meta": "73ad022d7944c7afc53df1e934edcb5788202f491b236161b3f7a804e50f9d88",
+    "Assets/VoxelEngine/Structures/Api/FeaturePresentationSource.cs": "8e5e2ff14e8322b31ce42e90f82d86fb66547bd3cfc01cb533d32f4a7eb94876",
+    "Assets/VoxelEngine/Structures/Api/FeaturePresentationSource.cs.meta": "44daace92c0705bfe2cfa99e281c57c2bf6c65dd5ae70aceab8d42af9232daf0",
+    "Assets/VoxelEngine/Structures/Runtime/FeaturePresentationManifest.cs": "a9f187abd9675b66ee7879b754fd96777d7415bc3c7f230ae9593b7af1cf4606",
+    "Assets/VoxelEngine/Structures/Runtime/FeaturePresentationManifest.cs.meta": "23d981a2c611c732880a07c4b79ed088ac9315a1b26da017225cad42d7339375",
+    "Assets/VoxelEngine/Structures/Tests/EditMode/FeaturePresentationManifestRevisionTests.cs": "0de239bed92eb5c8d79ab19d17461570edb743a0598e78bfce87f9138aac5eb3",
+    "Assets/VoxelEngine/Structures/Tests/EditMode/FeaturePresentationManifestRevisionTests.cs.meta": "17766bf0a1f23b0984236e1cebda6cd978071b3660c7dae7b96e828cf7068cfd"
+  },
+  "renderingEditMode": {
+    "total": "566",
+    "passed": "566",
+    "failed": "0",
+    "skipped": "0",
+    "start-time": "2026-09-07 13:28:48Z",
+    "end-time": "2026-09-07 13:28:58Z"
+  },
+  "localPlayerArtifact": "Artifacts/LocalGpuShowcase/gpu-capacity-bounded-showcase",
+  "completionEvidence": "verification-final.png exists; harness writes it after successful player exit, log-pattern, capture-count and dimension checks",
+  "screenshotCount": 11,
+  "benchmark": {
+    "stationary": {
+      "samples": 30,
+      "approx_fps": 172.17333333333332,
+      "median_cpu_p50_ms": 5.234999999999999,
+      "median_gpu_p50_ms": 22.23
+    },
+    "walking": {
+      "samples": 60,
+      "approx_fps": 429.56666666666666,
+      "median_cpu_p50_ms": 1.72,
+      "median_gpu_p50_ms": 4.91
+    },
+    "final_pressure": {
+      "missing_visible": 293,
+      "allocation_failures": 48,
+      "evictions": 48
+    }
+  },
+  "finalRingDiagnostics": "RINGS arena[cpu=retired] missingVisible=293 prepare[total=6.28 invalidate=0.00 discover=0.12 admit=0.43 visible=5.22 cand=5993 drawn=0] visibility[traverse=1.343 select=0.039 water=0.005 dispatch=3.835] gpuSelection[candidates=2549 nodes=5993 inputCpu=3.792 uploadedNodes=5993 refresh=5357 reuse=43732] gpuDemand[accepted=12461 discarded=1629 errors=0 resets=3029 refresh=9020385 rank=10373362 unqueued=0 applyMs=0.000] mirrorCpu[sync=0.000 recovery=0.000 blocks=0 flush=0.000 advance=0.037] gpuPressure[allocFail=48 evicted=48 capacityDispatch=0 allocationDispatch=38] exits[known=5993 inBand=2449 frustum=295] gpu[req=4250 mirror=4246 count=0 write=0 copy=0 pub=4190 empty=0 unsupported=0 unsupportedReconstruction=0 unsupportedDecoration=0 stale=0 retry=0 countBatch=4246/2835 batchArenaWait=798 coverage[ready=40270 pending=0 demand=9 coreAbsent=0 historyReject=0 changedReject=0 rounds=0/0 polls=0 regions=0/0 mixed=40270/40270 noSlot=483193 slotChecks=0 directory=1048576 dirRefused=0 dirProbes=544691 stale=0 lastFailure=Uploaded recovery[active=51718 borrow=0 block=0 published=523463 lastRegion=int3(-2, 0, -1) calls=49048 deadlineSkips=0]] dispatchMs[countMax=0.000 writeMax=0.000 copyMax=0.000 pollMax=0.000] flight=12 phases=0x6 oldestMs=7461.0 oldest[step=8 origin=int3(-257, -1, -193) edge=66 source=GPU restarts=0]] step1[0-57.6m res=1231 known=3298 gpuPub=2714] step2[57.6-115.2m res=1134 known=1774 gpuPub=1251] step4[115.2-172.8m res=173 known=652 gpuPub=209] step8[172.8-409.6m res=11 known=269 gpuPub=16]",
+  "reviewedImages": [
+    "showcase-004-t076.6s-stationary.png",
+    "showcase-009-t151.6s-walking.png"
+  ],
+  "visualClassification": "unacceptable: terrain gaps/seams, sparse vegetation and incomplete houses",
+  "remoteValidation": "Not verified against current origin/master; no merge readiness claim",
+  "metadataWhitespaceNormalizationAfterValidation": {
+    "Assets/Game/Composition/Showcase/SceneRuntime/Tests/EditMode/ShowcaseFarFeatureStateAdapterTests.cs.meta": {
+      "testedOrGeneratedSha256": "f13b0fe5c7ec7b7eb41fa5a1fc55bf1b2c91020ab61d411ae64407af8a797f30",
+      "committedSha256": "f2cb2c29e3e86669ac339b961bba9921638c2c333116be09716d3573651b20be"
+    },
+    "Assets/Game/WorldBuilder/Tests.meta": {
+      "testedOrGeneratedSha256": "7af1788e2cd7027dc30fc1e3eba846b28859653b9847672cecd8e38428fdd796",
+      "committedSha256": "f7e5380d7aac35c212155dc02525214567efb48a450b66b1647302d826b39975"
+    },
+    "Assets/Game/WorldBuilder/Tests/EditMode.meta": {
+      "testedOrGeneratedSha256": "ba5a641f2e73db7010b2416f5fe0bfb5795754bfce255c0ce08d9655f8c3e513",
+      "committedSha256": "da7ced61769ea29fa4dd3ee46ba8e9579809e4d88cb57994341770af5f82aedd"
+    },
+    "Assets/VoxelEngine/Composition/FarFeaturePresentationSelection.cs.meta": {
+      "testedOrGeneratedSha256": "961b32be47056f77da49eef432070e7c018693b49f3912a79b38f92fa68d774d",
+      "committedSha256": "7f589b3fec9aaaee95dce254e21cfd262f3c81dd5196c9506c82136b1f8b8ad7"
+    },
+    "Assets/VoxelEngine/Rendering/Resources/GpuFarCoverage.compute.meta": {
+      "testedOrGeneratedSha256": "b28995794283ef00b94bb0584921e43fcc4c3fd5b7d274341a5521713d61cdbc",
+      "committedSha256": "931518e158e7b273d7f996c8970fd38da6563cd7b9cab2127af1104ac2075f6f"
+    },
+    "Assets/VoxelEngine/Rendering/Resources/GpuSurfaceDiscovery.hlsl.meta": {
+      "testedOrGeneratedSha256": "c41e966c10bdc2c65eeaa47d5475853aa93f4806030a796f82901929f082756f",
+      "committedSha256": "e81bfeaca4cdefdead826135afef2af61bc61b05c685d6eca0992def63b81fe7"
+    },
+    "Assets/VoxelEngine/Rendering/Resources/GpuSurfaceIndexCompact.compute.meta": {
+      "testedOrGeneratedSha256": "17f64a94239acfe7052aa5fea72c38e10b1b33c089daffc1771a305b70612864",
+      "committedSha256": "f665fc87735f58ade94518444ea583b08de9c8a1404da17023b5e689310cafb0"
+    },
+    "Assets/VoxelEngine/Rendering/Runtime/FarWorld.meta": {
+      "testedOrGeneratedSha256": "737c6027f563b847dd2e3d81ca113ead92ed495ad6f941be276280dcd87c6190",
+      "committedSha256": "0bb926fad54df38ffbc31ae109fde619c189e93703e5769cc8aa21a8a1a6bed8"
+    },
+    "Assets/VoxelEngine/Rendering/Runtime/FarWorld/GpuFarDrawSet.cs.meta": {
+      "testedOrGeneratedSha256": "b928337c9dab7200349ac1a57c7e365334f10ee407c8382f510d33a63c643340",
+      "committedSha256": "e012c97ad6611a9c244b8042d7e82d62729002f8cf4704338a45a7b4972f3269"
+    },
+    "Assets/VoxelEngine/Rendering/Runtime/FarWorld/ProceduralFarFeatureRenderer.cs.meta": {
+      "testedOrGeneratedSha256": "1a69573fd1761a248d5ab01426aaef742978bf462a78ec649113d4deaba36b93",
+      "committedSha256": "156ec1076abdf6e2ee28ed52b5dd66d76fab7c8678d68a516ac91cd9af0a27a7"
+    },
+    "Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/GpuFarCoverageDispatcher.cs.meta": {
+      "testedOrGeneratedSha256": "9315a366704061cf8b7c85c2ee0ccb5aa756e1a6996f26e1909d40bc9e298cdf",
+      "committedSha256": "c7b7353177a317670cf24226cecb92e3ff2b4e9fe575141e138a9207c12a1b42"
+    },
+    "Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/GpuSurfaceIndexDispatcher.cs.meta": {
+      "testedOrGeneratedSha256": "ce6aff3701d7a8dda2e9f50ea62cfcfc5259aec4e96b7af7eb9ccbcd781a1cdf",
+      "committedSha256": "b80d682ef1610f940df74b741ed511b1837142614e03d01077c6e3c9ebe55651"
+    },
+    "Assets/VoxelEngine/Rendering/Tests.meta": {
+      "testedOrGeneratedSha256": "9410e258bf66563190db5a9cf02f8b4e31eb532d050eed7f6a35988e0111d875",
+      "committedSha256": "e2eb0d2501b85a0351afe660fa22594ce614d1f66b4d78757f0e185d15ae736a"
+    },
+    "Assets/VoxelEngine/Rendering/Tests/EditMode.meta": {
+      "testedOrGeneratedSha256": "5677b6823c9fa8e4410aa79a87d8793feae1ad3346b32623405d33eb082cb559",
+      "committedSha256": "2bd0d1974238d04fae7c1d105c9653984157c61f4579dead735822ae76dcb703"
+    },
+    "Assets/VoxelEngine/Rendering/Tests/EditMode/GpuFarCoverageDispatcherTests.cs.meta": {
+      "testedOrGeneratedSha256": "5bd9044ff48a375760c1fe8967d624399fd1566acd3d0d40edf7d2a30212a4d7",
+      "committedSha256": "43ac72204eeb459e790800ddeb81a582a307c520d3a49a16de01404fdfc00700"
+    },
+    "Assets/VoxelEngine/Rendering/Validation.meta": {
+      "testedOrGeneratedSha256": "c92bc323853b8e5754c39ccfbf93dc5e97b1fc7982d7c7c0ab4b3aabfce7af71",
+      "committedSha256": "3d50ac76393d75e24758cac6fa4d8bc9b0fb1b70312ab73e115c67bf22526bc0"
+    },
+    "Assets/VoxelEngine/Rendering/Validation/SolidGpu.meta": {
+      "testedOrGeneratedSha256": "626bdaa5f037f281055ee24f609e155c837321854b6a52a723e9c9e58e2959d7",
+      "committedSha256": "344135820eede8975314cd411d72914382b4529f67984a62ffa2cae354f489cb"
+    },
+    "Assets/VoxelEngine/Structures/Api/FeaturePresentationSource.cs.meta": {
+      "testedOrGeneratedSha256": "44daace92c0705bfe2cfa99e281c57c2bf6c65dd5ae70aceab8d42af9232daf0",
+      "committedSha256": "790be5f7125c13aa0d86cf8616a5bc4e03bc03ed5a13940e6849f9addc043cfd"
+    },
+    "Assets/VoxelEngine/Structures/Runtime/FeaturePresentationManifest.cs.meta": {
+      "testedOrGeneratedSha256": "23d981a2c611c732880a07c4b79ed088ac9315a1b26da017225cad42d7339375",
+      "committedSha256": "8a66eeb700aa11962546cb4628afb3f817322285bfd836201eb1bf59ae0b4c2b"
+    },
+    "Assets/VoxelEngine/Structures/Tests.meta": {
+      "testedOrGeneratedSha256": "dcb56940dcb9c2b15342924ecf8f03c791b61b103ab911f341e282164a40bca6",
+      "committedSha256": "31c6cd446afe54ad8c5bb8695778734f66bb73dcb2234dc4a6deb3e08b738bb5"
+    }
+  }
+}

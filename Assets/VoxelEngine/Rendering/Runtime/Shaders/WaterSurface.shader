@@ -24,18 +24,7 @@ Shader "Hidden/VoxelEngine/WaterSurface"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
 
-            struct SurfaceVertex
-            {
-                float3 position;
-                float3 normal;
-                uint material;
-                uint active;
-            };
-
-            StructuredBuffer<SurfaceVertex> _SurfaceVertices;
-            StructuredBuffer<uint> _SurfaceIndices;
-            uint _SurfaceIndexBase;
-            uint _SurfaceVertexBase;
+            #include "WaterSurfaceGeometry.hlsl"
 
             TEXTURE2D(_SkyTexture);
             SAMPLER(sampler_SkyTexture);
@@ -63,13 +52,14 @@ Shader "Hidden/VoxelEngine/WaterSurface"
                 float2 sprayUv : TEXCOORD4;
             };
 
-            Varyings Vert(uint vertexID : SV_VertexID)
+            Varyings Vert(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
             {
-                SurfaceVertex vertex = _SurfaceVertices[
-                    _SurfaceVertexBase + _SurfaceIndices[_SurfaceIndexBase + vertexID]];
+                SurfaceVertex vertex;
+                bool valid = LoadWaterSurfaceVertex(vertexID, instanceID, vertex);
                 uint topologyFlags = vertex.material >> 24;
                 Varyings output;
-                output.positionCS = TransformWorldToHClip(vertex.position);
+                output.positionCS = valid ? TransformWorldToHClip(vertex.position)
+                                          : float4(0.0, 0.0, 0.0, 0.0);
                 output.positionWS = vertex.position;
                 output.normalWS = normalize(vertex.normal);
                 output.material = min(vertex.material & 0xFFu, 31u);
@@ -361,18 +351,7 @@ Shader "Hidden/VoxelEngine/WaterSurface"
             #pragma fragment FragSpray
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
-            struct SurfaceVertex
-            {
-                float3 position;
-                float3 normal;
-                uint material;
-                uint active;
-            };
-
-            StructuredBuffer<SurfaceVertex> _SurfaceVertices;
-            StructuredBuffer<uint> _SurfaceIndices;
-            uint _SurfaceIndexBase;
-            uint _SurfaceVertexBase;
+            #include "WaterSurfaceGeometry.hlsl"
             float4 _WaterMotion[32];
             float4 _WaterCascade[32];
             float _WaterTime;
@@ -386,13 +365,14 @@ Shader "Hidden/VoxelEngine/WaterSurface"
                 float2 sprayUv : TEXCOORD3;
             };
 
-            SprayVaryings VertSpray(uint vertexID : SV_VertexID)
+            SprayVaryings VertSpray(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
             {
-                SurfaceVertex vertex = _SurfaceVertices[
-                    _SurfaceVertexBase + _SurfaceIndices[_SurfaceIndexBase + vertexID]];
+                SurfaceVertex vertex;
+                bool valid = LoadWaterSurfaceVertex(vertexID, instanceID, vertex);
                 uint topologyFlags = vertex.material >> 24;
                 SprayVaryings output;
-                output.positionCS = TransformWorldToHClip(vertex.position);
+                output.positionCS = valid ? TransformWorldToHClip(vertex.position)
+                                          : float4(0.0, 0.0, 0.0, 0.0);
                 output.positionWS = vertex.position;
                 output.material = min(vertex.material & 0xFFu, 31u);
                 output.spray = (topologyFlags & 8u) != 0u ? 1.0 : 0.0;

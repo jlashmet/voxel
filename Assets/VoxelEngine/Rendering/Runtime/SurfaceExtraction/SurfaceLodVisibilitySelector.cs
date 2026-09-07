@@ -14,6 +14,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
     /// </summary>
     internal sealed class SurfaceLodVisibilitySelector
     {
+        private readonly List<SurfaceLodNodeKey> _previousDrawable = new();
+        private readonly List<SurfaceLodNodeKey> _previousComplete = new();
+        private bool _hasSelection;
         private readonly HashSet<SurfaceLodNodeKey> _drawable = new();
         private readonly HashSet<SurfaceLodNodeKey> _drawableAncestors = new();
         private readonly HashSet<SurfaceLodNodeKey> _currentComplete = new();
@@ -48,6 +51,14 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             if (currentCompleteNodes == null)
                 throw new ArgumentNullException(nameof(currentCompleteNodes));
 
+            // Compare owned snapshots, not caller list identity: scheduler inputs are reused and
+            // mutated every frame. No world-version proxy can substitute for these exact inputs.
+            if (_hasSelection && Matches(drawableNodes, _previousDrawable)
+                && Matches(currentCompleteNodes, _previousComplete)) return;
+            Copy(drawableNodes, _previousDrawable);
+            Copy(currentCompleteNodes, _previousComplete);
+            _hasSelection = true;
+
             _drawable.Clear();
             _drawableAncestors.Clear();
             _currentComplete.Clear();
@@ -79,6 +90,22 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             {
                 if (!HasDrawableAncestor(node)) SelectDrawableCoverage(node);
             }
+        }
+
+        private static bool Matches(IReadOnlyList<SurfaceLodNodeKey> input,
+                                    List<SurfaceLodNodeKey> previous)
+        {
+            if (input.Count != previous.Count) return false;
+            for (int i = 0; i < input.Count; i++)
+                if (!input[i].Equals(previous[i])) return false;
+            return true;
+        }
+
+        private static void Copy(IReadOnlyList<SurfaceLodNodeKey> input,
+                                 List<SurfaceLodNodeKey> previous)
+        {
+            previous.Clear();
+            for (int i = 0; i < input.Count; i++) previous.Add(input[i]);
         }
 
         private bool HasDrawableAncestor(in SurfaceLodNodeKey node)

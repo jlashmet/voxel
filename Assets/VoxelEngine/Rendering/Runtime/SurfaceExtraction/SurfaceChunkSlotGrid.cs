@@ -24,10 +24,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         public int Capacity => _slots.Length;
         public int ActiveCount { get; private set; }
+        public ulong MembershipVersion { get; private set; }
 
         public void UpdateWindow(int3 centre, int radius)
         {
             int nextRadius = math.max(0, radius);
+            if (_radius != nextRadius || !_centre.Equals(centre)) MembershipVersion++;
             if (_radius != nextRadius)
             {
                 _radius = nextRadius;
@@ -62,6 +64,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     _activeSlotIndices[ActiveCount++] = index;
                 }
                 current.Reinitialize(coordinate, NextGeneration());
+                MembershipVersion++;
             }
 
             slot = current;
@@ -98,6 +101,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 ActiveCount = lastDenseIndex;
             }
             slot.Retire();
+            MembershipVersion++;
         }
 
         public int3 ActiveCoordinateAt(int activeIndex)

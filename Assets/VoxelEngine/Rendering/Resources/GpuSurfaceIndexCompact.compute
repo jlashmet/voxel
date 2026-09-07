@@ -1,0 +1,76 @@
+#pragma kernel CSClearIndexedDraw
+#pragma kernel CSBuildIndexPages
+#pragma kernel CSBuildSelectedIndexPages
+#pragma kernel CSCopyIndexPages
+
+struct PagedDrawMetadata { uint handle; uint indexCount; uint bank; uint padding; };
+StructuredBuffer<PagedDrawMetadata> _PagedDrawMetadata;
+StructuredBuffer<uint> _DrawBucketState;
+StructuredBuffer<uint> _IndexPageTable;
+StructuredBuffer<uint> _VertexPageTable;
+StructuredBuffer<uint> _SurfaceIndices;
+// source physical index page, vertex table base, destination offset, live index count
+RWStructuredBuffer<uint4> _IndexCopyPages;
+RWStructuredBuffer<uint> _IndexedDrawArgs;
+RWStructuredBuffer<uint> _IndexCopyArgs;
+RWByteAddressBuffer _HardwareIndices;
+uint _BucketCount;
+uint _HandleCapacity;
+struct ChunkGeometryRecord
+{
+    uint generationLow; uint generationHigh; uint bank; uint vertexCount;
+    uint indexCount; uint vertexPageCount; uint indexPageCount; uint ready;
+};
+StructuredBuffer<ChunkGeometryRecord> _LiveChunkGeometry;
+StructuredBuffer<uint> _LodSelected;
+
+[numthreads(1,1,1)]
+void CSClearIndexedDraw(uint3 id : SV_DispatchThreadID)
+{
+    _IndexedDrawArgs[0]=0u; _IndexedDrawArgs[1]=1u;
+    _IndexedDrawArgs[2]=0u; _IndexedDrawArgs[3]=0u; _IndexedDrawArgs[4]=0u;
+    _IndexCopyArgs[0]=0u; _IndexCopyArgs[1]=1u; _IndexCopyArgs[2]=1u;
+}
+
+void EmitIndexPages(PagedDrawMetadata draw)
+{
+    uint pageCount=(draw.indexCount+2047u)/2048u;
+    uint outputStart,pageStart;
+    InterlockedAdd(_IndexedDrawArgs[0],draw.indexCount,outputStart);
+    InterlockedAdd(_IndexCopyArgs[0],pageCount,pageStart);
+    uint table=(draw.handle*2u+draw.bank)*512u;
+    for(uint page=0u;page<pageCount;page++)
+        _IndexCopyPages[pageStart+page]=uint4(_IndexPageTable[table+page],table,
+            outputStart+page*2048u,min(2048u,draw.indexCount-page*2048u));
+}
+
+[numthreads(64,1,1)]
+void CSBuildIndexPages(uint3 id : SV_DispatchThreadID)
+{
+    uint last=(_BucketCount-1u)*4u;
+    uint count=_DrawBucketState[last]+_DrawBucketState[last+2u];
+    if(id.x<count)EmitIndexPages(_PagedDrawMetadata[id.x]);
+}
+
+[numthreads(64,1,1)]
+void CSBuildSelectedIndexPages(uint3 id : SV_DispatchThreadID)
+{
+    if(id.x>=_HandleCapacity || _LodSelected[id.x]==0u)return;
+    ChunkGeometryRecord live=_LiveChunkGeometry[id.x];
+    if(live.ready==0u || live.indexCount==0u)return;
+    PagedDrawMetadata draw;
+    draw.handle=id.x; draw.indexCount=live.indexCount; draw.bank=live.bank; draw.padding=0u;
+    EmitIndexPages(draw);
+}
+
+[numthreads(256,1,1)]
+void CSCopyIndexPages(uint3 group : SV_GroupID,uint lane : SV_GroupIndex)
+{
+    uint4 page=_IndexCopyPages[group.x];
+    for(uint index=lane;index<page.w;index+=256u)
+    {
+        uint localVertex=_SurfaceIndices[page.x*2048u+index];
+        uint vertexPage=_VertexPageTable[page.y+localVertex/1024u];
+        _HardwareIndices.Store((page.z+index)*4u,vertexPage*1024u+localVertex%1024u);
+    }
+}

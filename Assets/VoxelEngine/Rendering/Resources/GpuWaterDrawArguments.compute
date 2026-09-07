@@ -1,0 +1,22 @@
+#pragma kernel CSWaterDrawArguments
+
+struct WaterGeometryRecord
+{
+    uint generationLow, generationHigh, bank, vertexCount;
+    uint indexCount, vertexPageCount, indexPageCount, ready;
+};
+StructuredBuffer<WaterGeometryRecord> _LiveChunkGeometry;
+RWStructuredBuffer<uint> _WaterDrawArguments;
+int _WaterHandleCapacity;
+
+[numthreads(64, 1, 1)]
+void CSWaterDrawArguments(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint)_WaterHandleCapacity) return;
+    WaterGeometryRecord live = _LiveChunkGeometry[id.x];
+    uint word = id.x * 4u;
+    _WaterDrawArguments[word] = live.ready != 0u ? live.indexCount : 0u;
+    _WaterDrawArguments[word + 1u] = live.ready != 0u && live.indexCount != 0u ? 1u : 0u;
+    _WaterDrawArguments[word + 2u] = 0u;
+    _WaterDrawArguments[word + 3u] = 0u;
+}

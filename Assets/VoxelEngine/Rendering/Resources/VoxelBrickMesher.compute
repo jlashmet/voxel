@@ -115,18 +115,7 @@ int _BatchIndexAlignment;
 int _VertexCapacity;
 int _IndexCapacity;
 
-struct BatchChunkDescriptor
-{
-    int3 chunkOriginVoxel;
-    int sourceStep;
-    uint transitionFaceMask;
-    float voxelSize;
-    uint handle;
-    uint generationLow;
-    uint generationHigh;
-    uint profileStart;
-    uint profileCount;
-};
+#include "VoxelBatchChunkDescriptor.hlsl"
 StructuredBuffer<BatchChunkDescriptor> _BatchChunks;
 struct GpuProfileBlock
 {
@@ -555,9 +544,9 @@ void CSBatchCountCells(uint3 id : SV_DispatchThreadID)
 }
 
 // ---------------------------------------------------------------------------
-// 2b. Exact Planar/Sharp/Cubic faces. Each thread owns one cell face. This deliberately emits
-// one quad per exposed cell rather than serially greedy-merging a plane: it keeps all 6*N^3 tests
-// parallel and preserves the exact occupied boundary, material, normal and winding semantics.
+// 2b. Exact Planar/Sharp/Cubic faces. A group classifies one bounded 64x64 plane tile
+// in parallel, then its leader greedily merges equal packed attributes. Count and write use
+// the same rectangle walk. Scratch is 16 KiB per group, independent of scene/batch size.
 // ---------------------------------------------------------------------------
 
 int3 FacetedCellFromIndex(int cellIndex)
@@ -604,6 +593,14 @@ bool ClassifyFacetedCellAt(int cellIndex, int3 chunkOrigin, int sourceStep,
     uint material = ReadMaterial(voxel, surface, boundary);
     if (!IsSolidSample(material)) return false;
     surface = ResolveSurface(material, surface);
+    if (sourceStep > 1)
+    {
+        // Coarse density can expose a different material/style between lattice points (for
+        // example a planar roof above smooth masonry). The continuous path consumes that
+        // presentation already; classifying the buried style here leaves neither path owning
+        // the roof. Keep exact centre occupancy, but share the sampled presentation identity.
+        SampleField(voxel, sourceStep, material, surface, boundary);
+    }
     StyleDefinition style = LoadStyle(surface & 0xFFFFu);
     bool materialBlend = IsMaterialBlendSurface(surface);
     displaced = !materialBlend && CoatingDisplacement(surface) != 0.0;
@@ -641,45 +638,102 @@ bool FacetedFaceExposed(int3 voxel, uint boundary, uint reconstruction, bool dis
         face, _SourceStep, axis, sign);
 }
 
-[numthreads(64, 1, 1)]
-void CSCountFacetedFaces(uint3 id : SV_DispatchThreadID)
+#define FACETED_TILE_EDGE 64
+#define FACETED_TILE_CELLS 4096
+groupshared uint FacetedTileMask[FACETED_TILE_CELLS];
+
+void BuildFacetedTile(uint groupIndex, uint threadIndex, int3 chunkOrigin, int sourceStep,
+                      out int face, out int layer, out int2 tileOrigin)
 {
-    if (_Counters[0] != 0u) return;
-    int3 voxel; uint attributes,boundary,reconstruction; bool displaced;
-    if (!ClassifyFacetedCell((int)id.x,voxel,attributes,boundary,reconstruction,displaced)) return;
-    uint faceCount=0u;
-    for(int face=0;face<6;face++)
+    int tiles=(_CellsPerAxis+FACETED_TILE_EDGE-1)/FACETED_TILE_EDGE;
+    int plane=(int)groupIndex/(tiles*tiles);
+    int tile=(int)groupIndex%(tiles*tiles);
+    face=plane/_CellsPerAxis;
+    layer=plane%_CellsPerAxis;
+    tileOrigin=int2(tile%tiles,tile/tiles)*FACETED_TILE_EDGE;
+    int axis=face>>1,axisA=(axis+1)%3,axisB=(axis+2)%3;
+    [loop] for(uint index=threadIndex;index<FACETED_TILE_CELLS;index+=64u)
     {
-        int axis,sign;
-        if(FacetedFaceExposed(voxel,boundary,reconstruction,displaced,face,axis,sign)) faceCount++;
+        int2 uv=tileOrigin+int2(index%FACETED_TILE_EDGE,index/FACETED_TILE_EDGE);
+        uint encoded=0u;
+        if(face<6 && all(uv<_CellsPerAxis))
+        {
+            int3 local=AxisOffsetInt(axis,layer)+AxisOffsetInt(axisA,uv.x)+AxisOffsetInt(axisB,uv.y);
+            int cell=local.x+_CellsPerAxis*(local.y+_CellsPerAxis*local.z);
+            int3 voxel;uint attributes,boundary,reconstruction;bool displaced;
+            int exposedAxis,sign;
+            if(ClassifyFacetedCellAt(cell,chunkOrigin,sourceStep,
+                    voxel,attributes,boundary,reconstruction,displaced)
+                && FacetedFaceExposedAt(voxel,boundary,reconstruction,displaced,
+                    face,sourceStep,exposedAxis,sign)) encoded=attributes+1u;
+        }
+        FacetedTileMask[index]=encoded;
     }
-    if(faceCount==0u) return;
-    uint ignored;
-    InterlockedAdd(_Counters[2], faceCount*4u, ignored);
-    InterlockedAdd(_Counters[3], faceCount*6u, ignored);
+    GroupMemoryBarrierWithGroupSync();
 }
 
-[numthreads(64, 1, 1)]
-void CSBatchCountFacetedFaces(uint3 id : SV_DispatchThreadID)
+bool TakeFacetedRectangle(inout uint cursor,out int2 origin,out int2 size,out uint attributes)
 {
-    uint batch = id.y;
-    int counter = BatchRecordWord(batch);
-    if (_BatchCounters[counter] != 0u) return;
-    BatchChunkDescriptor chunk = _BatchChunks[batch];
-    int3 voxel; uint attributes,boundary,reconstruction; bool displaced;
-    if (!ClassifyFacetedCellAt((int)id.x, chunk.chunkOriginVoxel, chunk.sourceStep,
-            voxel, attributes, boundary, reconstruction, displaced)) return;
-    uint faceCount = 0u;
-    for (int face = 0; face < 6; face++)
+    origin=0;size=0;attributes=0u;
+    while(cursor<FACETED_TILE_CELLS)
     {
-        int axis, sign;
-        if (FacetedFaceExposedAt(voxel, boundary, reconstruction, displaced,
-                face, chunk.sourceStep, axis, sign)) faceCount++;
+        if(FacetedTileMask[cursor]!=0u)break;
+        cursor++;
     }
-    if (faceCount == 0u) return;
+    if(cursor>=FACETED_TILE_CELLS)return false;
+    uint encoded=FacetedTileMask[cursor];
+    origin=int2(cursor%FACETED_TILE_EDGE,cursor/FACETED_TILE_EDGE);
+    int width=1;
+    while(origin.x+width<FACETED_TILE_EDGE)
+    {
+        if(FacetedTileMask[cursor+width]!=encoded)break;
+        width++;
+    }
+    int height=1;
+    bool extend=true;
+    while(origin.y+height<FACETED_TILE_EDGE && extend)
+    {
+        for(int x=0;x<width;x++)
+            if(FacetedTileMask[cursor+x+height*FACETED_TILE_EDGE]!=encoded)extend=false;
+        if(extend)height++;
+    }
+    for(int y=0;y<height;y++)
+    for(int x=0;x<width;x++)FacetedTileMask[cursor+x+y*FACETED_TILE_EDGE]=0u;
+    size=int2(width,height);attributes=encoded-1u;cursor++;
+    return true;
+}
+
+[numthreads(64,1,1)]
+void CSCountFacetedFaces(uint3 group : SV_GroupID,uint3 thread : SV_GroupThreadID)
+{
+    int face,layer;int2 tile;
+    BuildFacetedTile(group.x,thread.x,_ChunkOriginVoxel,_SourceStep,face,layer,tile);
+    if(thread.x!=0u)return;
+    if(_Counters[0]!=0u)return;
+    uint cursor=0u,count=0u,attributes;int2 origin,size;
+    while(TakeFacetedRectangle(cursor,origin,size,attributes))count++;
+    if(count==0u)return;
     uint ignored;
-    InterlockedAdd(_BatchCounters[counter + 2], faceCount * 4u, ignored);
-    InterlockedAdd(_BatchCounters[counter + 3], faceCount * 6u, ignored);
+    InterlockedAdd(_Counters[2],count*4u,ignored);
+    InterlockedAdd(_Counters[3],count*6u,ignored);
+}
+
+[numthreads(64,1,1)]
+void CSBatchCountFacetedFaces(uint3 group : SV_GroupID,uint3 thread : SV_GroupThreadID)
+{
+    uint batch=group.y;
+    int counter=BatchRecordWord(batch);
+    BatchChunkDescriptor chunk=_BatchChunks[batch];
+    int face,layer;int2 tile;
+    BuildFacetedTile(group.x,thread.x,chunk.chunkOriginVoxel,chunk.sourceStep,face,layer,tile);
+    if(thread.x!=0u)return;
+    if(_BatchCounters[counter]!=0u)return;
+    uint cursor=0u,count=0u,attributes;int2 origin,size;
+    while(TakeFacetedRectangle(cursor,origin,size,attributes))count++;
+    if(count==0u)return;
+    uint ignored;
+    InterlockedAdd(_BatchCounters[counter+2],count*4u,ignored);
+    InterlockedAdd(_BatchCounters[counter+3],count*6u,ignored);
 }
 
 void StoreVertex(uint localIndex, float3 position, float3 normal, uint attributes)
@@ -1075,83 +1129,62 @@ void CSBatchWriteProfiles(uint3 id : SV_DispatchThreadID)
     }
 }
 
-[numthreads(64, 1, 1)]
-void CSWriteFacetedFaces(uint3 id : SV_DispatchThreadID)
+void FacetedRectangleCorners(int3 chunkOrigin,int sourceStep,int face,int layer,
+                             int2 origin,int2 size,
+                             out float3 p0,out float3 p1,out float3 p2,out float3 p3,
+                             out float3 normal)
 {
-    int3 voxel; uint attributes,boundary,reconstruction; bool displaced;
-    if (!ClassifyFacetedCell((int)id.x,voxel,attributes,boundary,reconstruction,displaced)) return;
-    uint faceMask=0u,faceCount=0u;
-    for(int classifiedFace=0;classifiedFace<6;classifiedFace++)
+    int axis=face>>1,sign=(face&1)==0?-1:1;
+    int axisA=(axis+1)%3,axisB=(axis+2)%3;
+    p0=(float3)chunkOrigin+AxisOffset(axis,(layer+(sign>0?1:0))*sourceStep)
+        +AxisOffset(axisA,origin.x*sourceStep)+AxisOffset(axisB,origin.y*sourceStep);
+    p1=p0+AxisOffset(axisA,size.x*sourceStep);
+    p2=p1+AxisOffset(axisB,size.y*sourceStep);
+    p3=p0+AxisOffset(axisB,size.y*sourceStep);
+    normal=AxisOffset(axis,sign);
+}
+
+[numthreads(64,1,1)]
+void CSWriteFacetedFaces(uint3 group : SV_GroupID,uint3 thread : SV_GroupThreadID)
+{
+    int face,layer;int2 tile;
+    BuildFacetedTile(group.x,thread.x,_ChunkOriginVoxel,_SourceStep,face,layer,tile);
+    if(thread.x!=0u)return;
+    uint cursor=0u,attributes;int2 origin,size;
+    while(TakeFacetedRectangle(cursor,origin,size,attributes))
     {
-        int classifiedAxis,classifiedSign;
-        if(!FacetedFaceExposed(voxel,boundary,reconstruction,displaced,classifiedFace,
-                              classifiedAxis,classifiedSign)) continue;
-        faceMask|=1u<<classifiedFace; faceCount++;
-    }
-    if(faceCount==0u) return;
-    uint vertexBase, indexBase;
-    InterlockedAdd(_Counters[0], faceCount*4u, vertexBase);
-    InterlockedAdd(_Counters[1], faceCount*6u, indexBase);
-    if (!RangeFitsCapacity(vertexBase, faceCount*4u, _VertexCapacity)
-     || !RangeFitsCapacity(indexBase, faceCount*6u, _IndexCapacity)) return;
-    uint emitted=0u;
-    for(int face=0;face<6;face++)
-    {
-        if((faceMask&(1u<<face))==0u) continue;
-        int axis=face>>1,sign=(face&1)==0?-1:1;
-        int axisA=(axis+1)%3,axisB=(axis+2)%3;
-        float3 p0=(float3)voxel+AxisOffset(axis,sign>0?_SourceStep:0);
-        float3 p1=p0+AxisOffset(axisA,_SourceStep);
-        float3 p2=p1+AxisOffset(axisB,_SourceStep);
-        float3 p3=p0+AxisOffset(axisB,_SourceStep);
-        float3 normal=AxisOffset(axis,sign);
-        uint vb=vertexBase+emitted*4u,ib=indexBase+emitted*6u;
-        StoreVertex(vb+0u,p0,normal,attributes); StoreVertex(vb+1u,p1,normal,attributes);
-        StoreVertex(vb+2u,p2,normal,attributes); StoreVertex(vb+3u,p3,normal,attributes);
+        uint vb,ib;
+        InterlockedAdd(_Counters[0],4u,vb);
+        InterlockedAdd(_Counters[1],6u,ib);
+        if(!RangeFitsCapacity(vb,4u,_VertexCapacity)||!RangeFitsCapacity(ib,6u,_IndexCapacity))continue;
+        float3 p0,p1,p2,p3,normal;
+        FacetedRectangleCorners(_ChunkOriginVoxel,_SourceStep,face,layer,tile+origin,size,
+            p0,p1,p2,p3,normal);
+        StoreVertex(vb,p0,normal,attributes);StoreVertex(vb+1u,p1,normal,attributes);
+        StoreVertex(vb+2u,p2,normal,attributes);StoreVertex(vb+3u,p3,normal,attributes);
         StoreQuadIndices(vb,ib,dot(cross(p1-p0,p2-p0),normal)<0.0);
-        emitted++;
     }
 }
 
-[numthreads(64, 1, 1)]
-void CSBatchWriteFacetedFaces(uint3 id : SV_DispatchThreadID)
+[numthreads(64,1,1)]
+void CSBatchWriteFacetedFaces(uint3 group : SV_GroupID,uint3 thread : SV_GroupThreadID)
 {
-    uint batch = id.y;
-    BatchChunkDescriptor chunk = _BatchChunks[batch];
-    int3 voxel; uint attributes,boundary,reconstruction; bool displaced;
-    if (!ClassifyFacetedCellAt((int)id.x, chunk.chunkOriginVoxel, chunk.sourceStep,
-            voxel, attributes, boundary, reconstruction, displaced)) return;
-    uint faceMask = 0u, faceCount = 0u;
-    for (int classifiedFace = 0; classifiedFace < 6; classifiedFace++)
+    uint batch=group.y;
+    BatchChunkDescriptor chunk=_BatchChunks[batch];
+    int face,layer;int2 tile;
+    BuildFacetedTile(group.x,thread.x,chunk.chunkOriginVoxel,chunk.sourceStep,face,layer,tile);
+    if(thread.x!=0u)return;
+    uint cursor=0u,attributes;int2 origin,size;
+    while(TakeFacetedRectangle(cursor,origin,size,attributes))
     {
-        int classifiedAxis, classifiedSign;
-        if (!FacetedFaceExposedAt(voxel, boundary, reconstruction, displaced,
-                classifiedFace, chunk.sourceStep, classifiedAxis, classifiedSign)) continue;
-        faceMask |= 1u << classifiedFace;
-        faceCount++;
-    }
-    if (faceCount == 0u) return;
-    uint vertexBase, indexBase;
-    if (!AllocateBatchGeometry(batch, faceCount * 4u, faceCount * 6u,
-                               vertexBase, indexBase)) return;
-    uint emitted = 0u;
-    for (int face = 0; face < 6; face++)
-    {
-        if ((faceMask & (1u << face)) == 0u) continue;
-        int axis = face >> 1, sign = (face & 1) == 0 ? -1 : 1;
-        int axisA = (axis + 1) % 3, axisB = (axis + 2) % 3;
-        float3 p0 = (float3)voxel + AxisOffset(axis, sign > 0 ? chunk.sourceStep : 0);
-        float3 p1 = p0 + AxisOffset(axisA, chunk.sourceStep);
-        float3 p2 = p1 + AxisOffset(axisB, chunk.sourceStep);
-        float3 p3 = p0 + AxisOffset(axisB, chunk.sourceStep);
-        float3 normal = AxisOffset(axis, sign);
-        uint vb = vertexBase + emitted * 4u, ib = indexBase + emitted * 6u;
-        StoreBatchVertex(batch,vb+0u,p0,normal,attributes);
-        StoreBatchVertex(batch,vb+1u,p1,normal,attributes);
-        StoreBatchVertex(batch,vb+2u,p2,normal,attributes);
-        StoreBatchVertex(batch,vb+3u,p3,normal,attributes);
+        uint vb,ib;
+        if(!AllocateBatchGeometry(batch,4u,6u,vb,ib))continue;
+        float3 p0,p1,p2,p3,normal;
+        FacetedRectangleCorners(chunk.chunkOriginVoxel,chunk.sourceStep,face,layer,tile+origin,size,
+            p0,p1,p2,p3,normal);
+        StoreBatchVertex(batch,vb,p0,normal,attributes);StoreBatchVertex(batch,vb+1u,p1,normal,attributes);
+        StoreBatchVertex(batch,vb+2u,p2,normal,attributes);StoreBatchVertex(batch,vb+3u,p3,normal,attributes);
         StoreBatchQuadIndices(batch,vb,ib,dot(cross(p1-p0,p2-p0),normal)<0.0);
-        emitted++;
     }
 }
 

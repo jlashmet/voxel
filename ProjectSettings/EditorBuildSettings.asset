@@ -20,4 +20,7 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/WaterRenderingShowcase.unity
     guid: 5f8a2f7e2b2148f0a35ab2d9fb9e5671
+  - enabled: 1
+    path: Assets/Scenes/PropShowcase.unity
+    guid: 2ff0a7c949394c2591552a0e3d310147
   m_configObjects: {}

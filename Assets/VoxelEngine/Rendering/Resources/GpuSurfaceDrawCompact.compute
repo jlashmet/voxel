@@ -1,3 +1,7 @@
+#pragma kernel CSClassifyLodCandidates
+#pragma kernel CSClearLodSelection
+#pragma kernel CSReduceLodCoverage
+#pragma kernel CSSelectLodCoverage
 #pragma kernel CSClearDrawBuckets
 #pragma kernel CSClassifyVisibleHandles
 #pragma kernel CSPrefixDrawBuckets
@@ -30,14 +34,17 @@ RWStructuredBuffer<uint> _DrawIndirectArgs;
 RWStructuredBuffer<PagedDrawMetadata> _PagedDrawMetadata;
 int _VisibleHandleCount;
 int _DrawBucketCount;
+int _UseLodSelection;
+RWStructuredBuffer<uint> _LodSelected;
 
 int BucketFor(uint indexCount)
 {
-    uint count = max(1u,indexCount);
-    int exponent = firstbithigh(count);
-    uint lower = 1u << exponent;
-    int subdivision = (int)min(3u,((count-lower)*4u)/lower);
-    return min(_DrawBucketCount-1,exponent*4+subdivision);
+    // Preserve all live indices; split each power-of-two interval at its midpoint.
+    // Reading the next bit avoids overflowing integer multiplication at large counts.
+    uint count=max(1u,indexCount);
+    int exponent=firstbithigh(count);
+    uint half=exponent>0?(count>>(exponent-1))&1u:0u;
+    return min(_DrawBucketCount-1,exponent*2+(int)half);
 }
 
 [numthreads(64,1,1)]
@@ -61,7 +68,8 @@ void CSClassifyVisibleHandles(uint3 id : SV_DispatchThreadID)
 {
     int visible=(int)id.x;
     if(visible>=_VisibleHandleCount)return;
-    uint handle=_VisibleChunkHandles[visible];
+    uint handle=_UseLodSelection!=0?(uint)visible:_VisibleChunkHandles[visible];
+    if(_UseLodSelection!=0 && _LodSelected[handle]==0u)return;
     ChunkGeometryRecord live=_LiveChunkGeometry[handle];
     if(live.ready==0u||live.indexCount==0u)return;
     int state=BucketFor(live.indexCount)*4;
@@ -83,7 +91,9 @@ void CSPrefixDrawBuckets(uint3 id : SV_DispatchThreadID)
         _DrawIndirectArgs[args+0]=_DrawBucketState[state+1];
         _DrawIndirectArgs[args+1]=count;
         _DrawIndirectArgs[args+2]=0u;
-        _DrawIndirectArgs[args+3]=start;
+        // SV_InstanceID does not reliably include indirect startInstance on every backend.
+        // The vertex shader reads this bucket's GPU prefix explicitly.
+        _DrawIndirectArgs[args+3]=0u;
         start+=count;
     }
 }
@@ -93,7 +103,8 @@ void CSScatterVisibleHandles(uint3 id : SV_DispatchThreadID)
 {
     int visible=(int)id.x;
     if(visible>=_VisibleHandleCount)return;
-    uint handle=_VisibleChunkHandles[visible];
+    uint handle=_UseLodSelection!=0?(uint)visible:_VisibleChunkHandles[visible];
+    if(_UseLodSelection!=0 && _LodSelected[handle]==0u)return;
     ChunkGeometryRecord live=_LiveChunkGeometry[handle];
     if(live.ready==0u||live.indexCount==0u)return;
     int state=BucketFor(live.indexCount)*4;
@@ -105,4 +116,135 @@ void CSScatterVisibleHandles(uint3 id : SV_DispatchThreadID)
     draw.bank=live.bank;
     draw.padding=0u;
     _PagedDrawMetadata[_DrawBucketState[state+2]+ordinal]=draw;
+}
+
+// CPU supplies source identities/readiness and topology, never the selected coverage set.
+struct LodNode
+{
+    int parent;
+    int step;
+    int handle;
+    uint flags;
+    int4 childrenLo;
+    int4 childrenHi;
+    float4 boundsVoxel;
+};
+StructuredBuffer<LodNode> _LodNodes;
+RWStructuredBuffer<uint> _LodState; // drawable=1, complete=2, expand-to-physical-children=4, physical=8
+int _LodNodeCount;
+int _LodHandleCapacity;
+int _LodSourceStep;
+int _LodFrustumEnabled;
+int _LodBandsEnabled;
+float4 _LodBands[4]; // min metres, max metres, suspended, reserved
+float3 _LodCameraPosition;
+float _LodVoxelSize;
+float4 _LodFrustumPlanes[6];
+
+[numthreads(64,1,1)]
+void CSClassifyLodCandidates(uint3 id : SV_DispatchThreadID)
+{
+    if(id.x>=(uint)_LodNodeCount)return;
+    LodNode node=_LodNodes[id.x];
+    bool inBand=true;
+    if(_LodBandsEnabled!=0)
+    {
+        uint bandIndex=node.step==1?0u:node.step==2?1u:node.step==4?2u:3u;
+        float4 band=_LodBands[bandIndex];
+        float3 delta=abs(node.boundsVoxel.xyz*_LodVoxelSize-_LodCameraPosition);
+        float extent=node.boundsVoxel.w*_LodVoxelSize;
+        float3 nearest=max(0.0,delta-extent);
+        float3 farthest=delta+extent;
+        inBand=band.z==0.0 && max(nearest.x,max(nearest.y,nearest.z))<=band.y
+            && (band.x<=0.0 || max(farthest.x,max(farthest.y,farthest.z))>band.x);
+    }
+    bool inFrustum=true;
+    if(_LodFrustumEnabled!=0)
+    {
+        float3 centre=node.boundsVoxel.xyz*_LodVoxelSize;
+        float extent=node.boundsVoxel.w*_LodVoxelSize;
+        for(int p=0;p<6;p++)
+        {
+            float4 plane=_LodFrustumPlanes[p];
+            if(dot(plane.xyz,centre)+plane.w+dot(abs(plane.xyz),float3(extent,extent,extent))<0.0)
+                inFrustum=false;
+        }
+    }
+    uint flags=inBand?(node.flags&3u):0u;
+    // GPU retirement can precede its host acknowledgment. Missing live geometry must
+    // not suppress ancestor fallback while the CPU membership image is still unchanged.
+    if(node.handle>=0 && node.handle<_LodHandleCapacity && _LiveChunkGeometry[node.handle].ready==0u)
+        flags=0u;
+    if(inBand && !inFrustum)
+    {
+        flags&=~1u;
+        if((node.flags&4u)!=0u)flags|=2u; // owned off-camera children cannot block handoff
+    }
+    // Preserve camera classification for asynchronous host admission/aging feedback.
+    // These bits never participate in world state or LOD completeness reduction.
+    float3 cameraDelta=node.boundsVoxel.xyz*_LodVoxelSize-_LodCameraPosition;
+    // Positive squared-distance ordering at 1/16 m^2 resolution, bounded to 25 bits.
+    // This is presentation admission priority, never authoritative simulation state.
+    uint priority=(uint)min(33554430.0, dot(cameraDelta,cameraDelta)*16.0);
+    _LodState[id.x]=flags|(inBand?16u:0u)|(inFrustum?32u:0u)|((node.flags&4u)!=0u?64u:0u)|(priority<<7);
+}
+
+[numthreads(64,1,1)]
+void CSClearLodSelection(uint3 id : SV_DispatchThreadID)
+{
+    if(id.x<(uint)_LodHandleCapacity) _LodSelected[id.x]=0u;
+}
+
+[numthreads(64,1,1)]
+void CSReduceLodCoverage(uint3 id : SV_DispatchThreadID)
+{
+    if(id.x>=(uint)_LodNodeCount)return;
+    LodNode node=_LodNodes[id.x];
+    if(node.step!=_LodSourceStep)return;
+    uint classified=_LodState[id.x];
+    bool drawable=(classified&1u)!=0u;
+    if(drawable)
+    {
+        ChunkGeometryRecord live=_LiveChunkGeometry[node.handle];
+        drawable=live.ready!=0u && live.indexCount!=0u;
+    }
+    bool completeChildren=node.step>1;
+    bool physicalChildren=false;
+    for(int c=0;c<8;c++)
+    {
+        int child=c<4?node.childrenLo[c&3]:node.childrenHi[c&3];
+        uint childState=0u;
+        if(child>=0)childState=_LodState[child];
+        completeChildren=completeChildren && (childState&2u)!=0u;
+        physicalChildren=physicalChildren || (childState&8u)!=0u;
+    }
+    bool expand=completeChildren && physicalChildren;
+    bool physical=expand || drawable;
+    _LodState[id.x]=(drawable?1u:0u)|(classified&2u)|(expand?4u:0u)|(physical?8u:0u)|(classified&~15u);
+}
+
+[numthreads(64,1,1)]
+void CSSelectLodCoverage(uint3 id : SV_DispatchThreadID)
+{
+    if(id.x>=(uint)_LodNodeCount)return;
+    LodNode node=_LodNodes[id.x];
+    uint state=_LodState[id.x];
+    if((state&1u)==0u || (state&4u)!=0u)return;
+    // Only ancestors below the highest drawable root participate in its logical expansion.
+    int root=-1;
+    int cursor=node.parent;
+    for(int level=0;level<3 && cursor>=0;level++)
+    {
+        if((_LodState[cursor]&1u)!=0u)root=cursor;
+        cursor=_LodNodes[cursor].parent;
+    }
+    bool selected=true;
+    cursor=node.parent;
+    for(int ancestor=0;ancestor<3 && root>=0 && cursor>=0;ancestor++)
+    {
+        if((_LodState[cursor]&4u)==0u)selected=false;
+        if(cursor==root)break;
+        cursor=_LodNodes[cursor].parent;
+    }
+    if(selected)_LodSelected[node.handle]=1u;
 }

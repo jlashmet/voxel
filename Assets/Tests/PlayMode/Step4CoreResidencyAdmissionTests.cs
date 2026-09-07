@@ -152,7 +152,7 @@ namespace VoxelEngine.Tests.PlayMode
 
         private static int3 Step4CoreRegion(int3 chunk)
         {
-            int chunkVoxels = CpuTransvoxelChunkCache.CellsPerAxis * Step4SourceStep;
+            int chunkVoxels = GpuSolidChunkCache.CellsPerAxis * Step4SourceStep;
             int3 minVoxel = chunk * chunkVoxels;
             int3 maxVoxel = minVoxel + chunkVoxels - 1;
             int edge = ShowcaseWorld.RegionVoxelEdge;
@@ -236,7 +236,7 @@ namespace VoxelEngine.Tests.PlayMode
 
         private static Bounds Step4ChunkBounds(int3 coordinate, float voxelSize)
         {
-            float size = CpuTransvoxelChunkCache.CellsPerAxis * Step4SourceStep * voxelSize;
+            float size = GpuSolidChunkCache.CellsPerAxis * Step4SourceStep * voxelSize;
             Vector3 min = new Vector3(coordinate.x, coordinate.y, coordinate.z) * size;
             return new Bounds(
                 min + Vector3.one * (size * 0.5f),

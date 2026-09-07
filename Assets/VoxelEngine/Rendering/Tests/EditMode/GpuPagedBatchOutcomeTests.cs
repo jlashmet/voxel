@@ -1,0 +1,139 @@
+using NUnit.Framework;
+using Unity.Mathematics;
+using VoxelEngine.Rendering.Runtime.GpuVoxel;
+
+namespace VoxelEngine.Rendering.Tests.EditMode
+{
+    public sealed class GpuPagedBatchOutcomeTests
+    {
+        private const int Record = 1;
+        private const int UnsupportedWord = 0;
+        private const int StatusWord = 10;
+        private const int HandleWord = 11;
+        private const int GenerationLowWord = 12;
+        private const int GenerationHighWord = 13;
+
+        private static GpuChunkExtraction Request(int handle = 7, ulong generation = 0x1020304050607080UL) =>
+            new(int3.zero, int3.zero, sourceStep: 1, voxelSize: 0.1f,
+                handle: handle, generation: generation);
+
+        private static uint[] Words(
+            uint status, in GpuChunkExtraction request, uint unsupported = 0u)
+        {
+            var words = new uint[
+                GpuSurfaceExtractor.BatchHeaderWords
+                + (Record + 1) * GpuSurfaceExtractor.BatchRecordWords];
+            int start = GpuSurfaceExtractor.BatchHeaderWords
+                      + Record * GpuSurfaceExtractor.BatchRecordWords;
+            words[start + UnsupportedWord] = unsupported;
+            words[start + StatusWord] = status;
+            words[start + HandleWord] = unchecked((uint)request.Handle);
+            words[start + GenerationLowWord] = (uint)request.Generation;
+            words[start + GenerationHighWord] = (uint)(request.Generation >> 32);
+            return words;
+        }
+
+        [TestCase(GpuPagedBatchOutcome.AllocationReady,
+                  (int)GpuPagedBatchOutcomeKind.ReadyCandidate, false)]
+        [TestCase(GpuPagedBatchOutcome.AllocationExhausted,
+                  (int)GpuPagedBatchOutcomeKind.Exhausted, true)]
+        [TestCase(GpuPagedBatchOutcome.AllocationStale,
+                  (int)GpuPagedBatchOutcomeKind.Stale, true)]
+        [TestCase(GpuPagedBatchOutcome.AllocationTooLarge,
+                  (int)GpuPagedBatchOutcomeKind.TooLarge, false)]
+        [TestCase(GpuPagedBatchOutcome.AllocationUnsupported,
+                  (int)GpuPagedBatchOutcomeKind.Unsupported, false)]
+        [TestCase(GpuPagedBatchOutcome.AllocationWriteFailed,
+                  (int)GpuPagedBatchOutcomeKind.WriteFailed, false)]
+        public void KnownAllocationStatusesRemainDistinct(
+            uint status, int expectedKind, bool retryable)
+        {
+            GpuChunkExtraction request = Request();
+            GpuPagedBatchOutcome outcome =
+                GpuPagedBatchOutcome.Parse(Words(status, in request), Record, in request);
+
+            Assert.That(outcome.Kind, Is.EqualTo((GpuPagedBatchOutcomeKind)expectedKind));
+            Assert.That(outcome.Handle, Is.EqualTo(request.Handle));
+            Assert.That(outcome.Generation, Is.EqualTo(request.Generation));
+            Assert.That(outcome.IsRetryable, Is.EqualTo(retryable));
+        }
+
+        [TestCase(1u)]
+        [TestCase(2u)]
+        [TestCase(3u)]
+        public void UnsupportedSemanticMaskOverridesReadyAllocation(uint unsupportedMask)
+        {
+            GpuChunkExtraction request = Request();
+            GpuPagedBatchOutcome outcome = GpuPagedBatchOutcome.Parse(
+                Words(GpuPagedBatchOutcome.AllocationReady, in request, unsupportedMask),
+                Record, in request);
+
+            Assert.That(outcome.Kind, Is.EqualTo(GpuPagedBatchOutcomeKind.Unsupported));
+            Assert.That(outcome.UnsupportedMask, Is.EqualTo(unsupportedMask));
+            Assert.That(outcome.IsReadyCandidate, Is.False,
+                "Unsupported semantics must never be published merely because page allocation succeeded.");
+            Assert.That(outcome.IsRetryable, Is.False,
+                "Unsupported is a capability result, not transient arena/backpressure failure.");
+        }
+
+        [Test]
+        public void CompactRecordsKeepIndependentIdentityAndRejectOldGeneration()
+        {
+            var first = Request(handle: 3, generation: 0x100000002UL);
+            var second = Request(handle: 9, generation: 0x300000004UL);
+            uint[] words = { 0, 3, 2, 1, 1, 9, 4, 3 };
+            Assert.AreEqual(GpuPagedBatchOutcomeKind.ReadyCandidate,
+                GpuPagedBatchOutcome.ParseCompact(words, 0, first).Kind);
+            Assert.AreEqual(GpuPagedBatchOutcomeKind.Exhausted,
+                GpuPagedBatchOutcome.ParseCompact(words, 1, second).Kind);
+            var replaced = Request(handle: second.Handle, generation: second.Generation + 1);
+            Assert.AreEqual(GpuPagedBatchOutcomeKind.IdentityMismatch,
+                GpuPagedBatchOutcome.ParseCompact(words, 1, replaced).Kind);
+            Assert.AreEqual(GpuPagedBatchOutcomeKind.Failed,
+                GpuPagedBatchOutcome.ParseCompact(words, 2, second).Kind);
+        }
+
+        [Test]
+        public void IdentityMismatchCannotBecomeReadyCandidate()
+        {
+            GpuChunkExtraction request = Request();
+            uint[] words = Words(GpuPagedBatchOutcome.AllocationReady, in request);
+            int start = GpuSurfaceExtractor.BatchHeaderWords
+                      + Record * GpuSurfaceExtractor.BatchRecordWords;
+            words[start + GenerationLowWord]++;
+
+            GpuPagedBatchOutcome outcome =
+                GpuPagedBatchOutcome.Parse(words, Record, in request);
+
+            Assert.That(outcome.Kind, Is.EqualTo(GpuPagedBatchOutcomeKind.IdentityMismatch));
+            Assert.That(outcome.IsReadyCandidate, Is.False);
+            Assert.That(outcome.IsRetryable, Is.False,
+                "An identity mismatch is a correctness failure, not blind retry permission.");
+        }
+
+        [Test]
+        public void UnknownStatusIsFailureRatherThanSuccess()
+        {
+            GpuChunkExtraction request = Request();
+            GpuPagedBatchOutcome outcome =
+                GpuPagedBatchOutcome.Parse(Words(99u, in request), Record, in request);
+
+            Assert.That(outcome.Kind, Is.EqualTo(GpuPagedBatchOutcomeKind.Failed));
+            Assert.That(outcome.IsReadyCandidate, Is.False);
+            Assert.That(outcome.IsRetryable, Is.True);
+        }
+
+        [Test]
+        public void TruncatedBookkeepingCannotBecomeSuccess()
+        {
+            GpuChunkExtraction request = Request();
+            var truncated = new uint[GpuSurfaceExtractor.BatchHeaderWords + 2];
+
+            GpuPagedBatchOutcome outcome =
+                GpuPagedBatchOutcome.Parse(truncated, Record, in request);
+
+            Assert.That(outcome.Kind, Is.EqualTo(GpuPagedBatchOutcomeKind.Failed));
+            Assert.That(outcome.IsReadyCandidate, Is.False);
+        }
+    }
+}
