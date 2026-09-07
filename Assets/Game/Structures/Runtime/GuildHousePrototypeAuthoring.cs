@@ -6,6 +6,9 @@ namespace Game.Structures.Runtime
 {
     public static class GuildHousePrototypeAuthoring
     {
+        private const int StairWidth = 10;
+        private const int StairwellPadding = 1;
+
         public static void Author(IStructureAuthoringSession authoring, in GuildHousePrototype prototype)
         {
             if (authoring == null)
@@ -44,10 +47,17 @@ namespace Game.Structures.Runtime
             for (int floor = 0; floor < plan.FloorCount; floor++)
             {
                 int y = plan.Origin.y + floor * plan.FloorHeight;
-                AuthorFloor(authoring, plan.Origin.x, y, plan.Origin.z, plan.Width, plan.Depth, secondary);
+                if (floor == 0 || plan.FloorCount == 1)
+                    AuthorFloor(authoring, plan.Origin.x, y, plan.Origin.z, plan.Width, plan.Depth, secondary);
+                else
+                    AuthorFloorWithStairwell(authoring, in plan, y, secondary);
+
                 AuthorPerimeter(authoring, plan.Origin.x, y, plan.Origin.z,
                     plan.Width, plan.Depth, plan.FloorHeight, primary, floor == 0);
             }
+
+            AuthorStoreyCirculation(authoring, in plan, secondary);
+
             int roofY = plan.Origin.y + plan.FloorCount * plan.FloorHeight;
             authoring.Box(new int3(plan.Origin.x, roofY, plan.Origin.z), new int3(plan.Width, 3, plan.Depth), secondary);
 
@@ -83,25 +93,119 @@ namespace Game.Structures.Runtime
         private static void AuthorLodge(IStructureAuthoringSession authoring, in GuildHouseSpatialPlan plan,
             byte primary, byte secondary, byte accent, byte magic)
         {
-            int y = plan.Origin.y;
-            AuthorFloor(authoring, plan.Origin.x, y, plan.Origin.z, plan.Width, plan.Depth, secondary);
-            AuthorPerimeter(authoring, plan.Origin.x, y, plan.Origin.z,
-                plan.Width, plan.Depth, plan.FloorHeight, primary, true);
+            // Lodge room planning can legitimately span more than one floor. Author the shell from
+            // the same FloorCount instead of collapsing every planned upper-floor room into a one-storey shell.
+            for (int floor = 0; floor < plan.FloorCount; floor++)
+            {
+                int y = plan.Origin.y + floor * plan.FloorHeight;
+                if (floor == 0 || plan.FloorCount == 1)
+                    AuthorFloor(authoring, plan.Origin.x, y, plan.Origin.z, plan.Width, plan.Depth, secondary);
+                else
+                    AuthorFloorWithStairwell(authoring, in plan, y, secondary);
+
+                AuthorPerimeter(authoring, plan.Origin.x, y, plan.Origin.z,
+                    plan.Width, plan.Depth, plan.FloorHeight, primary, floor == 0);
+
+                for (int z = plan.Origin.z + 10; z < plan.Origin.z + plan.Depth - 8; z += 18)
+                {
+                    authoring.Box(new int3(plan.Origin.x + 5, y + 1, z),
+                        new int3(6, plan.FloorHeight - 2, 6), accent);
+                    authoring.Box(new int3(plan.Origin.x + plan.Width - 11, y + 1, z),
+                        new int3(6, plan.FloorHeight - 2, 6), accent);
+                }
+            }
+
+            AuthorStoreyCirculation(authoring, in plan, secondary);
 
             int gap = 18;
-            int roofY = y + plan.FloorHeight;
+            int roofY = plan.Origin.y + plan.FloorCount * plan.FloorHeight;
             int left = (plan.Width - gap) / 2;
             authoring.Box(new int3(plan.Origin.x, roofY, plan.Origin.z), new int3(left, 3, plan.Depth), primary);
             authoring.Box(new int3(plan.Origin.x + left + gap, roofY, plan.Origin.z),
                 new int3(plan.Width - left - gap, 3, plan.Depth), primary);
 
-            for (int z = plan.Origin.z + 10; z < plan.Origin.z + plan.Depth - 8; z += 18)
-            {
-                authoring.Box(new int3(plan.Origin.x + 5, y + 1, z), new int3(6, plan.FloorHeight - 2, 6), accent);
-                authoring.Box(new int3(plan.Origin.x + plan.Width - 11, y + 1, z), new int3(6, plan.FloorHeight - 2, 6), accent);
-            }
             AuthorFacadeArticulation(authoring, in plan, secondary, accent, magic);
             AuthorEntranceSign(authoring, in plan, accent);
+        }
+
+        private static void AuthorStoreyCirculation(
+            IStructureAuthoringSession authoring,
+            in GuildHouseSpatialPlan plan,
+            byte material)
+        {
+            if (plan.FloorCount <= 1)
+                return;
+
+            GetStairwell(in plan, out int stairX, out int stairZ, out _, out _);
+            int run = plan.FloorHeight;
+            for (int floor = 0; floor < plan.FloorCount - 1; floor++)
+            {
+                int baseY = plan.Origin.y + floor * plan.FloorHeight;
+                // One-voxel rises are 10 cm in production scale. Each tread is backed by solid
+                // occupancy to the lower floor, so collision and visuals derive from the same cells.
+                for (int rise = 0; rise < run; rise++)
+                {
+                    authoring.Box(
+                        new int3(stairX, baseY + 2, stairZ + rise),
+                        new int3(StairWidth, rise + 1, 1),
+                        material);
+                }
+            }
+        }
+
+        private static void AuthorFloorWithStairwell(
+            IStructureAuthoringSession authoring,
+            in GuildHouseSpatialPlan plan,
+            int y,
+            byte material)
+        {
+            GetStairwell(in plan, out int stairX, out int stairZ, out int holeWidth, out int holeDepth);
+            int holeX = stairX - StairwellPadding;
+            int holeZ = stairZ - StairwellPadding;
+            int rightX = holeX + holeWidth;
+            int backZ = holeZ + holeDepth;
+            int outerRight = plan.Origin.x + plan.Width;
+            int outerBack = plan.Origin.z + plan.Depth;
+
+            int leftWidth = holeX - plan.Origin.x;
+            int rightWidth = outerRight - rightX;
+            int frontDepth = holeZ - plan.Origin.z;
+            int backDepth = outerBack - backZ;
+
+            if (leftWidth > 0)
+                authoring.Box(
+                    new int3(plan.Origin.x, y, plan.Origin.z),
+                    new int3(leftWidth, 2, plan.Depth),
+                    material);
+            if (rightWidth > 0)
+                authoring.Box(
+                    new int3(rightX, y, plan.Origin.z),
+                    new int3(rightWidth, 2, plan.Depth),
+                    material);
+            if (frontDepth > 0)
+                authoring.Box(
+                    new int3(holeX, y, plan.Origin.z),
+                    new int3(holeWidth, 2, frontDepth),
+                    material);
+            if (backDepth > 0)
+                authoring.Box(
+                    new int3(holeX, y, backZ),
+                    new int3(holeWidth, 2, backDepth),
+                    material);
+        }
+
+        private static void GetStairwell(
+            in GuildHouseSpatialPlan plan,
+            out int stairX,
+            out int stairZ,
+            out int holeWidth,
+            out int holeDepth)
+        {
+            int run = plan.FloorHeight;
+            holeWidth = StairWidth + StairwellPadding * 2;
+            holeDepth = run + StairwellPadding * 2;
+            stairX = plan.Origin.x + (plan.Width - StairWidth) / 2;
+            stairZ = plan.Origin.z + (plan.Depth - run) / 2;
         }
 
         private static void AuthorSteppedGable(IStructureAuthoringSession authoring,
@@ -150,7 +254,7 @@ namespace Game.Structures.Runtime
                 new int3(doorWidth + 14, 2, 9), accentMaterial);
 
             // Region-driven lit/magic panels make floor count and facade scale legible from the
-            // exterior without carving new openings or inventing showcase-only materials.
+            // exterior without inventing showcase-only materials.
             int windowWidth = math.max(6, math.min(10, plan.Width / 10));
             int leftX = plan.Origin.x + plan.Width / 4 - windowWidth / 2;
             int rightX = plan.Origin.x + (plan.Width * 3) / 4 - windowWidth / 2;
