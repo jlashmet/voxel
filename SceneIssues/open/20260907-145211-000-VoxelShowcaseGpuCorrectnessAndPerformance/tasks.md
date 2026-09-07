@@ -6,10 +6,10 @@ This is a handoff specification, not a claim that any implementation or acceptan
 
 ## 1. Establish source and reproduction
 
-- [ ] Coordinator publishes/assigns this issue using `SceneIssues/README.md`; select one assigned
+- [x] Coordinator publishes/assigns this issue using `SceneIssues/README.md`; select one assigned
   `fixes/agent-N` and matching `ci-test/fixes/agent-N`. Prevent overlapping work on the earlier
   GPU restoration issue. Fetch current master; record feature SHA, merge base and Unity version.
-- [ ] Inspect AGENTS.md, constitution, device matrix, both feature plans, previous restoration
+- [x] Inspect AGENTS.md, constitution, device matrix, both feature plans, previous restoration
   tasks, checkpoint-evidence.json and cpu-render-backend-removal-ledger.md. Treat historical fixes
   as leads, not proof that the current scene is correct.
 - [ ] Confirm the actual editor/player project path. Audit tracked diffs AND untracked C#/shader/
@@ -28,6 +28,12 @@ This is a handoff specification, not a claim that any implementation or acceptan
   Capture startup, settled view, frontier traversal and return. Store portable evidence references;
   historical local Artifacts paths alone are insufficient. Define explicit settle/convergence
   deadlines from existing scenarios/budgets before evaluating results; do not extend them to pass.
+
+Progress note: `experiment-001-source-and-baseline.md` records the assigned source, Unity version,
+required-document review, tracked retired-file audit and exact targeted-CI request. GitHub remote state
+cannot prove developer-machine untracked-file absence, so the checkout-audit checkbox remains open.
+Baseline run `34137307109` / job `101791149168` is queued unchanged while repository Actions reports
+15 queued runs and zero in progress; per the CI rules it is not replaced.
 
 ## 2. Find the first broken geometry invariant
 
