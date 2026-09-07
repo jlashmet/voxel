@@ -28,7 +28,7 @@ Options:
   --survey-height N
   --survey-spin N
   --stationary-sample N
-  --player-arg TEXT
+  --player-arg TEXT          append one literal runtime argument (repeatable)
   --require-log-pattern TEXT
   --forbid-log-pattern TEXT
 EOF
@@ -45,6 +45,7 @@ SURVEY_AFTER=""
 SURVEY_HEIGHT=""
 SURVEY_SPIN=""
 STATIONARY_SAMPLE=""
+EXTRA_PLAYER_ARGS=()
 SCENE_ISSUE=""
 ISSUE_CAPTURE_COUNT=0
 PLAYER_WIDTH=1600
@@ -54,7 +55,6 @@ MINIMUM_FRAMES=2
 EVIDENCE_AFTER=0
 REQUIRED_LOG_PATTERNS_FILE=""
 FORBIDDEN_LOG_PATTERNS_FILE=""
-EXTRA_PLAYER_ARGS=()
 
 append_pattern() {
   local kind="$1"
@@ -203,8 +203,10 @@ rm -rf "$BUILD_DIR" "$SHOTS_DIR"
 mkdir -p "$OUTPUT_ROOT" "$BUILD_DIR" "$SHOTS_DIR"
 wait_for_unity_quiet
 
-BUILD_ARGS=(-batchmode -nographics -quit)
-if [[ -n "$STATIONARY_SAMPLE" ]]; then BUILD_ARGS+=(-voxelFrameTimingStats); fi
+# Both ordinary capture (FRAMEPIPE) and stationary sampling consume Unity frame timings.
+# Enable collection for these diagnostic players without changing persistent project settings;
+# ShowcasePlayerBuild restores the original setting in finally, including failed builds.
+BUILD_ARGS=(-batchmode -nographics -quit -voxelFrameTimingStats)
 
 echo "Building real player for $SCENE"
 UNITY_MAX_RSS_MB="${UNITY_MAX_RSS_MB:-12288}" UNITY_MAX_MINUTES="${UNITY_MAX_MINUTES:-25}" \
@@ -219,6 +221,10 @@ BIN="$(find "$APP/Contents/MacOS" -maxdepth 1 -type f -perm -111 -print -quit)"
 [[ -n "$BIN" && -x "$BIN" ]] || { echo "ERROR: player build produced no executable." >&2; exit 1; }
 
 PLAYER_ARGS=(-logFile "$PLAYER_LOG" -screen-width "$PLAYER_WIDTH" -screen-height "$PLAYER_HEIGHT" -screen-fullscreen 0 -voxel-uncapped)
+if (( ${#EXTRA_PLAYER_ARGS[@]} > 0 )); then
+  PLAYER_ARGS+=("${EXTRA_PLAYER_ARGS[@]}")
+  printf 'Additional player argument: %q\n' "${EXTRA_PLAYER_ARGS[@]}"
+fi
 if [[ -n "$SCENE_ISSUE" ]]; then PLAYER_ARGS+=( -voxel-scene-issue "$SCENE_ISSUE" ); fi
 if [[ -n "$STATIONARY_SAMPLE" ]]; then
   PLAYER_ARGS+=( -voxel-stationary-sample-seconds "$STATIONARY_SAMPLE" -voxel-stationary-timeout-seconds "$RUN_SECONDS" -voxel-stationary-screenshot-dir "$SHOTS_DIR" )
@@ -231,7 +237,6 @@ else
   [[ -z "$SURVEY_HEIGHT" ]] || PLAYER_ARGS+=( -voxel-survey-height "$SURVEY_HEIGHT" )
   [[ -z "$SURVEY_SPIN" ]] || PLAYER_ARGS+=( -voxel-survey-spin "$SURVEY_SPIN" )
 fi
-if (( ${#EXTRA_PLAYER_ARGS[@]} > 0 )); then PLAYER_ARGS+=( "${EXTRA_PLAYER_ARGS[@]}" ); fi
 
 echo "Running real player for ${RUN_SECONDS}s"
 "$BIN" "${PLAYER_ARGS[@]}" &
