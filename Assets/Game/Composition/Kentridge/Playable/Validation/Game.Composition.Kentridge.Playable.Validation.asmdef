@@ -25,6 +25,7 @@
     "Game.Loot.Runtime",
     "Game.Outcomes.Api",
     "Game.Persistence.Api",
+    "Game.Quests.Api",
     "Game.SessionPresentation.Api",
     "Game.Sessions.Api",
     "Game.WorldBuilder.Api",
