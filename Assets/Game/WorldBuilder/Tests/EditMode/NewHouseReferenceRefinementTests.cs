@@ -99,6 +99,53 @@ namespace VoxelEngine.Tests.EditMode
                 "Intentional rear openings must be carved after opaque shell infill, not leave wall-sized holes.");
         }
 
+        [NUnit.Framework.Test]
+        public void AuthorHouse_FinishPassRunsAfterAuditShell_AndRebuildsCompactReferenceDetails()
+        {
+            NewHouseReferenceConfig config = NewHouseReferenceConfig.Default;
+            NewHouseReferencePalette palette = Palette();
+            int3 origin = new(31, 7, -41);
+            var session = new RecordingSession();
+
+            NewHouseReferenceRefinement.AuthorHouse(session, origin, in config, in palette);
+
+            int centre = origin.x + config.Width / 2;
+            int upper = origin.y + config.UpperFloorY;
+            int eave = origin.y + config.MainEaveY;
+            int ridge = origin.y + config.MainRidgeY;
+            int rear = origin.z + config.Depth + 1;
+
+            int rearShell = session.Operations.FindIndex(op =>
+                op.Kind == OperationKind.Box && op.Material == palette.Plaster &&
+                op.Position.Equals(new int3(origin.x + 1, upper, rear - 2)) &&
+                op.Size.Equals(new int3(config.Width - 2, 25, 3)));
+            int smallerHighWindow = session.Operations.FindIndex(op =>
+                op.Kind == OperationKind.Carve &&
+                op.Position.Equals(new int3(centre - 5, eave + 12, origin.z - 3)) &&
+                op.Size.Equals(new int3(11, 1, 8)));
+            int crestClear = session.Operations.FindIndex(op =>
+                op.Kind == OperationKind.Carve &&
+                op.Position.Equals(new int3(centre - 8, ridge + 2, origin.z)) &&
+                op.Size.Equals(new int3(17, 17, 16)));
+            int compactFinial = session.Operations.FindIndex(op =>
+                op.Kind == OperationKind.Cone && op.Material == palette.Ornament &&
+                op.Position.Equals(new int3(centre, ridge + 9, origin.z + 7)) &&
+                op.Size.Equals(new int3(1, 6, 1)));
+            int sweptLeftTip = session.Operations.FindIndex(op =>
+                op.Kind == OperationKind.Box && op.Material == palette.Roof &&
+                op.Position.x == centre - 37 && op.Position.z == origin.z - config.RoofOverhang - 2);
+
+            Assert.That(rearShell, Is.GreaterThanOrEqualTo(0));
+            Assert.That(smallerHighWindow, Is.GreaterThan(rearShell),
+                "Reference finish must run after structural shell repair and replace the oversized high window.");
+            Assert.That(crestClear, Is.GreaterThan(smallerHighWindow),
+                "The above-ridge blockout crest must be cleared after the gable face is refined.");
+            Assert.That(compactFinial, Is.GreaterThan(crestClear),
+                "A compact one-voxel-radius finial must replace the oversized crest mass.");
+            Assert.That(sweptLeftTip, Is.GreaterThan(rearShell),
+                "The portrait roof must gain an outward/downward swept eave tip in the final pass.");
+        }
+
         private static NewHouseReferencePalette Palette() =>
             new(plaster: 41, timber: 42, roof: 43, stone: 44, glass: 45,
                 door: 46, accent: 47, ground: 48, flowers: 49, foliage: 50, ornament: 51);
