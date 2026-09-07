@@ -1,5 +1,7 @@
 # GPU renderer restoration — PR checkpoint
 
+> **Superseded 2026-09-07.** At the user's direction, this SceneIssue is closed administratively after PR #316 and retained as historical evidence. Remaining correctness, coverage, performance, CPU-backend retirement, lifetime/budget, visual, and integration work is owned by `SceneIssues/open/20260907-145211-000-VoxelShowcaseGpuCorrectnessAndPerformance` (agent-3). The unchecked tasks in `tasks.md` were not completed by this closure and must not be interpreted as accepted.
+
 ## Objective and state
 
 Finish planned CPU-to-GPU presentation migration and reach400FPS in VoxelShowcase. Keep deterministic
