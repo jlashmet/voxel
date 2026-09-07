@@ -23,6 +23,7 @@ namespace Game.Composition.Kentridge.Playable
         private readonly Func<NetworkEndpoint> _listenEndpoint;
         private readonly Func<AuthoritativeServerSession, NetworkEndpoint> _connectEndpoint;
         private readonly Action<AuthoritativeServerSession> _advanceFixedTick;
+        private readonly KentridgeMultiplayerCharacterRoster _characterRoster;
         private PartySession _party;
         private PartySessionApplication _partyApplication;
         private KentridgeAuthoritativeSessionAdmission _admission;
@@ -39,7 +40,8 @@ namespace Game.Composition.Kentridge.Playable
             Func<IAuthoritativeGameplayStateEmitter, IAuthoritativeSessionAdmissionConsumer, AuthoritativeServerSession> serverFactory,
             Func<NetworkEndpoint> listenEndpoint,
             Func<AuthoritativeServerSession, NetworkEndpoint> connectEndpoint,
-            Action<AuthoritativeServerSession> advanceFixedTick)
+            Action<AuthoritativeServerSession> advanceFixedTick,
+            KentridgeMultiplayerCharacterRoster characterRoster = null)
         {
             if (authorityGraphFactory == null) throw new ArgumentNullException(nameof(authorityGraphFactory));
             if (dependencies == null) throw new ArgumentNullException(nameof(dependencies));
@@ -48,6 +50,7 @@ namespace Game.Composition.Kentridge.Playable
             _listenEndpoint = listenEndpoint ?? throw new ArgumentNullException(nameof(listenEndpoint));
             _connectEndpoint = connectEndpoint ?? throw new ArgumentNullException(nameof(connectEndpoint));
             _advanceFixedTick = advanceFixedTick ?? throw new ArgumentNullException(nameof(advanceFixedTick));
+            _characterRoster = characterRoster;
 
             ReadState = CreateLobbyReadState();
             _clientPacketHandler = new GameplayStateClientPacketHandler(ReadState);
@@ -88,6 +91,7 @@ namespace Game.Composition.Kentridge.Playable
         public PartySession PartySession => _party;
         public PartySessionApplication PartyApplication => _partyApplication;
         public AuthoritativeServerSession Server => _server;
+        public KentridgeMultiplayerCharacterRoster CharacterRoster => _characterRoster;
 
         public void TickNetworkAndAuthority()
         {
@@ -108,7 +112,8 @@ namespace Game.Composition.Kentridge.Playable
         {
             ThrowIfDisposed();
             if (_server != null) throw new InvalidOperationException("Kentridge multiplayer authority is already prepared.");
-            _party = new PartySession(request.SessionId, request.Configuration);
+            _characterRoster?.EnsureCapacity(request.Configuration.Capacity);
+            _party = new PartySession(request.SessionId, request.Configuration, _characterRoster?.Characters);
             _partyApplication = new PartySessionApplication(_party, request.Configuration.Capacity);
             _admission = new KentridgeAuthoritativeSessionAdmission(_party);
             var ready = new KentridgeReadySessionAdmissionConsumer(_admission, _party, _partyApplication);
