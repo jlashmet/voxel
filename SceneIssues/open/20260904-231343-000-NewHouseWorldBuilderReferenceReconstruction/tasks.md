@@ -50,7 +50,7 @@ Pinned reference Git blob: `6d87b08d4c7c9bddc1705c0f34343aa79bc18423`.
 - [x] Isolate iteration-7 high-window depth-ordering defect: opaque `FillArch` repair extended to `frontZ-4` while replacement carve began at `frontZ-1`, hiding the glass behind plaster.
 - [x] Implement iteration-8 correction to carve through the full repair depth, clear duplicate crest layers from `ridge+1`, and extend/increase the swept-eave hook.
 - [x] Validate iteration-8 correction with feature `ef132fadc51c93ec520e611254d65949a4691b48`, exact request `6d825d7de506287a253fd229687f29d6eb6f53d9`, run `34148998318`, and direct target/front-left/rear-right inspection. The corrected openings/crest and closed rear shell are mechanically proven, but visual quality remains prototype/blockout quality.
-- [ ] Iteration 9/9b: complete the demonstrated narrow concave swept portrait-gable profile while holding camera/light/material/site fixed; eliminate the roof/plaster interface seam and preserve the closed side/rear shell in audit evidence.
+- [x] Iteration 9/9b: complete the narrow concave swept portrait-gable profile while holding camera/light/material/site fixed; exact run `34155498206` verifies the roof/plaster interface seams are closed and the side/rear shell remains closed in audit evidence.
 - [ ] Match final roof pitch/rise, ridge direction, transverse shoulder height, swept-eave silhouette, fascia/edge depth, intersections, and chimney relationship closely.
 - [ ] Remove/verify absence of roof overlap, z-fighting, holes, and unsupported roof pieces across multiple frames.
 - [x] Dormer roof: N/A from the pinned reference.
@@ -120,8 +120,15 @@ Pinned reference Git blob: `6d87b08d4c7c9bddc1705c0f34343aa79bc18423`.
 - [x] Isolate the mechanical failure: the older swept-tip regression used `FindIndex` on only `x/z` and bound to an earlier pre-audit duplicate coordinate (`1188`) rather than the intended late finish-pass operation after rear-shell index `1506`; the requested concave-profile test itself was not the failing case.
 - [x] Implement iteration 9b production seam closure by making plaster meet both roof inner edges exactly and placing timber bargboard across the shared joint; strengthen the focused regression to prove both interfaces have no gap.
 - [x] Tighten the older swept-tip regression to search only after the rear-shell checkpoint, preserving rather than lowering its post-audit invariant.
-- [ ] Re-run the **same** focused concave-profile regression on the final 9b feature SHA through exact-SHA targeted CI; never replace it while queued/running.
-- [ ] Inspect exact iteration-9b target/front-left/rear-right frames and verify the roof/plaster seams are closed before selecting any broader visual change.
+- [x] Re-run the same focused concave-profile regression on feature `3574429e2374cb3d1d311839edd397cbf15602c5` through exact request `1dabd0e974e70c13e1e93b6375f8aeb5ab7c1559` / run `34155498206`; full module validation and standalone-player replay passed.
+- [x] Inspect exact iteration-9b pinned reference plus target/front-left/rear-right frames from artifact `single-test-34155498206`. Roof/plaster seams are closed and the shell remains closed; visual closure is rejected because the final destructive portrait rebuild erases the dense upper-gable flower box beneath the high window.
+
+### Iteration 10 — upper portrait planting ordering
+- [x] Isolate the missing upper flower box as a production-order defect: `AddIvyAndFlowers` authors it before `NewHouseReferenceFinishPass` clears/rebuilds the portrait shell, while the finish pass restores the high arch but previously omitted the flower box.
+- [x] Restore the same 24-voxel timber/foliage/blossom flower box after the final arch carve, holding camera/light/material/site and the iteration-9b silhouette fixed.
+- [x] Add focused regression `NewHouseReferenceFinishPassOrderTests.FinishPass_RestoresUpperGableFlowerBoxAfterDestructivePortraitRebuild` proving the final ordering and production palette use.
+- [ ] Run the iteration-10 feature head through exact-SHA targeted CI without replacing a queued/running request.
+- [ ] Inspect exact iteration-10 target/front-left/rear-right frames. Verify the dense upper flower box survives and select only the next largest demonstrated mismatch if the house is still below production-quality.
 
 ### Final visual checks — required before closure
 - [ ] Overall silhouette very close to reference.
