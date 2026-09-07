@@ -6,22 +6,19 @@
 
 ## Material results
 
-Harness isolation/build identity/semantic waits and Application + UTP admission are already exact-SHA proven by runs `33937957149`, `33986100313`, `33995470352`, `34005489004`, and `34011275001`.
+Harness isolation/build identity/semantic waits and Application + UTP admission are exact-SHA proven by runs `33937957149`, `33986100313`, `33995470352`, `34005489004`, and `34011275001`. Topology run `34032515299` exposed validation assembly/import compilation defects; those are fixed. Runs `34124227235` and `34144191751` were infrastructure cancellations before product execution.
 
-Topology run `34032515299` attempt 2 exposed validation assembly/import compilation defects; those are fixed. Later requests `34124227235` and `34144191751` were infrastructure cancellations before product execution.
+Current multiplayer composition routes authenticated Net input -> durable Party `CharacterId` -> production WorldObjects/Loot/Inventory, replicates WorldObjects state, and requires authority/client A/client B to converge on exactly one pickup transfer. The same smoke feeds the campaign's real quest observation path and production Encounter/Combat/Vitality owners; generic cross-role equality requires identical baseline revision/digest and combat-vitality result.
 
-Current multiplayer composition routes authenticated Net input -> durable Party `CharacterId` -> production WorldObjects/Loot/Inventory, replicates WorldObjects state, and requires authority/client A/client B to converge on exactly one pickup transfer. Generic harness equality now requires identical `baseline-ready.revision` and `stateDigest` across all three roles.
-
-Source `9046341431a33d67cfcea7109ac2fed8a3c76b3f` adds production Continuity admission/terminal membership policy. Exact request `c14829cb558237ab31b11550e960d14fda3e0130`, run `34150973599`, acquired `Jasons-MacBook-Pro` and failed before tests because `KentridgeContinuitySessionAdmission.cs` had two compiler errors: an untyped fallback lambda for `Func<double>` and a missing `SessionAdmissionPacket` namespace. Commit `2f978a02c8e27ec484182ce6f7df471cfebf2b55` fixes only those demonstrated errors.
+Source `9046341431a33d67cfcea7109ac2fed8a3c76b3f` added production Continuity admission/terminal membership policy. Run `34150973599` exposed two continuity compile errors, fixed in `2f978a02c8e27ec484182ce6f7df471cfebf2b55`. Follow-up exact request `557b5fec9eaeb3354edaa9e8b3a057da0466d691`, run `34152962562`, then isolated one Unity-profile incompatibility: `Environment.TickCount64` is unavailable. Commit `f7ab238d66cf6cad3a34c9f782659fd85a94e4ac` replaces only that clock source with monotonic `Stopwatch` timestamps.
 
 ## Current discriminator
 
-Hypothesis A: the continuity compile correction allows owned tests/player validations to execute and reach topology/contention milestones. Hypothesis B: the next admitted exact run exposes a runtime composition/replication defect. **Next experiment:** exact-SHA targeted CI from the latest feature head; check T25-010–013/T25-020–021 only from green built-player artifacts.
+Hypothesis A: the compatibility correction lets owned tests/player validations execute and reach topology/contention/progression/combat milestones. Hypothesis B: the next admitted exact run exposes a runtime composition/replication defect. **Next experiment:** exact-SHA targeted CI from the latest feature head; check acceptance only from green built-player artifacts.
 
 ## Remaining gates
 
-1. Exact-head topology/contention proof; fix only demonstrated failures.
-2. Reuse production Encounter/Combat/Vitality and Progression owners for T25-022/023.
-3. Prove T25-030–034 reconnect/current-state recovery/explicit leave.
-4. Add release T25-040–043 capacity/JIP/repeated reconnect/persisted rehost.
-5. Prove T25-051/052, merge current master, close open -> closed with metadata/evidence, then PR + auto-merge and required `affected` gate.
+1. Exact-head topology/contention/progression/combat proof; fix only demonstrated failures.
+2. Prove T25-030–034 interruption, absent-period mutation, reconnect/current-state recovery, and explicit leave using production Continuity/Application paths.
+3. Add release T25-040–043 capacity/JIP/repeated reconnect/persisted rehost.
+4. Prove T25-051/052, merge current master, close open -> closed with metadata/evidence, then PR + auto-merge and required `affected` gate.
