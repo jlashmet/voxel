@@ -23,12 +23,33 @@ namespace Game.Composition.Kentridge.Playable.Tests
                 Assert.That(registry.TryGet(expected, out CharacterSnapshot snapshot), Is.True);
                 Assert.That(snapshot.Definition.HasTrait(CharacterTraits.PlayerControlled), Is.True);
                 Assert.That(snapshot.Definition.HasTrait(CharacterTraits.Combatant), Is.True);
+                Assert.That(snapshot.Kinematics.Position, Is.EqualTo(new CharacterVector3(slot, 0f, 0f)));
                 Assert.That(registry.TryResolve(
                     new CharacterBinding("multiplayer-slot", slot.ToString()), out CharacterId bySlot), Is.True);
                 Assert.That(bySlot, Is.EqualTo(expected));
                 Assert.That(registry.TryResolve(
                     new CharacterBinding("combat-participant", expected.Value), out CharacterId byCombat), Is.True);
                 Assert.That(byCombat, Is.EqualTo(expected));
+            }
+        }
+
+        [Test]
+        public void CompositionCanChooseInitialPlacementWithoutChangingDurableIdentity()
+        {
+            var registry = new CharacterRegistry();
+            var spawn = new CharacterVector3(12f, 3f, -4f);
+            var roster = new KentridgeMultiplayerCharacterRoster(registry, _ => spawn);
+
+            roster.EnsureCapacity(3);
+
+            for (int slot = 0; slot < 3; slot++)
+            {
+                CharacterId expected = KentridgeMultiplayerCharacterRoster.CharacterIdForSlot(slot);
+                Assert.That(registry.TryGet(expected, out CharacterSnapshot snapshot), Is.True);
+                Assert.That(snapshot.Kinematics.Position, Is.EqualTo(spawn));
+                Assert.That(registry.TryResolve(
+                    new CharacterBinding("multiplayer-slot", slot.ToString()), out CharacterId bySlot), Is.True);
+                Assert.That(bySlot, Is.EqualTo(expected));
             }
         }
 
