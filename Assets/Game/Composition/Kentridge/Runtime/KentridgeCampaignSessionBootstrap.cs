@@ -55,6 +55,9 @@ namespace Game.Composition.Kentridge.Runtime
         public CampaignBlueprint Blueprint { get; }
         public KentridgeCampaignGenerationPlan Generation { get; }
         public KentridgeCampaignWorldRealization World { get; }
+        public AuthoredFullRunCampaignWorldRealization FullRunWorld { get; }
+        public IReadOnlyList<CutsceneStageRealization> CutsceneStages { get; }
+        public bool IsFullRun => FullRunWorld != null;
         public CampaignRuntime Runtime { get; }
         public IInventoryQuery Inventory { get; }
         public IInventoryAuthority InventoryAuthority { get; }
@@ -65,6 +68,8 @@ namespace Game.Composition.Kentridge.Runtime
             CampaignBlueprint blueprint,
             KentridgeCampaignGenerationPlan generation,
             KentridgeCampaignWorldRealization world,
+            AuthoredFullRunCampaignWorldRealization fullRunWorld,
+            IReadOnlyList<CutsceneStageRealization> cutsceneStages,
             CampaignRuntime runtime,
             IInventoryQuery inventory,
             IInventoryAuthority inventoryAuthority,
@@ -73,13 +78,21 @@ namespace Game.Composition.Kentridge.Runtime
             KentridgeWellQuestRewardRuntime wellQuestRewards)
         {
             Blueprint = blueprint ?? throw new ArgumentNullException(nameof(blueprint));
-            Generation = generation ?? throw new ArgumentNullException(nameof(generation));
-            World = world ?? throw new ArgumentNullException(nameof(world));
+            if ((generation == null) != (world == null))
+                throw new ArgumentException(
+                    "Opening campaign generation and world realization must be supplied together.");
+            if ((world == null) == (fullRunWorld == null))
+                throw new ArgumentException(
+                    "A Kentridge session must own exactly one opening-only or full-run world realization.");
+            Generation = generation;
+            World = world;
+            FullRunWorld = fullRunWorld;
+            CutsceneStages = cutsceneStages ?? throw new ArgumentNullException(nameof(cutsceneStages));
             Runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
             Inventory = inventory ?? throw new ArgumentNullException(nameof(inventory));
             InventoryAuthority = inventoryAuthority ?? throw new ArgumentNullException(nameof(inventoryAuthority));
             InventoryState = inventoryState ?? throw new ArgumentNullException(nameof(inventoryState));
-            if (!playerInventoryId.IsValid) throw new ArgumentException("Player inventory id is required.", nameof(playerInventoryId));
+            if (!playerInventoryId.IsValid) throw new ArgumentException("Inventory id is required.", nameof(playerInventoryId));
             PlayerInventoryId = playerInventoryId;
             _wellQuestRewards = wellQuestRewards ?? throw new ArgumentNullException(nameof(wellQuestRewards));
         }
@@ -144,19 +157,74 @@ namespace Game.Composition.Kentridge.Runtime
                 throw new ArgumentNullException(
                     nameof(secretHost),
                     "Campaign selected physical secrets but no gameplay secret host was supplied.");
-            ValidatePlayerBindings(blueprint, actors);
-            ValidateNpcPlacements(blueprint, world.Npcs);
-
             if (world.Secrets.Count > 0)
                 secretHost.PrepareSecrets(world.Secrets);
 
-            actors.PrepareNpcs(world.Npcs);
-            ValidatePreparedNpcs(world.Npcs, actors);
+            return CreateSessionCore(
+                blueprint,
+                generation,
+                world,
+                null,
+                world.Npcs,
+                world.CutsceneStages,
+                actors,
+                presentation,
+                outcomeConditionObserver);
+        }
+
+        /// <summary>
+        /// Production full-run path. The hierarchy-aware world realization has already resolved every
+        /// authored NPC and cutscene stage against the recovered physical macro world, so the session
+        /// consumes those facts directly rather than weakening the opening-only planner guard.
+        /// </summary>
+        public static KentridgeCampaignSession CreateSession(
+            CampaignBlueprint blueprint,
+            AuthoredFullRunCampaignWorldRealization fullRunWorld,
+            IKentridgeCampaignActorHost actors,
+            ICutscenePresentation presentation,
+            Action<OutcomeConditionRef> outcomeConditionObserver = null)
+        {
+            if (blueprint == null) throw new ArgumentNullException(nameof(blueprint));
+            if (fullRunWorld == null) throw new ArgumentNullException(nameof(fullRunWorld));
+            if (actors == null) throw new ArgumentNullException(nameof(actors));
+            if (presentation == null) throw new ArgumentNullException(nameof(presentation));
+            if (!ReferenceEquals(blueprint, fullRunWorld.Generation.World.Blueprint))
+                throw new InvalidOperationException(
+                    "Kentridge full-run session blueprint does not own the supplied hierarchy-aware world realization.");
+
+            return CreateSessionCore(
+                blueprint,
+                null,
+                null,
+                fullRunWorld,
+                fullRunWorld.Npcs,
+                fullRunWorld.CutsceneStages,
+                actors,
+                presentation,
+                outcomeConditionObserver);
+        }
+
+        private static KentridgeCampaignSession CreateSessionCore(
+            CampaignBlueprint blueprint,
+            KentridgeCampaignGenerationPlan generation,
+            KentridgeCampaignWorldRealization world,
+            AuthoredFullRunCampaignWorldRealization fullRunWorld,
+            IReadOnlyList<ResolvedNpcWorldPlacement> npcs,
+            IReadOnlyList<CutsceneStageRealization> cutsceneStages,
+            IKentridgeCampaignActorHost actors,
+            ICutscenePresentation presentation,
+            Action<OutcomeConditionRef> outcomeConditionObserver)
+        {
+            ValidatePlayerBindings(blueprint, actors);
+            ValidateNpcPlacements(blueprint, npcs);
+
+            actors.PrepareNpcs(npcs);
+            ValidatePreparedNpcs(npcs, actors);
             ValidateAllCutsceneBindings(blueprint, actors);
 
             var runtime = new CampaignRuntime(
                 blueprint,
-                world.CutsceneStages,
+                cutsceneStages,
                 actors,
                 presentation,
                 KentridgeWellQuestDefinition.CreateDefinitions(),
@@ -182,6 +250,8 @@ namespace Game.Composition.Kentridge.Runtime
                 blueprint,
                 generation,
                 world,
+                fullRunWorld,
+                cutsceneStages,
                 runtime,
                 inventory,
                 inventory,
