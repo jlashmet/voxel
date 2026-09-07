@@ -1,6 +1,7 @@
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Api;
+using VoxelEngine.Structures.Runtime.Emitters;
 
 namespace VoxelEngine.Structures.Runtime
 {
@@ -9,9 +10,11 @@ namespace VoxelEngine.Structures.Runtime
     /// Structures.Api authoring capability; this class preserves the current batched brush
     /// implementation and its write-budget accounting without leaking the Runtime type.
     /// </summary>
-    public sealed class StructureAuthoringSession : IStructureAuthoringSession
+    public sealed class StructureAuthoringSession : ICurvedStructureAuthoringSession
     {
         private VoxelBrush _brush;
+        private readonly IRegionReadSource _reads;
+        private readonly IRegionMutationStore _mutations;
 
         public StructureAuthoringSession(
             IRegionReadSource reads,
@@ -19,6 +22,8 @@ namespace VoxelEngine.Structures.Runtime
             IMaterialAuthoringCatalogue materials,
             int writeBudget)
         {
+            _reads = reads;
+            _mutations = mutations;
             _brush = new VoxelBrush(reads, mutations, materials, writeBudget);
         }
 
@@ -58,6 +63,57 @@ namespace VoxelEngine.Structures.Runtime
         public void HollowBox(
             int3 min, int3 size, int thickness, byte material, bool floor, bool ceiling) =>
             _brush.HollowBox(min, size, thickness, material, floor, ceiling);
+
+        public void RoundedBox(
+            int3 min,
+            int3 size,
+            int radius,
+            byte material,
+            ushort surfaceStyle = SurfaceStyles.ArchitecturalRounded,
+            byte coating = Coatings.None,
+            VoxelSurfaceFlags flags = VoxelSurfaceFlags.PreserveFeature)
+        {
+            if (math.any(size <= 0) || radius < 0 || _reads == null || _mutations == null)
+                return;
+
+            // Curved rasterisation writes both occupancy and the two-voxel signed-boundary halo.
+            // Reserve the conservative touched volume before invoking it so this adapter cannot
+            // bypass the same slow-write budget observed by ordinary StructureAuthoringSession work.
+            int3 touched = size + 4;
+            long worstCaseWrites = (long)touched.x * touched.y * touched.z;
+            long remaining = (long)_brush.WriteBudget - _brush.VoxelsWritten;
+            if (worstCaseWrites > remaining)
+            {
+                // Latch the brush budget through its ordinary slow path without mutating geometry.
+                // One over-budget Set is sufficient and remains the single source of budget state.
+                for (long i = remaining; i >= 0; i--)
+                {
+                    if (_brush.BudgetExceeded) break;
+                    _brush.Set(int.MinValue, int.MinValue, int.MinValue, VoxelGrid.MaterialEmpty);
+                }
+                return;
+            }
+
+            Primitive primitive = CurvedPrimitiveEmitter.RoundedBox(
+                min,
+                size,
+                radius,
+                material,
+                surfaceStyle,
+                PrimitiveMode.Fill,
+                order: 0,
+                coating,
+                extrusionAxis: 3);
+            primitive.SurfaceFlags |= flags;
+            primitive.Bounds(out int3 boundsMin, out int3 boundsMax);
+            RasterResult result = PrimitiveRasteriser.RasterisePrimitive(
+                in primitive,
+                boundsMin - 2,
+                boundsMax + 3,
+                _reads,
+                _mutations);
+            _brush.VoxelsWritten += result.VoxelsWritten;
+        }
 
         public void Cylinder(
             int cx, int baseY, int cz, int radius, int height, byte material,
