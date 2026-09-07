@@ -1,0 +1,86 @@
+name: Binary Transport
+
+on:
+  push:
+    paths: ['.binary-transport/**/READY']
+  workflow_dispatch:
+    inputs:
+      job_id:
+        description: Existing job id under .binary-transport to retry
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: binary-transport-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  reconstruct:
+    # Cleanup deletes READY and matches the path filter; skip the bot follow-up run.
+    if: github.actor != 'github-actions[bot]'
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: true
+          fetch-depth: 0
+
+      - name: Resolve ready jobs
+        shell: bash
+        env:
+          DISPATCH_JOB_ID: ${{ inputs.job_id }}
+        run: |
+          set -euo pipefail
+          list="$RUNNER_TEMP/binary-transport-ready.txt"
+          : > "$list"
+          if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
+            [[ "${DISPATCH_JOB_ID:-}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$ ]] || exit 1
+            printf '.binary-transport/%s/READY\n' "$DISPATCH_JOB_ID" > "$list"
+          else
+            python3 - "$GITHUB_EVENT_PATH" "$list" <<'PY'
+          import json,re,subprocess,sys
+          e=json.load(open(sys.argv[1],encoding='utf-8')); before=e.get('before') or ''; after=e.get('after') or ''
+          if not after: raise SystemExit('push event missing after SHA')
+          cmd=['git','diff','--name-only',before,after] if before and set(before)!={'0'} else ['git','show','--pretty=format:','--name-only',after]
+          changed=subprocess.check_output(cmd,text=True).splitlines()
+          ready=sorted({p for p in changed if re.fullmatch(r'\.binary-transport/[^/]+/READY',p)})
+          if not ready: raise SystemExit('no READY marker in triggering push')
+          open(sys.argv[2],'w',encoding='utf-8').write('\n'.join(ready)+'\n')
+          PY
+          fi
+          while IFS= read -r ready; do [[ -f "$ready" ]] || exit 1; done < "$list"
+          cat "$list"
+
+      - name: Reconstruct exact bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          list="$RUNNER_TEMP/binary-transport-ready.txt"
+          targets="$RUNNER_TEMP/binary-transport-targets.txt"
+          : > "$targets"
+          while IFS= read -r ready; do
+            job="${ready%/READY}"
+            target="$(python3 - "$job/manifest.json" <<'PY'
+          import json,sys
+          print(json.load(open(sys.argv[1],encoding='utf-8'))['targetPath'])
+          PY
+            )"
+            python3 tools/binary_transport/reconstruct_binary.py --repo-root "$GITHUB_WORKSPACE" --job-dir "$job" --cleanup
+            printf '%s\n' "$target" >> "$targets"
+          done < "$list"
+          git add -A -- .binary-transport
+          while IFS= read -r target; do git add -- "$target"; done < "$targets"
+
+      - name: Commit reconstructed binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --cached --quiet && { echo 'No changes to commit.'; exit 0; }
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Reconstruct transported binary assets'
+          git push origin "HEAD:${GITHUB_REF_NAME}"
