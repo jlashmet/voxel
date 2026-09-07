@@ -58,6 +58,7 @@ namespace Game.Composition.Kentridge.Runtime
         private readonly CampaignBlueprint _blueprint;
         private readonly KentridgeCampaignGenerationPlan _generation;
         private readonly KentridgeCampaignRealizationFacts _realizationFacts;
+        private readonly AuthoredFullRunCampaignWorldRealization _fullRunWorld;
         private readonly IKentridgeCampaignActorHost _actors;
         private readonly ICutscenePresentation _presentation;
         private readonly IKentridgeCampaignSecretHost _secretHost;
@@ -83,10 +84,32 @@ namespace Game.Composition.Kentridge.Runtime
             _realizationFacts = realizationFacts ?? throw new ArgumentNullException(nameof(realizationFacts));
             _actors = actors ?? throw new ArgumentNullException(nameof(actors));
             _presentation = presentation ?? throw new ArgumentNullException(nameof(presentation));
-            if ((outcomeQuery == null) != (outcomeConditionObserver == null))
-                throw new ArgumentException(
-                    "Kentridge outcome composition requires both the system 15 query and semantic condition observer, or neither.");
+            ValidateOutcomeComposition(outcomeQuery, outcomeConditionObserver);
             _secretHost = secretHost;
+            _extensionFactory = extensionFactory;
+            _outcomeQuery = outcomeQuery;
+            _outcomeConditionObserver = outcomeConditionObserver;
+        }
+
+        /// <summary>
+        /// Hierarchy-aware production path for the authored full campaign. The world realization is
+        /// precomputed from the recovered macro-world hierarchy and consumed directly; the existing
+        /// single-settlement constructor remains the opening-only contract.
+        /// </summary>
+        public KentridgeSessionRuntimeGraphFactory(
+            CampaignBlueprint blueprint,
+            AuthoredFullRunCampaignWorldRealization fullRunWorld,
+            IKentridgeCampaignActorHost actors,
+            ICutscenePresentation presentation,
+            IKentridgeSessionRuntimeExtensionFactory extensionFactory = null,
+            IGameOutcomeQuery outcomeQuery = null,
+            Action<OutcomeConditionRef> outcomeConditionObserver = null)
+        {
+            _blueprint = blueprint ?? throw new ArgumentNullException(nameof(blueprint));
+            _fullRunWorld = fullRunWorld ?? throw new ArgumentNullException(nameof(fullRunWorld));
+            _actors = actors ?? throw new ArgumentNullException(nameof(actors));
+            _presentation = presentation ?? throw new ArgumentNullException(nameof(presentation));
+            ValidateOutcomeComposition(outcomeQuery, outcomeConditionObserver);
             _extensionFactory = extensionFactory;
             _outcomeQuery = outcomeQuery;
             _outcomeConditionObserver = outcomeConditionObserver;
@@ -100,14 +123,21 @@ namespace Game.Composition.Kentridge.Runtime
                     GameSessionFailure.CompositionFailed,
                     "Kentridge already has a composed runtime graph. Shut it down before composing another run.");
 
-            KentridgeCampaignSession session = KentridgeCampaignSessionBootstrap.CreateSession(
-                _blueprint,
-                _generation,
-                _realizationFacts,
-                _actors,
-                _presentation,
-                _secretHost,
-                _outcomeConditionObserver);
+            KentridgeCampaignSession session = _fullRunWorld != null
+                ? KentridgeCampaignSessionBootstrap.CreateSession(
+                    _blueprint,
+                    _fullRunWorld,
+                    _actors,
+                    _presentation,
+                    _outcomeConditionObserver)
+                : KentridgeCampaignSessionBootstrap.CreateSession(
+                    _blueprint,
+                    _generation,
+                    _realizationFacts,
+                    _actors,
+                    _presentation,
+                    _secretHost,
+                    _outcomeConditionObserver);
             IKentridgeSessionRuntimeExtension extension = null;
             try
             {
@@ -127,6 +157,15 @@ namespace Game.Composition.Kentridge.Runtime
                 extension?.Dispose();
                 throw;
             }
+        }
+
+        private static void ValidateOutcomeComposition(
+            IGameOutcomeQuery outcomeQuery,
+            Action<OutcomeConditionRef> outcomeConditionObserver)
+        {
+            if ((outcomeQuery == null) != (outcomeConditionObserver == null))
+                throw new ArgumentException(
+                    "Kentridge outcome composition requires both the system 15 query and semantic condition observer, or neither.");
         }
 
         private void OnDisposed(KentridgeSessionRuntimeGraph graph)
