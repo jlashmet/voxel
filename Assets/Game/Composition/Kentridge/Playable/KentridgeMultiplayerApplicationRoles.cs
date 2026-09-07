@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Game.Application.Runtime;
 using Game.GameplayReplication.Adapters;
 using Game.GameplayReplication.Api;
@@ -24,6 +25,7 @@ namespace Game.Composition.Kentridge.Playable
         private readonly Func<AuthoritativeServerSession, NetworkEndpoint> _connectEndpoint;
         private readonly Action<AuthoritativeServerSession> _advanceFixedTick;
         private readonly KentridgeMultiplayerCharacterRoster _characterRoster;
+        private readonly KentridgeMultiplayerGameplayReplication _gameplayReplication;
         private PartySession _party;
         private PartySessionApplication _partyApplication;
         private KentridgeAuthoritativeSessionAdmission _admission;
@@ -41,7 +43,8 @@ namespace Game.Composition.Kentridge.Playable
             Func<NetworkEndpoint> listenEndpoint,
             Func<AuthoritativeServerSession, NetworkEndpoint> connectEndpoint,
             Action<AuthoritativeServerSession> advanceFixedTick,
-            KentridgeMultiplayerCharacterRoster characterRoster = null)
+            KentridgeMultiplayerCharacterRoster characterRoster = null,
+            KentridgeMultiplayerGameplayReplication gameplayReplication = null)
         {
             if (authorityGraphFactory == null) throw new ArgumentNullException(nameof(authorityGraphFactory));
             if (dependencies == null) throw new ArgumentNullException(nameof(dependencies));
@@ -51,8 +54,10 @@ namespace Game.Composition.Kentridge.Playable
             _connectEndpoint = connectEndpoint ?? throw new ArgumentNullException(nameof(connectEndpoint));
             _advanceFixedTick = advanceFixedTick ?? throw new ArgumentNullException(nameof(advanceFixedTick));
             _characterRoster = characterRoster;
+            _gameplayReplication = gameplayReplication;
 
-            ReadState = CreateLobbyReadState();
+            ReadState = CreateReadState(
+                gameplayReplication == null ? null : KentridgeMultiplayerGameplayReplication.Descriptors);
             _clientPacketHandler = new GameplayStateClientPacketHandler(ReadState);
             Session = new GameSessionOrchestrator(authorityGraphFactory);
             UtpFormation = new KentridgeUtpSessionFormationService(
@@ -118,11 +123,20 @@ namespace Game.Composition.Kentridge.Playable
             _admission = new KentridgeAuthoritativeSessionAdmission(_party);
             var ready = new KentridgeReadySessionAdmissionConsumer(_admission, _party, _partyApplication);
             _sessionControl = new KentridgeAuthoritativeSessionControl(ready, _party, _partyApplication);
-            var emitter = new GameplayStateServerEmitter(new IGameplayProjectionSource[]
+
+            var sources = new List<IGameplayProjectionSource>
             {
                 new SessionsGameplayProjectionSource(_party),
                 new KentridgeSessionApplicationGameplayProjectionSource(_partyApplication)
-            });
+            };
+            if (_gameplayReplication != null)
+            {
+                IReadOnlyList<IGameplayProjectionSource> gameplaySources = _gameplayReplication.AuthoritySources;
+                for (int i = 0; i < gameplaySources.Count; i++)
+                    sources.Add(gameplaySources[i]);
+            }
+
+            var emitter = new GameplayStateServerEmitter(sources);
             _server = _serverFactory(emitter, _sessionControl)
                 ?? throw new InvalidOperationException("Server factory returned no canonical authority.");
             _admission.BindAuthority(_server);
@@ -163,12 +177,21 @@ namespace Game.Composition.Kentridge.Playable
             if (_disposed) throw new ObjectDisposedException(nameof(KentridgeAuthoritativeMultiplayerApplication));
         }
 
-        private static GameplayReplicationReadState CreateLobbyReadState() =>
-            new GameplayReplicationReadState(new[]
+        private static GameplayReplicationReadState CreateReadState(
+            IReadOnlyList<GameplayProjectionDescriptor> gameplayDescriptors)
+        {
+            var descriptors = new List<GameplayProjectionDescriptor>
             {
                 new GameplayProjectionDescriptor(KentridgeReplicatedPartyState.SessionsProjectionId, 1, true),
                 new GameplayProjectionDescriptor(KentridgeSessionApplicationGameplayProjectionSource.ProjectionId, 1, true)
-            });
+            };
+            if (gameplayDescriptors != null)
+            {
+                for (int i = 0; i < gameplayDescriptors.Count; i++)
+                    descriptors.Add(gameplayDescriptors[i]);
+            }
+            return new GameplayReplicationReadState(descriptors);
+        }
 
         private sealed class HostIntentRouter : ISessionPresentationIntentRouter
         {
@@ -223,15 +246,12 @@ namespace Game.Composition.Kentridge.Playable
             KentridgeMultiplayerApplicationDependencies dependencies,
             IApplicationSessionPlanProvider plans,
             Func<NetworkEndpoint> authorityEndpoint,
-            Func<GameplayStateClientPacketHandler, IServerSessionAdmissionHandler, ClientNetworkRuntime> clientFactory)
+            Func<GameplayStateClientPacketHandler, IServerSessionAdmissionHandler, ClientNetworkRuntime> clientFactory,
+            IReadOnlyList<GameplayProjectionDescriptor> gameplayDescriptors = null)
         {
             if (dependencies == null) throw new ArgumentNullException(nameof(dependencies));
             _clientFactory = clientFactory ?? throw new ArgumentNullException(nameof(clientFactory));
-            ReadState = new GameplayReplicationReadState(new[]
-            {
-                new GameplayProjectionDescriptor(KentridgeReplicatedPartyState.SessionsProjectionId, 1, true),
-                new GameplayProjectionDescriptor(KentridgeSessionApplicationGameplayProjectionSource.ProjectionId, 1, true)
-            });
+            ReadState = CreateReadState(gameplayDescriptors);
             _packetHandler = new GameplayStateClientPacketHandler(ReadState);
             UtpFormation = new KentridgeUtpSessionFormationService(
                 admissionHandler => CreateClient(admissionHandler),
@@ -307,6 +327,22 @@ namespace Game.Composition.Kentridge.Playable
         private void ThrowIfDisposed()
         {
             if (_disposed) throw new ObjectDisposedException(nameof(KentridgeClientMultiplayerApplication));
+        }
+
+        private static GameplayReplicationReadState CreateReadState(
+            IReadOnlyList<GameplayProjectionDescriptor> gameplayDescriptors)
+        {
+            var descriptors = new List<GameplayProjectionDescriptor>
+            {
+                new GameplayProjectionDescriptor(KentridgeReplicatedPartyState.SessionsProjectionId, 1, true),
+                new GameplayProjectionDescriptor(KentridgeSessionApplicationGameplayProjectionSource.ProjectionId, 1, true)
+            };
+            if (gameplayDescriptors != null)
+            {
+                for (int i = 0; i < gameplayDescriptors.Count; i++)
+                    descriptors.Add(gameplayDescriptors[i]);
+            }
+            return new GameplayReplicationReadState(descriptors);
         }
     }
 }
