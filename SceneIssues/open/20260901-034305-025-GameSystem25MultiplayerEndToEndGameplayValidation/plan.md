@@ -16,11 +16,13 @@ Exact source `7eea9991edcd3ea9ba67fdf498bcbbc9fd3e16bf`, request `d4c5c459187f19
 
 Exact source `4a645622016d34dad834b042d279803428b15302`, request `112bd7df8779826dab657fea73eef1403e1854b9`, run `34162468889`, artifact `single-test-34162468889` (`sha256:7e7ba5352f12a58126a70e3e9e790a13a0d66af99b24e6ea0f06d72c8eb3fb5d`) reached automatic module validation and failed Unity compilation at `KentridgeMultiplayerTopologyValidation.cs:161`: `CampaignRuntime` is defined in `Game.Composition.Campaign.Runtime`, but `Game.Composition.Kentridge.Playable.Validation` did not declare that direct assembly reference. Commit `4cfcf77167d966f1551f099dde3bdf869fb44bb3` adds only that demonstrated validation dependency.
 
+Exact source `693d4a0ee09efb4d816b21b33308aad91effd3dc`, request `6065a0e9bc9063a92d23909bfb66901ad94964ab`, run `34165608877`, artifact `single-test-34165608877` (`sha256:8ad1e4dcfcb2c8d19e377dc05b5b9c0033c99e5720fcffc09bf46af974ee2997`) passed all 86 generic harness/tool tests and the persistent EditMode batch, then failed the first selected built-player build before GameSystem25 topology execution. `KentridgeEncounterRealizationValidation.cs:142` resolved `Application.dataPath` to the `Game.Application` namespace. Commit `7a9efd07229bbb6f76e68bb965a53268c995281d` applies only the demonstrated repair by qualifying `UnityEngine.Application.dataPath`.
+
 T25-030–034 are implemented but unaccepted: the harness kills client A after contention/progression; authority must observe production `ConnectionInterrupted` before a real combat input creates absent-period Vitality state; a fresh client-A process rejoins with the same member/slot/character, receives current Inventory/Progression/Vitality projections, then calls `Application.RequestLeaveGame`; authority must observe membership removal plus terminal Continuity `Left`. GameplayReplication snapshots are current-state projection replacement only and expose no historical one-shot event stream.
 
 ## Current discriminator
 
-Hypothesis A: exact head `4cfcf77167d966f1551f099dde3bdf869fb44bb3` compiles and reaches all topology/gameplay/reconnect/leave milestones. Hypothesis B: the next execution exposes the first runtime production composition or ordering defect. **Next experiment:** exact-SHA targeted CI from this repaired feature head; check T25-010–034 only from green built-player artifacts.
+Hypothesis A: the exact head containing `7a9efd07229bbb6f76e68bb965a53268c995281d` compiles every automatically selected player and reaches all topology/gameplay/reconnect/leave milestones. Hypothesis B: the next execution exposes the first remaining build/runtime production composition or ordering defect. **Next experiment:** exact-SHA targeted CI from the repaired feature head after this plan update; check T25-010–034 only from green built-player artifacts.
 
 ## Remaining gates
 
