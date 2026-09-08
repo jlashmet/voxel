@@ -46,7 +46,8 @@ namespace Game.Composition.Kentridge.Playable
             Func<AuthoritativeServerSession, NetworkEndpoint> connectEndpoint,
             Action<AuthoritativeServerSession> advanceFixedTick,
             KentridgeMultiplayerCharacterRoster characterRoster = null,
-            KentridgeMultiplayerGameplayReplication gameplayReplication = null)
+            KentridgeMultiplayerGameplayReplication gameplayReplication = null,
+            ISessionPersistenceBridge persistence = null)
         {
             if (authorityGraphFactory == null) throw new ArgumentNullException(nameof(authorityGraphFactory));
             if (dependencies == null) throw new ArgumentNullException(nameof(dependencies));
@@ -61,7 +62,7 @@ namespace Game.Composition.Kentridge.Playable
             ReadState = CreateReadState(
                 gameplayReplication == null ? null : KentridgeMultiplayerGameplayReplication.Descriptors);
             _clientPacketHandler = new GameplayStateClientPacketHandler(ReadState);
-            Session = new GameSessionOrchestrator(authorityGraphFactory);
+            Session = new GameSessionOrchestrator(authorityGraphFactory, persistence);
             UtpFormation = new KentridgeUtpSessionFormationService(
                 admissionHandler => CreateClient(admissionHandler),
                 () => _server == null ? default : _connectEndpoint(_server),
