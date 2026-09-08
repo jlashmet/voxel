@@ -77,16 +77,9 @@ namespace Game.WorldBuilder.Voxel
             AddCompactShutters(a, centre, upper + 9, front, 13, 17, p.Accent, p.Timber);
             AddDenseFlowerBox(a, centre - 11, upper + 4, front - 2, 22, in p);
 
-            a.Box(new int3(centre - 19, upper + 4, front - 5),
-                new int3(39, 2, TimberDepth), p.Timber);
-            a.Box(new int3(centre - 17, upper + 31, front - 5),
-                new int3(35, 2, TimberDepth), p.Timber);
-            a.Box(new int3(centre - 19, upper + 6, front - 5),
-                new int3(2, 25, TimberDepth), p.Timber);
-            a.Box(new int3(centre + 17, upper + 6, front - 5),
-                new int3(2, 25, TimberDepth), p.Timber);
-            Line(a, centre - 17, upper + 8, centre - 13, upper + 15, front - 5, p.Timber);
-            Line(a, centre + 17, upper + 8, centre + 13, upper + 15, front - 5, p.Timber);
+            // The reference keeps the compact shuttered arch in an open plaster field bounded by
+            // the facade's structural belts. Do not rebuild the obsolete room-sized timber cage
+            // around this window; its tall jambs and diagonals dominated the portrait hierarchy.
         }
 
         private static void RebuildSweptPortraitShell(IStructureAuthoringSession a, int3 o,
