@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800">
+  <rect width="1200" height="800" fill="#f4f1e8"/>
+  <g stroke="#263238" stroke-width="12" fill="none" stroke-linejoin="round">
+    <path d="M250 650 L250 300 L600 115 L950 300 L950 650 Z"/>
+    <path d="M250 300 L950 300"/>
+    <path d="M600 115 L600 300" opacity="0.25"/>
+    <rect x="530" y="485" width="140" height="165"/>
+    <rect x="350" y="390" width="120" height="105"/>
+    <rect x="730" y="390" width="120" height="105"/>
+    <rect x="350" y="525" width="120" height="90"/>
+    <rect x="730" y="525" width="120" height="90"/>
+    <path d="M220 650 L980 650"/>
+    <path d="M275 650 L300 690 L900 690 L925 650"/>
+  </g>
+  <g fill="#263238" font-family="sans-serif">
+    <text x="60" y="80" font-size="34" font-weight="700">Procedural Architecture Foundation — neutral review reference</text>
+    <text x="60" y="125" font-size="25">Review massing, two-storey scale, readable gable, centered entrance, real window openings and grounded foundation.</text>
+    <text x="60" y="755" font-size="22">Not town art direction. Materials, ornament and cultural style remain provider/profile responsibilities.</text>
+  </g>
+</svg>
