@@ -15,6 +15,7 @@ namespace Game.WorldBuilder.Voxel
             in NewHouseReferenceConfig c, in NewHouseReferencePalette p)
         {
             RefinePortraitGable(a, o, in c, in p);
+            RemoveObsoleteRearGable(a, o, in c);
             RefineMiddleFacadeOpening(a, o, in c, in p);
             NewHouseReferenceEntryPortalFinish.Apply(a, o, in c, in p);
             ExtendReferenceChimney(a, o, in c, in p);
@@ -31,6 +32,9 @@ namespace Game.WorldBuilder.Voxel
             int ridge = o.y + c.MainRidgeY;
             int front = o.z - 2;
             int portraitEave = upper + 31;
+            int clearRise = math.max(38, ridge - portraitEave);
+            int portraitRise = ReferencePortraitRise(in c, clearRise);
+            int portraitRidge = portraitEave + portraitRise;
 
             RebuildSweptPortraitShell(a, o, in c, in p);
 
@@ -46,7 +50,7 @@ namespace Game.WorldBuilder.Voxel
             a.Box(new int3(centre - 1, portraitEave + 4, front - 4),
                 new int3(2, 6, TimberDepth), p.Timber);
             a.Box(new int3(centre - 1, eave + 31, front - 4),
-                new int3(2, math.max(4, ridge - (eave + 31) - 4), TimberDepth), p.Timber);
+                new int3(2, math.max(4, portraitRidge - (eave + 31)), TimberDepth), p.Timber);
 
             Line(a, centre - 19, portraitEave + 5, centre - 8, portraitEave + 18,
                 front - 4, p.Timber);
@@ -92,14 +96,15 @@ namespace Game.WorldBuilder.Voxel
             int upper = o.y + c.UpperFloorY;
             int ridge = o.y + c.MainRidgeY;
             int portraitEave = upper + 31;
-            int rise = math.max(38, ridge - portraitEave);
+            int clearRise = math.max(38, ridge - portraitEave);
+            int rise = ReferencePortraitRise(in c, clearRise);
             int front = o.z - 2;
             int roofZ = o.z - c.RoofOverhang - 2;
 
             const int clearHalf = 34;
             int clearDepth = c.RoofOverhang + 20;
             a.Carve(new int3(centre - clearHalf, portraitEave, roofZ - 1),
-                new int3(clearHalf * 2 + 1, rise + 8, clearDepth));
+                new int3(clearHalf * 2 + 1, clearRise + 8, clearDepth));
 
             const int baseHalf = 29;
             const int apexHalf = 2;
@@ -143,6 +148,28 @@ namespace Game.WorldBuilder.Voxel
             }
         }
 
+        private static int ReferencePortraitRise(in NewHouseReferenceConfig c, int clearRise)
+        {
+            int widthDrivenRise = math.max(38, c.Width / 2 - 2);
+            return math.min(clearRise, widthDrivenRise);
+        }
+
+        private static void RemoveObsoleteRearGable(IStructureAuthoringSession a, int3 o,
+            in NewHouseReferenceConfig c)
+        {
+            int upper = o.y + c.UpperFloorY;
+            int ridge = o.y + c.MainRidgeY;
+            int rear = o.z + c.Depth + 1;
+            int clearY = upper + 29;
+            int clearHeight = math.max(1, ridge - clearY + 8);
+
+            // FinishAuditElevations historically filled a full-height rear triangle to the obsolete
+            // global ridge. The transverse shoulder roof reaches the rear near this wall's eave, so
+            // that triangle protrudes through the roof in audit views instead of closing a real gap.
+            a.Carve(new int3(o.x + 6, clearY, rear - 4),
+                new int3(c.Width - 12, clearHeight, 8));
+        }
+
         private static void ExtendReferenceChimney(IStructureAuthoringSession a, int3 o,
             in NewHouseReferenceConfig c, in NewHouseReferencePalette p)
         {
@@ -164,14 +191,19 @@ namespace Game.WorldBuilder.Voxel
             in NewHouseReferenceConfig c, in NewHouseReferencePalette p)
         {
             int centre = o.x + c.Width / 2;
+            int upper = o.y + c.UpperFloorY;
             int ridge = o.y + c.MainRidgeY;
+            int portraitEave = upper + 31;
+            int clearRise = math.max(38, ridge - portraitEave);
+            int portraitRidge = portraitEave + ReferencePortraitRise(in c, clearRise);
             int z = o.z + 5;
 
-            a.Carve(new int3(centre - 8, ridge + 1, o.z), new int3(17, 18, 16));
-            a.Box(new int3(centre - 2, ridge + 1, z), new int3(5, 2, 5), p.Timber);
-            a.Box(new int3(centre - 2, ridge + 3, z + 1), new int3(5, 2, 3), p.Ornament);
-            a.Box(new int3(centre - 1, ridge + 5, z + 1), new int3(3, 3, 3), p.Ornament);
-            a.Cone(centre, ridge + 8, z + 2, 2, 6, p.Ornament);
+            a.Carve(new int3(centre - 8, portraitRidge + 1, o.z),
+                new int3(17, ridge - portraitRidge + 18, 16));
+            a.Box(new int3(centre - 2, portraitRidge + 1, z), new int3(5, 2, 5), p.Timber);
+            a.Box(new int3(centre - 2, portraitRidge + 3, z + 1), new int3(5, 2, 3), p.Ornament);
+            a.Box(new int3(centre - 1, portraitRidge + 5, z + 1), new int3(3, 3, 3), p.Ornament);
+            a.Cone(centre, portraitRidge + 8, z + 2, 2, 6, p.Ornament);
         }
 
         private static void RebuildHangingDetails(IStructureAuthoringSession a, int3 o,
