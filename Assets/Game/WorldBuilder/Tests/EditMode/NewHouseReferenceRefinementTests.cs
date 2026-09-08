@@ -114,6 +114,10 @@ namespace VoxelEngine.Tests.EditMode
             int eave = origin.y + config.MainEaveY;
             int ridge = origin.y + config.MainRidgeY;
             int rear = origin.z + config.Depth + 1;
+            int portraitEave = upper + 31;
+            int clearRise = math.max(38, ridge - portraitEave);
+            int portraitRise = math.min(clearRise, math.max(38, config.Width / 2 - 2));
+            int portraitRidge = portraitEave + portraitRise;
 
             int rearShell = session.Operations.FindIndex(op =>
                 op.Kind == OperationKind.Box && op.Material == palette.Plaster &&
@@ -123,13 +127,17 @@ namespace VoxelEngine.Tests.EditMode
                 op.Kind == OperationKind.Carve &&
                 op.Position.Equals(new int3(centre - 5, eave + 12, origin.z - 6)) &&
                 op.Size.Equals(new int3(11, 1, 9)));
+            int rearGableClear = session.Operations.FindIndex(op =>
+                op.Kind == OperationKind.Carve &&
+                op.Position.Equals(new int3(origin.x + 6, upper + 29, rear - 4)) &&
+                op.Size.Equals(new int3(config.Width - 12, ridge - (upper + 29) + 8, 8)));
             int crestClear = session.Operations.FindIndex(op =>
                 op.Kind == OperationKind.Carve &&
-                op.Position.Equals(new int3(centre - 8, ridge + 1, origin.z)) &&
-                op.Size.Equals(new int3(17, 18, 16)));
+                op.Position.Equals(new int3(centre - 8, portraitRidge + 1, origin.z)) &&
+                op.Size.Equals(new int3(17, ridge - portraitRidge + 18, 16)));
             int compactFinial = session.Operations.FindIndex(op =>
                 op.Kind == OperationKind.Cone && op.Material == palette.Ornament &&
-                op.Position.Equals(new int3(centre, ridge + 8, origin.z + 7)) &&
+                op.Position.Equals(new int3(centre, portraitRidge + 8, origin.z + 7)) &&
                 op.Size.Equals(new int3(2, 6, 2)));
             int sweptLeftTip = session.Operations.FindIndex(math.max(0, rearShell + 1), op =>
                 op.Kind == OperationKind.Box && op.Material == palette.Roof &&
@@ -138,10 +146,12 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(rearShell, Is.GreaterThanOrEqualTo(0));
             Assert.That(smallerHighWindow, Is.GreaterThan(rearShell),
                 "Reference finish must run after structural shell repair and carve through the front repair depth so the smaller high window is visible.");
+            Assert.That(rearGableClear, Is.GreaterThan(rearShell),
+                "The final pass must remove the obsolete full-height rear triangle without erasing the lower rear wall/window shell.");
             Assert.That(crestClear, Is.GreaterThan(smallerHighWindow),
-                "All duplicate above-ridge crest layers must be cleared after the gable face is refined.");
+                "All stale crest layers above the lowered portrait apex must be cleared after the gable face is refined.");
             Assert.That(compactFinial, Is.GreaterThan(crestClear),
-                "One compact tapered finial must replace the accumulated crest mass.");
+                "One compact tapered finial must be anchored to the lowered portrait apex.");
             Assert.That(sweptLeftTip, Is.GreaterThan(rearShell),
                 "The portrait roof must retain a controlled outward/downward swept eave tip in the final post-audit pass.");
         }
@@ -161,7 +171,8 @@ namespace VoxelEngine.Tests.EditMode
             int eave = origin.y + config.MainEaveY;
             int ridge = origin.y + config.MainRidgeY;
             int portraitEave = upper + 31;
-            int rise = math.max(38, ridge - portraitEave);
+            int clearRise = math.max(38, ridge - portraitEave);
+            int rise = math.min(clearRise, math.max(38, config.Width / 2 - 2));
             int roofZ = origin.z - config.RoofOverhang - 2;
             int front = origin.z - 2;
             int rear = origin.z + config.Depth + 1;
@@ -173,7 +184,7 @@ namespace VoxelEngine.Tests.EditMode
             int profileClear = session.Operations.FindIndex(op =>
                 op.Kind == OperationKind.Carve &&
                 op.Position.Equals(new int3(centre - 34, portraitEave, roofZ - 1)) &&
-                op.Size.Equals(new int3(69, rise + 8, config.RoofOverhang + 20)));
+                op.Size.Equals(new int3(69, clearRise + 8, config.RoofOverhang + 20)));
             int profileSearchStart = math.max(0, profileClear + 1);
             int baseLeftEdge = session.Operations.FindIndex(profileSearchStart, op =>
                 op.Kind == OperationKind.Box && op.Material == palette.Roof &&
@@ -188,6 +199,14 @@ namespace VoxelEngine.Tests.EditMode
                 op.Kind == OperationKind.Box && op.Material == palette.Roof &&
                 op.Position.y == midY && op.Position.z == roofZ &&
                 op.Size.Equals(new int3(4, 2, 20)) && op.Position.x > centre);
+            int apexLeftEdge = session.Operations.FindIndex(profileSearchStart, op =>
+                op.Kind == OperationKind.Box && op.Material == palette.Roof &&
+                op.Position.y == portraitEave + rise && op.Position.z == roofZ &&
+                op.Size.Equals(new int3(4, 2, 20)) && op.Position.x < centre);
+            int obsoleteHighRoof = session.Operations.FindIndex(profileSearchStart, op =>
+                op.Kind == OperationKind.Box && op.Material == palette.Roof &&
+                op.Position.z == roofZ && op.Position.x >= centre - 36 && op.Position.x <= centre + 36 &&
+                op.Position.y > portraitEave + rise + 1 && op.Position.y <= portraitEave + clearRise + 1);
             int midPlaster = session.Operations.FindIndex(profileSearchStart, op =>
                 op.Kind == OperationKind.Box && op.Material == palette.Plaster &&
                 op.Position.y == midY && op.Position.z == front - 1 &&
@@ -204,9 +223,15 @@ namespace VoxelEngine.Tests.EditMode
             RecordedOperation clear = session.Operations[profileClear];
             Assert.That(clear.Position.z + clear.Size.z, Is.LessThan(rear - 2),
                 "The destructive silhouette clear must remain shallow/front-only and never reach the rear audit shell.");
+            Assert.That(rise, Is.LessThan(clearRise),
+                "The final portrait roof must no longer rebuild all the way to the obsolete global ridge.");
             Assert.That(baseLeftEdge, Is.GreaterThan(profileClear));
             Assert.That(midLeftEdge, Is.GreaterThan(baseLeftEdge));
             Assert.That(midRightEdge, Is.GreaterThan(profileClear));
+            Assert.That(apexLeftEdge, Is.GreaterThan(midLeftEdge),
+                "The lowered width-driven portrait apex must still be explicitly authored.");
+            Assert.That(obsoleteHighRoof, Is.EqualTo(-1),
+                "No final portrait-roof edge may survive in the cleared needle-spire range above the lowered apex.");
             Assert.That(midPlaster, Is.GreaterThan(profileClear));
 
             RecordedOperation baseEdge = session.Operations[baseLeftEdge];
