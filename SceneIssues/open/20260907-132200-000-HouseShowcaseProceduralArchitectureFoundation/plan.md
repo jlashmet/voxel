@@ -14,7 +14,7 @@ H1: a new architecture engine is required. H2: existing guild-house production g
 
 ## Implemented foundation
 
-Current implementation head before validation bookkeeping is `00d850adabb0cfef1ef80a81f9174ef609203a41`.
+Verified production source is `1efa11232cfbfee5a91fa1ae79c5319490ca0f72`.
 
 - `ArchitectureModel`, `ArchitectureRegistry`, `ArchitectureReviewRegistry`, and durable review metadata provide semantic profile/provider/archetype discovery, deterministic request/result identity, explicit parameter support, production capability metadata, reference descriptors, and deterministic exterior/interior poses.
 - `GuildHouseArchitectureProvider` adapts existing guild composition/authoring. It supports footprint, room count, storey count, and floor height; unsupported roof/foundation/opening/trim/detail overrides are rejected explicitly.
@@ -25,19 +25,33 @@ Current implementation head before validation bookkeeping is `00d850adabb0cfef1e
 - `HouseShowcase` is now registry/provider-driven, exposes profile/provider/archetype/seed/supported parameters, same-input regeneration, distinct-seed generation, deterministic exterior/interior review, free-fly inspection, and durable reference/runtime pair metadata. Furnishing controls were removed from this feature path.
 - Neutral reference art and `Documentation/ProceduralArchitectureFoundation.md` document the review and extension boundary.
 
-## Blast radius, budgets, and current blocker
+## Blast radius and budgets
 
-The branch is currently ahead of `master` and not behind it. The source diff is scoped to architecture contracts/provider/tests/validation, the HouseShowcase consumer, one narrow engine curved-authoring capability, neutral reference/documentation, and the assigned SceneIssue. No Kentridge runtime source is modified.
+The production diff is scoped to architecture contracts/provider/tests/validation, the HouseShowcase consumer, one narrow engine curved-authoring capability, neutral reference/documentation, and the assigned SceneIssue. No Kentridge runtime source is modified.
 
 Production authoring retains bounded budgets: HouseShowcase uses an 8,000,000-write structure session; the four-variant module validation uses 20,000,000 writes and fails on budget exhaustion; Storage/render lifecycle is explicitly cleared/disposed on rebuild/disable. Registries reject duplicate keys rather than accumulating per-regeneration registrations. Shared APIs contain semantic keys rather than raw material IDs or scene coordinates; material IDs remain inside the production guild adapter/authoring and composition reference/camera constants remain Showcase-owned.
 
-The coordinator-specified exact targeted-CI request `82808e2340f8c467ac4d29a58b0e01e391976143` / run `34165897954` remains queued with no runner assigned and must not be replaced while active. Independent implementation work is complete enough for validation, but no execution/image/Kentridge acceptance is claimed from source inspection alone.
+## Final exact-SHA validation
 
-## Remaining gates
+The first final-source request `e710fd02492b38a3f2b94287fbc65175475d2e18` / run `34169991521` correctly exposed a product compile failure: `Game.Structures.Runtime` did not reference `VoxelEngine.Storage.Api` after the curved-authoring contract exposed `VoxelSurfaceFlags`. The owning asmdef dependency was fixed in `1efa11232cfbfee5a91fa1ae79c5319490ca0f72`.
 
-1. Let the existing exact request finish without replacement; inspect its result/evidence.
-2. On the final feature head, run the required exact-SHA targeted CI. Repository-derived module validation must execute the Structures and Showcase module-local players; focused EditMode coverage must pass with nonzero tests/captures.
-3. Run/retain exact-source HouseShowcase built-player evidence at 1600x900: canonical exterior/interior/reference pair, three additional deterministic seeds, configuration/profile switching, and direct visual inspection of every required image.
-4. Run the established Kentridge integration target `Assets/Game/Composition/Kentridge/Playable/Validation/KentridgeEncounterRealizationValidation.unity`; final PR `affected` must also pass canonical standalone `KentridgePlayableSlice` as required by repository workflow.
-5. Resolve any product failures on `fixes/agent-1`; retry only proven infrastructure failures.
-6. After every acceptance item is proven, finish issue evidence/checklist, move open→closed, set fixed/resolved metadata, merge current master, open/update the feature PR, enable auto-merge, pass `affected`, and confirm the closed issue on `origin/master`.
+The follow-up exact targeted-CI transport `b9d7fcb542b340853cf902cebda2cbca2a4b0e23` / run `34178318979` validated parent source `1efa11232cfbfee5a91fa1ae79c5319490ca0f72` and completed successfully:
+
+- all repository-derived required EditMode/PlayMode assemblies executed with nonzero results;
+- all repository-derived module-local players completed, including Structures and Showcase architecture validation;
+- canonical `KentridgePlayableSlice` integration completed successfully;
+- standalone `Assets/Scenes/HouseShowcase.unity` replay built and completed at 1600x900;
+- screenshot previews and durable artifact `single-test-34178318979` were emitted.
+
+## Direct built-player review
+
+The artifact was downloaded and inspected directly.
+
+- `ArchitectureFoundationRuntimeValidation` shows four visibly distinct deterministic footprints/massing variants with complete walls, roofs, centered entrances, real windows, grounded foundations, production materials/textures, and an interior stair path. Runtime assertions also prove Glass occupancy, signed-distance boundary samples, two storeys, one stair flight, and walkable entrance/interior clearance.
+- `HouseShowcaseArchitectureValidation` provides a complete 78-second review sequence. Logs prove same-input deterministic identity, seed variants 1/2/3 with distinct hashes and bounds, explicit three-storey/floor-height/room configuration switching, semantic `hightown` profile switching, canonical exterior/interior review poses, and final reference/runtime pair metadata. Direct capture review found no missing supported structure parts, bad support/contact, unusable openings, visible seams, or missing production presentation.
+- The standalone SceneIssue replay shows the canonical exterior and interior correctly. Its final 30-second interval capture occurs immediately after the first seed rebuild and catches the renderer during republish; the corresponding longer HouseShowcase validation frames show the rebuilt variant correctly, so this is not a persistent geometry defect.
+- Canonical Kentridge integration completed with its required runtime assertions/captures and no architecture-specific alternate enabling path or demonstrated renderer/material/collision regression.
+
+## Closure readiness
+
+Every implementation and acceptance checkbox is satisfied. The issue is ready for the repository-prescribed closure sequence: update fixed/resolved evidence, move only this issue from `open/` to `closed/`, then merge current `origin/master` into `fixes/agent-1`, open/update the feature PR, enable auto-merge, pass the required `affected` gate, and confirm the closed SceneIssue on `origin/master`.
