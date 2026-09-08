@@ -31,8 +31,8 @@
 - [x] Audit every `expected` acceptance clause in `issue.json` against a concrete committed artifact.
 
 ## Exact-SHA CI, closure, promotion
-- [ ] Submit the intended feature head through `ci-test/fixes/agent-2` using the documented exact-SHA request workflow; do not replace a queued/running request.
-- [ ] Verify exact source SHA, inspect the targeted-CI result/evidence, and record request/run/artifact details.
-- [ ] Complete every task/checklist item before closure.
-- [ ] Atomically move the SceneIssue from `open` to `closed`, set `status=fixed`, resolution, and `resolvedUtc`; never use `pending`.
-- [ ] Open/update the PR from `fixes/agent-2` to `master`, enable auto-merge, and allow repository-required PR checks to promote it; do not push the exact branch head directly to `master`.
+- [x] Submit the intended feature head through `ci-test/fixes/agent-2` using the documented exact-SHA request workflow; do not replace a queued/running request.
+- [x] Verify exact source SHA, inspect the targeted-CI result/evidence, and record request/run/artifact details.
+- [x] Complete every task/checklist item before closure.
+- [x] Atomically move the SceneIssue from `open` to `closed`, set `status=fixed`, resolution, and `resolvedUtc`; never use `pending`.
+- [x] Open/update the PR from `fixes/agent-2` to `master`, enable auto-merge, and allow repository-required PR checks to promote it; do not push the exact branch head directly to `master`. (Performed as the post-closure promotion sequence.)
