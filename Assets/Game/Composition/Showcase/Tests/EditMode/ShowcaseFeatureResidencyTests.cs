@@ -3,6 +3,7 @@ using System.Reflection;
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
+using UnityEngine;
 using VoxelEngine.Showcase;
 using VoxelEngine.Structures.Api;
 
@@ -41,6 +42,32 @@ namespace VoxelEngine.Tests.EditMode
                 "An exclusive X boundary must not request a neighboring feature layer.");
             Assert.That(pending.Contains(new int3(-1, 0, 0)), Is.True,
                 "Feature height must preserve the underlying terrain layer.");
+        }
+
+        [Test]
+        public void PresentationColumnReadinessWaitsForPendingAuthoredFeaturePublication()
+        {
+            using var world = new ShowcaseWorld(0x5EED1234u, 64, 1, 2);
+            var region = new int3(5, 0, 5);
+            world.GenerateRegionBlocking(region);
+
+            var point = new Vector3(
+                region.x * ShowcaseWorld.RegionMetres + 1f,
+                1f,
+                region.z * ShowcaseWorld.RegionMetres + 1f);
+            Assert.That(world.IsPresentationColumnContentSettled(point), Is.True,
+                "A fully generated column with no pending authored work should be settled.");
+
+            var pendingFeatures = (List<int3>)typeof(ShowcaseWorld)
+                .GetField("_pendingFeatureRegions", BindingFlags.Instance | BindingFlags.NonPublic)
+                .GetValue(world);
+            pendingFeatures.Add(region);
+            Assert.That(world.IsPresentationColumnContentSettled(point), Is.False,
+                "Terrain residency must not race pending authored feature publication.");
+
+            pendingFeatures.Remove(region);
+            Assert.That(world.IsPresentationColumnContentSettled(point), Is.True,
+                "The same generated column should settle once authored feature publication is complete.");
         }
     }
 }
