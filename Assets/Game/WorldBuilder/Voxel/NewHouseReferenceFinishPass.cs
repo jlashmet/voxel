@@ -16,6 +16,7 @@ namespace Game.WorldBuilder.Voxel
             in NewHouseReferenceConfig c, in NewHouseReferencePalette p)
         {
             RefinePortraitGable(a, o, in c, in p);
+            RefineMiddleFacadeOpening(a, o, in c, in p);
             ExtendReferenceChimney(a, o, in c, in p);
             ReplaceOversizedCrest(a, o, in c, in p);
             RebuildHangingDetails(a, o, in c, in p);
@@ -31,24 +32,12 @@ namespace Game.WorldBuilder.Voxel
             int front = o.z - 2;
             int portraitEave = upper + 31;
 
-            // Iteration 8 proved the final opening/crest ordering but also exposed the dominant
-            // remaining structural mismatch: the outer portrait roof still read as the original
-            // straight oversized triangle. Replace that shallow front-only mass before adding any
-            // final openings or ornaments so the target and front-left views exercise the authored
-            // swept profile rather than a camera/material workaround.
             RebuildSweptPortraitShell(a, o, in c, in p);
 
-            // Refill the old high opening, then carve through the complete repair depth so the
-            // smaller reference window remains visibly open after the destructive silhouette pass.
             FillArch(a, centre, eave + 10, front, 15, 21, p.Plaster);
             ArchedPanel(a, centre, eave + 12, front, 11, 17,
                 p.Glass, p.Timber, p.Timber);
 
-            // The broad refinement authored this flower box before the destructive portrait-shell
-            // rebuild, so iteration 9b's final render lost it even though the earlier operations were
-            // still present in the command stream. Restore it after the final arch carve so the
-            // reference's dense upper-gable planting survives the finish pass instead of leaving a
-            // blank white panel beneath the portrait window.
             AddDenseFlowerBox(a, centre - 12, portraitEave + 7, front - 2, 24, in p);
 
             a.Box(new int3(centre - 20, portraitEave + 4, front - 4),
@@ -70,6 +59,40 @@ namespace Game.WorldBuilder.Voxel
                 front - 4, p.Timber);
         }
 
+        private static void RefineMiddleFacadeOpening(IStructureAuthoringSession a, int3 o,
+            in NewHouseReferenceConfig c, in NewHouseReferencePalette p)
+        {
+            int centre = o.x + c.Width / 2;
+            int upper = o.y + c.UpperFloorY;
+            int front = o.z - 2;
+
+            // Iteration 12 showed that the middle-storey opening, shutters, and cross framing still
+            // consumed most of the register. Remove only that shallow central facade patch, refill
+            // it with the normal plaster material, and author one compact reference-scale opening.
+            // This intentionally leaves outer posts, roof/chimney, lower openings, and audit shell
+            // outside the destructive volume.
+            a.Carve(new int3(centre - 21, upper + 4, front - 6), new int3(43, 31, 10));
+            a.Box(new int3(centre - 20, upper + 4, front - 4), new int3(41, 31, 7), p.Plaster);
+
+            ArchedPanel(a, centre, upper + 8, front, 13, 19,
+                p.Glass, p.Timber, p.Timber);
+            AddCompactShutters(a, centre, upper + 9, front, 13, 17, p.Accent, p.Timber);
+            AddDenseFlowerBox(a, centre - 11, upper + 4, front - 2, 22, in p);
+
+            // Reintroduce restrained structural hierarchy around the smaller opening without the
+            // blockout-size cross that previously dominated the facade.
+            a.Box(new int3(centre - 19, upper + 4, front - 5),
+                new int3(39, 2, TimberDepth), p.Timber);
+            a.Box(new int3(centre - 17, upper + 31, front - 5),
+                new int3(35, 2, TimberDepth), p.Timber);
+            a.Box(new int3(centre - 19, upper + 6, front - 5),
+                new int3(2, 25, TimberDepth), p.Timber);
+            a.Box(new int3(centre + 17, upper + 6, front - 5),
+                new int3(2, 25, TimberDepth), p.Timber);
+            Line(a, centre - 17, upper + 8, centre - 13, upper + 15, front - 5, p.Timber);
+            Line(a, centre + 17, upper + 8, centre + 13, upper + 15, front - 5, p.Timber);
+        }
+
         private static void RebuildSweptPortraitShell(IStructureAuthoringSession a, int3 o,
             in NewHouseReferenceConfig c, in NewHouseReferencePalette p)
         {
@@ -81,20 +104,11 @@ namespace Game.WorldBuilder.Voxel
             int front = o.z - 2;
             int roofZ = o.z - c.RoofOverhang - 2;
 
-            // Remove only the shallow portrait mass authored by the earlier broad roof replacement.
-            // The clear ends near the front of the house, far ahead of the rear audit shell, and it
-            // starts at the portrait eave so the lower transverse shoulder roof remains the separate
-            // supporting roof form visible in the reference.
             const int clearHalf = 34;
             int clearDepth = c.RoofOverhang + 20;
             a.Carve(new int3(centre - clearHalf, portraitEave, roofZ - 1),
                 new int3(clearHalf * 2 + 1, rise + 8, clearDepth));
 
-            // Iteration 10 restored the upper flower box, but direct target/front-left comparison
-            // still showed a needle-like portrait roof: its spring-line envelope was far narrower
-            // than the reference while the ridge height was already credible. Widen only the final
-            // swept profile so the three-register facade keeps its existing vertical datums and the
-            // gable gains the broad concave shoulders visible in the pinned image.
             const int baseHalf = 29;
             const int apexHalf = 2;
             const int roofDepth = 20;
@@ -105,18 +119,10 @@ namespace Game.WorldBuilder.Voxel
                 int half = apexHalf + (int)math.round(
                     (baseHalf - apexHalf) * math.pow(remaining, 1.45f));
 
-                // A short outward flare at the first rows creates the reference's swept eave root;
-                // the nonlinear power curve above then narrows faster through the mid-gable than a
-                // straight A-frame, producing a visibly concave portrait silhouette.
                 if (row < 6)
                     half += (6 - row + 1) / 2;
 
                 int y = portraitEave + row;
-
-                // Iteration 9 exposed a one-voxel black seam between the rebuilt plaster shell and
-                // the inner roof edge. Make the two opaque masses meet exactly, then overwrite that
-                // shared interface with a supported timber bargboard. This keeps the nonlinear roof
-                // profile while eliminating sky-visible separation rather than hiding it by camera.
                 int shellHalf = math.max(1, half - 2);
                 a.Box(new int3(centre - shellHalf, y, front - 1),
                     new int3(shellHalf * 2 + 1, 1, 6), p.Plaster);
@@ -131,8 +137,6 @@ namespace Game.WorldBuilder.Voxel
                     new int3(2, 2, TimberDepth), p.Timber);
             }
 
-            // Continue the lower roof skin outward and downward so the tips remain visibly swept
-            // beyond the widened spring line rather than reading as a straight triangular cap.
             int sweptRoot = baseHalf + 3;
             for (int i = 1; i <= 9; i++)
             {
@@ -159,10 +163,6 @@ namespace Game.WorldBuilder.Voxel
             int baseY = upper + 14;
             int top = math.max(baseY + 12, ridge - 10);
 
-            // Iteration 11 brought the portrait-gable width into a credible range, exposing the
-            // left chimney as the next dominant silhouette defect. Preserve the existing embedded
-            // chimney/root and shoulder roof; extend the same masonry footprint upward late in the
-            // production pass so the shaft reads as one tall stack rather than an isolated cap.
             a.Box(new int3(x, baseY, z), new int3(10, top - baseY, 10), p.Stone);
             a.Box(new int3(x - 1, top - 15, z - 1), new int3(12, 2, 12), p.Stone);
             a.Box(new int3(x - 2, top - 6, z - 2), new int3(14, 3, 14), p.Stone);
@@ -177,9 +177,6 @@ namespace Game.WorldBuilder.Voxel
             int ridge = o.y + c.MainRidgeY;
             int z = o.z + 5;
 
-            // Iteration 7 still retained the ridge+1 layers from both earlier crest builders, which
-            // visually merged with the replacement into a tall rectangular gold post. Clear from
-            // ridge+1 upward (leaving the actual roof ridge intact), then rebuild one compact finial.
             a.Carve(new int3(centre - 8, ridge + 1, o.z), new int3(17, 18, 16));
             a.Box(new int3(centre - 2, ridge + 1, z), new int3(5, 2, 5), p.Timber);
             a.Box(new int3(centre - 2, ridge + 3, z + 1), new int3(5, 2, 3), p.Ornament);
@@ -193,8 +190,6 @@ namespace Game.WorldBuilder.Voxel
             int upper = o.y + c.UpperFloorY;
             int front = o.z - 10;
 
-            // The previous sign floated too far from the wall. Its volume is outside the reusable
-            // shell, so it can be cleared without touching house structure and rebuilt closer in.
             int right = o.x + c.Width;
             a.Carve(new int3(right, upper + 4, front - 2), new int3(24, 32, 8));
             int bracketX = right - 2;
@@ -202,7 +197,6 @@ namespace Game.WorldBuilder.Voxel
             a.Box(new int3(bracketX + 9, upper + 17, front), new int3(2, 11, 2), p.Timber);
             AddShield(a, bracketX + 5, upper + 8, front + 1, 8, 11, p.Timber, p.Ornament);
 
-            // Rebuild the banner with a pointed lower silhouette instead of the blockout rectangle.
             int bannerX = o.x - 3;
             a.Carve(new int3(o.x - 12, upper + 3, front - 2), new int3(22, 29, 8));
             a.Box(new int3(bannerX - 2, upper + 27, front), new int3(16, 2, 2), p.Timber);
@@ -219,6 +213,26 @@ namespace Game.WorldBuilder.Voxel
             a.Box(new int3(cx - 3, cy, front), new int3(7, 1, 1), p.Ornament);
             Diagonal(a, cx - 2, cy - 2, cx + 2, cy + 2, front, p.Ornament);
             Diagonal(a, cx - 2, cy + 2, cx + 2, cy - 2, front, p.Ornament);
+        }
+
+        private static void AddCompactShutters(IStructureAuthoringSession a,
+            int centreX, int y, int frontZ, int windowWidth, int height,
+            byte accent, byte timber)
+        {
+            int half = windowWidth / 2;
+            const int shutterWidth = 4;
+            int leftX = centreX - half - shutterWidth - 2;
+            int rightX = centreX + half + 3;
+
+            a.Box(new int3(leftX, y, frontZ - 5), new int3(shutterWidth, height, 2), accent);
+            a.Box(new int3(rightX, y, frontZ - 5), new int3(shutterWidth, height, 2), accent);
+            for (int yOffset = 4; yOffset < height - 1; yOffset += 5)
+            {
+                a.Box(new int3(leftX, y + yOffset, frontZ - 6),
+                    new int3(shutterWidth, 1, 2), timber);
+                a.Box(new int3(rightX, y + yOffset, frontZ - 6),
+                    new int3(shutterWidth, 1, 2), timber);
+            }
         }
 
         private static void AddDenseFlowerBox(IStructureAuthoringSession a,
