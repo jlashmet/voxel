@@ -64,6 +64,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private float _settingsVoxelSize;
         private bool _settingsBandsEnabled;
         private readonly Vector4[] _settingsBands = new Vector4[4];
+        private DemandIdentitySnapshot _demandIdentitySnapshot;
+        private bool _demandIdentityProbeEmitted;
+        internal DemandIdentityProbe LatestDemandIdentityProbe { get; private set; }
         internal ulong DemandFeedbackAccepted { get; private set; }
         internal ulong DemandFeedbackDiscarded { get; private set; }
         internal ulong DemandFeedbackErrors { get; private set; }
@@ -71,6 +74,83 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         internal ulong DemandFullRefreshes { get; private set; }
         internal ulong DemandCoordinateRefreshes { get; private set; }
         internal ulong DemandRankUpdates { get; private set; }
+
+        internal readonly struct DemandIdentityProbe
+        {
+            internal readonly SurfaceLodNodeKey Key;
+            internal readonly uint RawState;
+            internal readonly uint Priority;
+            internal readonly uint InputVersion;
+            internal readonly uint SettingsVersion;
+            internal readonly uint TopologyVersion;
+            internal readonly Vector4 BoundsVoxel;
+            internal readonly float VoxelSize;
+
+            internal DemandIdentityProbe(SurfaceLodNodeKey key, uint rawState,
+                                         uint inputVersion, uint settingsVersion,
+                                         uint topologyVersion, Vector4 boundsVoxel,
+                                         float voxelSize)
+            {
+                Key = key;
+                RawState = rawState;
+                Priority = rawState >> 7;
+                InputVersion = inputVersion;
+                SettingsVersion = settingsVersion;
+                TopologyVersion = topologyVersion;
+                BoundsVoxel = boundsVoxel;
+                VoxelSize = voxelSize;
+            }
+        }
+
+        internal sealed class DemandIdentitySnapshot
+        {
+            private readonly SurfaceLodNodeKey[] _keys;
+            private readonly Vector4[] _boundsVoxel;
+            internal int Count { get; private set; }
+            internal uint InputVersion { get; private set; }
+            internal uint SettingsVersion { get; private set; }
+            internal uint TopologyVersion { get; private set; }
+            internal float VoxelSize { get; private set; }
+
+            internal DemandIdentitySnapshot(int capacity)
+            {
+                _keys = new SurfaceLodNodeKey[capacity];
+                _boundsVoxel = new Vector4[capacity];
+            }
+
+            internal void Capture(GpuSurfaceLodInputs inputs, uint settingsVersion, float voxelSize)
+            {
+                Count = inputs.Count;
+                InputVersion = inputs.Version;
+                SettingsVersion = settingsVersion;
+                TopologyVersion = inputs.TopologyBuildCount;
+                VoxelSize = voxelSize;
+                for (int i = 0; i < Count; i++)
+                {
+                    _keys[i] = inputs.KeyAt(i);
+                    _boundsVoxel[i] = inputs.Nodes[i].BoundsVoxel;
+                }
+            }
+
+            internal void Clear() => Count = 0;
+
+            internal bool TryResolve(int index, uint rawState, out DemandIdentityProbe probe)
+            {
+                if ((uint)index >= (uint)Count || !IsMissingPhysicalDemandProbeState(rawState))
+                {
+                    probe = default;
+                    return false;
+                }
+
+                probe = new DemandIdentityProbe(_keys[index], rawState,
+                    InputVersion, SettingsVersion, TopologyVersion,
+                    _boundsVoxel[index], VoxelSize);
+                return true;
+            }
+        }
+
+        internal static bool IsMissingPhysicalDemandProbeState(uint rawState) =>
+            (rawState & 0x70u) == 0x70u && (rawState & 0x08u) == 0u;
 
         internal bool TryConsumeDemand(Action<bool> begin, Action<SurfaceLodNodeKey, uint, bool> consume)
         {
@@ -136,6 +216,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _demandTopology = _lodInputs.TopologyBuildCount;
             _demandSettings = _settingsVersion;
             _demandCount = _lodInputs.Count;
+            if (!_demandIdentityProbeEmitted && _currentDemandFrustum)
+                _demandIdentitySnapshot?.Capture(_lodInputs, _settingsVersion, _settingsVoxelSize);
+            else
+                _demandIdentitySnapshot?.Clear();
             if (_demandCount == 0) { _demandReady = true; return; }
             _demandPending = true;
             _demandRequest = AsyncGPUReadback.Request(_lodState[_activeLodSlot],
@@ -149,8 +233,38 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (request.hasError) { DemandFeedbackErrors++; _requestQueryValid = false; return; }
             var data = request.GetData<uint>();
             for (int i = 0; i < _demandCount; i++)
-                _demandGeometry[i] = data[i] >> 4;
+            {
+                uint rawState = data[i];
+                _demandGeometry[i] = rawState >> 4;
+                if (!_demandIdentityProbeEmitted
+                    && _demandIdentitySnapshot != null
+                    && _demandIdentitySnapshot.TryResolve(i, rawState, out DemandIdentityProbe probe))
+                {
+                    LatestDemandIdentityProbe = probe;
+                    _demandIdentityProbeEmitted = true;
+                    LogDemandIdentityProbe(probe);
+                }
+            }
             _demandReady = true;
+        }
+
+        private static void LogDemandIdentityProbe(DemandIdentityProbe probe)
+        {
+            Vector3 centreVoxel = new Vector3(probe.BoundsVoxel.x, probe.BoundsVoxel.y, probe.BoundsVoxel.z);
+            Vector3 halfVoxel = Vector3.one * probe.BoundsVoxel.w;
+            Vector3 minVoxel = centreVoxel - halfVoxel;
+            Vector3 maxVoxel = centreVoxel + halfVoxel;
+            Vector3 minWorld = minVoxel * probe.VoxelSize;
+            Vector3 maxWorld = maxVoxel * probe.VoxelSize;
+            Debug.Log($"GPU_DEMAND_IDENTITY step={probe.Key.SourceStep}"
+                + $" chunk=({probe.Key.Coordinate.x},{probe.Key.Coordinate.y},{probe.Key.Coordinate.z})"
+                + $" raw=0x{probe.RawState:X8} priority={probe.Priority}"
+                + $" inputVersion={probe.InputVersion} settingsVersion={probe.SettingsVersion}"
+                + $" topologyVersion={probe.TopologyVersion}"
+                + $" voxelBounds=[({minVoxel.x:0.###},{minVoxel.y:0.###},{minVoxel.z:0.###})"
+                + $"..({maxVoxel.x:0.###},{maxVoxel.y:0.###},{maxVoxel.z:0.###})]"
+                + $" worldBounds=[({minWorld.x:0.###},{minWorld.y:0.###},{minWorld.z:0.###})"
+                + $"..({maxWorld.x:0.###},{maxWorld.y:0.###},{maxWorld.z:0.###})]");
         }
 
         private void UpdateDemandSettings(float voxelSize, Vector4[] bands)
@@ -220,6 +334,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 _lodInputs = new GpuSurfaceLodInputs(_arena.HandleCapacity * 8);
                 _demandGeometry = new uint[_lodInputs.Nodes.Length];
                 _previousDemandGeometry = new uint[_lodInputs.Nodes.Length];
+                _demandIdentitySnapshot = new DemandIdentitySnapshot(_lodInputs.Nodes.Length);
                 for (int i = 0; i < BufferedFrames; i++)
                 {
                     _lodNodes[i] = new ComputeBuffer(_lodInputs.Nodes.Length, 64);
