@@ -90,6 +90,55 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(config.MainRidgeY + origin.y, Is.EqualTo(ridge));
         }
 
+        [NUnit.Framework.Test]
+        public void AuthorHouse_HighGableArchKeepsMullionContained_WithoutCrossingStructuralBelt()
+        {
+            NewHouseReferenceConfig config = NewHouseReferenceConfig.Default;
+            NewHouseReferencePalette palette = Palette();
+            int3 origin = new(-27, 13, 35);
+            var session = new RecordingSession();
+
+            NewHouseReferenceRefinement.AuthorHouse(session, origin, in config, in palette);
+
+            int centre = origin.x + config.Width / 2;
+            int upper = origin.y + config.UpperFloorY;
+            int eave = origin.y + config.MainEaveY;
+            int portraitEave = upper + 31;
+            int front = origin.z - 2;
+
+            int compactArch = session.Operations.FindIndex(op =>
+                op.Kind == OperationKind.Carve &&
+                op.Position.Equals(new int3(centre - 5, eave + 12, front - 4)) &&
+                op.Size.Equals(new int3(11, 1, 9)));
+            int containedHorizontalMullion = session.Operations.FindIndex(op =>
+                op.Kind == OperationKind.Box && op.Material == palette.Timber &&
+                op.Position.Equals(new int3(centre - 4, eave + 17, front - 4)) &&
+                op.Size.Equals(new int3(9, 1, 2)));
+            int flowerBox = session.Operations.FindIndex(op =>
+                op.Kind == OperationKind.Box && op.Material == palette.Timber &&
+                op.Position.Equals(new int3(centre - 12, portraitEave + 7, front - 2)) &&
+                op.Size.Equals(new int3(24, 3, 4)));
+            int lowerStructuralBelt = session.Operations.FindIndex(op =>
+                op.Kind == OperationKind.Box && op.Material == palette.Timber &&
+                op.Position.Equals(new int3(centre - 20, portraitEave + 4, front - 4)) &&
+                op.Size.Equals(new int3(41, 2, 2)));
+            int crossingBelt = session.Operations.FindIndex(op =>
+                op.Kind == OperationKind.Box && op.Material == palette.Timber &&
+                op.Position.Equals(new int3(centre - 14, portraitEave + 27, front - 4)) &&
+                op.Size.Equals(new int3(29, 2, 2)));
+
+            Assert.That(compactArch, Is.GreaterThanOrEqualTo(0),
+                "The final high-gable reference opening must remain an 11-voxel arched panel.");
+            Assert.That(containedHorizontalMullion, Is.GreaterThan(compactArch),
+                "The high-gable window must retain its compact internal mullion after the arch is carved.");
+            Assert.That(flowerBox, Is.GreaterThan(compactArch),
+                "The dense high-gable flower box must survive the opening correction.");
+            Assert.That(lowerStructuralBelt, Is.GreaterThan(flowerBox),
+                "The structural belt below the high opening remains part of the reference gable composition.");
+            Assert.That(crossingBelt, Is.EqualTo(-1),
+                "No full-width structural timber belt may cross the final high-gable glazing.");
+        }
+
         private static NewHouseReferencePalette Palette() =>
             new(plaster: 41, timber: 42, roof: 43, stone: 44, glass: 45,
                 door: 46, accent: 47, ground: 48, flowers: 49, foliage: 50, ornament: 51);
