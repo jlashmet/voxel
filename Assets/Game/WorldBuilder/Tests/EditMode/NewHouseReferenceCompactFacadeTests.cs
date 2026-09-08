@@ -50,6 +50,22 @@ namespace VoxelEngine.Tests.EditMode
                 op.Kind == OperationKind.Box && op.Material == palette.Accent &&
                 op.Position.Equals(new int3(centre + 9, upper + 9, front - 5)) &&
                 op.Size.Equals(new int3(4, 17, 2)));
+            int oversizedBottomFrame = session.Operations.FindIndex(op =>
+                op.Kind == OperationKind.Box && op.Material == palette.Timber &&
+                op.Position.Equals(new int3(centre - 19, upper + 4, front - 5)) &&
+                op.Size.Equals(new int3(39, 2, 2)));
+            int oversizedTopFrame = session.Operations.FindIndex(op =>
+                op.Kind == OperationKind.Box && op.Material == palette.Timber &&
+                op.Position.Equals(new int3(centre - 17, upper + 31, front - 5)) &&
+                op.Size.Equals(new int3(35, 2, 2)));
+            int oversizedLeftPost = session.Operations.FindIndex(op =>
+                op.Kind == OperationKind.Box && op.Material == palette.Timber &&
+                op.Position.Equals(new int3(centre - 19, upper + 6, front - 5)) &&
+                op.Size.Equals(new int3(2, 25, 2)));
+            int oversizedRightPost = session.Operations.FindIndex(op =>
+                op.Kind == OperationKind.Box && op.Material == palette.Timber &&
+                op.Position.Equals(new int3(centre + 17, upper + 6, front - 5)) &&
+                op.Size.Equals(new int3(2, 25, 2)));
 
             Assert.That(portraitClear, Is.GreaterThanOrEqualTo(0));
             Assert.That(middleClear, Is.GreaterThan(portraitClear),
@@ -63,6 +79,14 @@ namespace VoxelEngine.Tests.EditMode
                 "The final 13-voxel reference-scale arch must be carved after the destructive facade refill.");
             Assert.That(leftShutter, Is.GreaterThan(compactArch));
             Assert.That(rightShutter, Is.GreaterThan(compactArch));
+            Assert.That(oversizedBottomFrame, Is.EqualTo(-1),
+                "The final compact middle opening must not be enclosed by the obsolete room-sized bottom timber cage.");
+            Assert.That(oversizedTopFrame, Is.EqualTo(-1),
+                "The final compact middle opening must not be enclosed by the obsolete room-sized top timber cage.");
+            Assert.That(oversizedLeftPost, Is.EqualTo(-1),
+                "The final compact middle opening must not retain the obsolete 25-voxel left timber jamb.");
+            Assert.That(oversizedRightPost, Is.EqualTo(-1),
+                "The final compact middle opening must not retain the obsolete 25-voxel right timber jamb.");
             Assert.That(config.MainRidgeY + origin.y, Is.EqualTo(ridge));
         }
 
