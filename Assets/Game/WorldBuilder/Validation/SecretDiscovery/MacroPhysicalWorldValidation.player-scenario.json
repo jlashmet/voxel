@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "runSeconds": 46,
+  "gpuCutover": "required",
+  "capture": {
+    "width": 1600,
+    "height": 900,
+    "intervalSeconds": 7,
+    "minimumFrames": 6,
+    "evidenceAfterSeconds": 2
+  },
+  "timeline": {},
+  "assertions": {
+    "requiredLogPatterns": [
+      "MACRO_PHYSICAL_WORLD ready:",
+      "MACRO_PHYSICAL_WORLD view=moordell",
+      "MACRO_PHYSICAL_WORLD view=rossdam-lake",
+      "MACRO_PHYSICAL_WORLD view=southern-ridge-pass"
+    ],
+    "forbiddenLogPatterns": [
+      "MACRO_PHYSICAL_WORLD failure:",
+      "Exception",
+      "Shader error",
+      "GPU surface transaction rejected"
+    ]
+  }
+}
