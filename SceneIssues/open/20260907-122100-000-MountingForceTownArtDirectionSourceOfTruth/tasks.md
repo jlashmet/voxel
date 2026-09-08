@@ -26,9 +26,9 @@
 - [x] Add a concept catalog mapping each image role to town, required category, depicted named places/infrastructure, and brief requirements.
 
 ## Evidence and regression
-- [ ] Audit the final master→feature diff to prove no production runtime/gameplay/scene implementation changed; if that ceases to be true, add the required behavioral regression and built-scene evidence.
+- [x] Audit the final master→feature diff to prove no production runtime/gameplay/scene implementation changed; if that ceases to be true, add the required behavioral regression and built-scene evidence.
 - [x] Record why built-scene evidence is not applicable **provided** the final diff remains docs/art-only: existing gallery visuals are explicitly non-authoritative and final in-engine implementation is out of scope.
-- [ ] Audit every `expected` acceptance clause in `issue.json` against a concrete committed artifact.
+- [x] Audit every `expected` acceptance clause in `issue.json` against a concrete committed artifact.
 
 ## Exact-SHA CI, closure, promotion
 - [ ] Submit the intended feature head through `ci-test/fixes/agent-2` using the documented exact-SHA request workflow; do not replace a queued/running request.
