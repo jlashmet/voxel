@@ -34,6 +34,22 @@ namespace Game.Application.Tests
         }
 
         [Test]
+        public void InGameContinuesAdvancingRunningSession()
+        {
+            Fixture f = new Fixture();
+            f.Session.ReadyOnEnter = true;
+            Assert.That(f.App.CompleteBoot().Succeeded, Is.True);
+            Assert.That(f.App.RequestNewGame(Descriptor("running-session")).Succeeded, Is.True);
+            Assert.That(f.App.Snapshot.Lifecycle, Is.EqualTo(ApplicationLifecycle.InGame));
+            Assert.That(f.Session.TickCalls, Is.Zero);
+
+            Assert.That(f.App.Update(16).Succeeded, Is.True);
+
+            Assert.That(f.Session.TickCalls, Is.EqualTo(1));
+            Assert.That(f.App.Snapshot.Lifecycle, Is.EqualTo(ApplicationLifecycle.InGame));
+        }
+
+        [Test]
         public void InvalidAndDuplicateLifecycleTransitionsAreRejected()
         {
             Fixture f = new Fixture();
@@ -276,6 +292,7 @@ namespace Game.Application.Tests
             public bool ReadyOnTick;
             public bool FailPrepare;
             public int PrepareCalls;
+            public int TickCalls;
             public int ShutdownCalls;
             public GameSessionStartRequest LastRequest;
             public GameSessionSnapshot Snapshot => _snapshot;
@@ -301,6 +318,7 @@ namespace Game.Application.Tests
 
             public GameSessionOperationResult Tick(int elapsedMilliseconds)
             {
+                TickCalls++;
                 _snapshot = new GameSessionSnapshot(GameSessionLifecycle.Running, ReadyOnTick || _snapshot.GameplayReady, null, GameSessionFailure.None, string.Empty);
                 return GameSessionOperationResult.Success();
             }
