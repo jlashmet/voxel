@@ -17,8 +17,6 @@ Reconciliation repairs reused/missing Unity `.meta` identities and updates the d
 ## Obsolete-source compile discriminator
 Old request `8c4cee6db71f50ca5e87e200308b079b2b2aa421` / run `34175607847` finally ran against obsolete polluted source `f1c1f975d6282858d0f104e42a075017d29d3ead` and failed compilation in `WorldBuilderMountainLandmarkMaterialCatalogue.cs`. That legacy catalogue referenced removed `MountainLandmarkSpec.PathTier`, `PathHeadroomVoxels`, `PathClearanceWidthVoxels`, and `MountainPath*Geometry` contracts. The accepted Mountain Dragon implementation no longer consumes that catalogue; it uses `MountainLandformSurface` plus `WorldBuilderMountainLandformCatalogue` and the shared road path. Remove the superseded catalogue and its `.meta` rather than resurrecting obsolete contracts.
 
-Corrected source commit: `d3463335b2ecf95d21f94b7b9da0b95b8e3f4928`.
-
 Next gate: exact-SHA targeted CI from the corrected feature source, then consume the exact generated startup bake/manifest via `tools/binary_transport`, revalidate the payload-bearing source, and promote only through a new PR + auto-merge.
 
 ## Final disposition
