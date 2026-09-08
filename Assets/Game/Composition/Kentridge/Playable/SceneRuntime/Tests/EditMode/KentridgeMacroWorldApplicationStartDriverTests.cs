@@ -29,5 +29,18 @@ namespace VoxelEngine.Tests.EditMode
                 KentridgeMacroWorldApplicationStartDriver.ShouldRequestNewGame(flow, alreadyRequested),
                 Is.EqualTo(expected));
         }
+
+        [TestCase(0f, true)]
+        [TestCase(4.99f, true)]
+        [TestCase(5f, false)]
+        [TestCase(30f, false)]
+        public void LateValidationProfileGetsBoundedEvidenceDiscoveryWindow(
+            float elapsedSeconds,
+            bool expected)
+        {
+            Assert.That(
+                KentridgeMacroWorldApplicationStartDriver.ShouldAwaitEvidence(elapsedSeconds),
+                Is.EqualTo(expected));
+        }
     }
 }

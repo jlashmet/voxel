@@ -7,8 +7,11 @@ namespace Game.Kentridge.PlayableSlice
     [DefaultExecutionOrder(-200)]
     internal sealed class KentridgeMacroWorldApplicationStartDriver : MonoBehaviour
     {
+        private const float EvidenceDiscoveryTimeoutSeconds = 5f;
+
         private KentridgeProductionCompositionRoot _root;
         private bool _requestIssued;
+        private float _installedAt;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Install()
@@ -20,29 +23,26 @@ namespace Game.Kentridge.PlayableSlice
             host.AddComponent<KentridgeMacroWorldApplicationStartDriver>();
         }
 
-        private void Start()
-        {
-            if (FindFirstObjectByType<KentridgeMacroWorldEvidenceDriver>() != null)
-            {
-                return;
-            }
-
-            Destroy(gameObject);
-        }
+        private void Awake() => _installedAt = Time.realtimeSinceStartup;
 
         private void Update()
         {
+            // SceneIssue validation-profile components are installed after scene load and may not
+            // exist yet when this companion receives its first Start/Update callback. The previous
+            // implementation destroyed itself immediately in that window, leaving the real
+            // Kentridge application parked at FrontEnd/MainMenu for the entire replay. Keep the
+            // otherwise inert companion alive for one short discovery window; ordinary gameplay
+            // still removes it after five seconds when no macro-evidence driver is present.
             if (FindFirstObjectByType<KentridgeMacroWorldEvidenceDriver>() == null)
             {
-                Destroy(gameObject);
+                if (!ShouldAwaitEvidence(Time.realtimeSinceStartup - _installedAt))
+                    Destroy(gameObject);
                 return;
             }
 
             _root ??= FindFirstObjectByType<KentridgeProductionCompositionRoot>();
             if (_root == null || !_root.IsComposed)
-            {
                 return;
-            }
 
             ApplicationFlowSnapshot flow = _root.FlowSnapshot;
             if (flow.Lifecycle == ApplicationLifecycle.StartingSession ||
@@ -53,9 +53,7 @@ namespace Game.Kentridge.PlayableSlice
             }
 
             if (!ShouldRequestNewGame(flow, _requestIssued))
-            {
                 return;
-            }
 
             ApplicationOperationResult result = _root.RequestNewGame();
             if (!result.Succeeded)
@@ -68,6 +66,9 @@ namespace Game.Kentridge.PlayableSlice
             _requestIssued = true;
             Debug.Log("MACROEVIDENCE application-new-game-requested");
         }
+
+        internal static bool ShouldAwaitEvidence(float elapsedSeconds) =>
+            elapsedSeconds < EvidenceDiscoveryTimeoutSeconds;
 
         internal static bool ShouldRequestNewGame(
             ApplicationFlowSnapshot flow,
