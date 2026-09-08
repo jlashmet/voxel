@@ -1,0 +1,7 @@
+{
+  "test": "VoxelEngine.Rendering.Tests.EditMode.GpuAllocationPressureStaleLiveTests.AllocationPressureRetiresStaleVisibleLiveGenerationWhileCapacityPressureDoesNot",
+  "platform": "EditMode",
+  "request_id": "agent6-stale-live-12f98d57-infra1",
+  "scene_issue": "SceneIssues/open/20260829-020634-000-KentridgeMacroWorldPhysicalRealization/issue.json",
+  "replay_seconds": "180"
+}
