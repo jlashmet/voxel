@@ -10,17 +10,15 @@ Owned validation surfaces:
 - Rendering integration: current production GPU renderer only; do not restore retired renderer internals.
 
 ## Current reconciliation state — 2026-09-07
-Current `origin/master=c5fdd3af09c9ae1bf27b2ee06ba6876ebe91dcbd` is already integrated. The branch contains only this prior Kentridge/WorldBuilder assignment.
+Current `origin/master=6e34db751a76e61708d70edebb6bf7af6fe94658` is integrated by two-parent merge `62f91a663a1132920e44c8561d4dfd0e03dd9055`. The resulting diff is 0 behind master and contains only this prior Kentridge/WorldBuilder assignment. Newer master Application/Input ownership is preserved: the retired scene-local `KentridgeUnityInputBridge` stays deleted.
 
-Current code/test head before this plan refresh is `dfe0cb64087cf5c67d949aa4dc26893086a797a3`. Reconciliation now restores a semantic, read-only `ShowcaseWorld.IsPresentationColumnContentSettled` contract using the current runtime's combined terrain/authored-feature `SurfaceLayerSpan` and feature-publication queues. Kentridge evidence no longer reflects into private Showcase streaming state. The owned Showcase regression proves a generated presentation column remains unsettled while authored feature publication is pending. Historical per-bounds renderer telemetry is retained only as explicitly unavailable/non-authoritative diagnostics; actual acceptance still requires canonical published-near-surface coverage plus durable built-player evidence.
+Reconciliation preserves the semantic, read-only `ShowcaseWorld.IsPresentationColumnContentSettled` contract using current combined terrain/authored-feature `SurfaceLayerSpan` and feature-publication queues. Kentridge evidence does not reflect into private Showcase streaming state. The owned Showcase regression proves generated presentation content remains unsettled while authored feature publication is pending. Historical per-bounds renderer telemetry is non-authoritative; actual acceptance still requires canonical published-near-surface coverage and durable built-player evidence.
 
-Current master includes the merged GPU checkpoint, but that checkpoint did not claim visual/coverage completion. Do not assume renderer acceptance or weaken readiness, residency, quality, or budgets.
-
-The preserved exact request `03ee78265fd4d5f52d50855eed5296043868805b` (run `34172038737`) targets superseded source `8475e3df831b5962dd8478f3841ab5ae1b613699` and remains queued on the self-hosted macOS runner. Per `AGENTS.md`/`SceneIssues/README.md`, do not replace or cancel it. Its result cannot be final closure proof for the current feature head. After it becomes terminal, submit one new exact request from the then-current feature SHA through the same `ci-test/fixes/agent-6` transport.
+Preserved request `03ee78265fd4d5f52d50855eed5296043868805b`, run `34172038737`, completed successfully, validating superseded source `8475e3df831b5962dd8478f3841ab5ae1b613699`. It is useful compatibility evidence but cannot close the current synchronized head. The next request must target the exact post-reconciliation feature SHA through `ci-test/fixes/agent-6`.
 
 ## Remaining gates
 1. Run repository-derived exact-SHA validation: affected owned tests, every required module-local standalone player, and the 180-second Kentridge SceneIssue replay.
 2. Inspect full-resolution durable evidence for Moordell, Rossdam, Fairy Village, Orc Village, lake/constrained route, Southern Ridge/pass, macro network, differentiated terrain, and real CharacterMotor traversal. Only production-quality evidence passes.
 3. Record per-target convergence plus CPU/GPU/streaming/process/managed/native/GPU-memory cost against existing budgets.
 4. Fix only demonstrated in-scope defects. If renderer correctness remains an external blocker, record exact evidence rather than changing acceptance.
-5. Complete every task/acceptance item. Then move this same issue `open -> closed`, set fixed metadata, merge current master again if it advanced, open `fixes/agent-6 -> master`, enable auto-merge, and monitor required PR gates until merged.
+5. Complete every task/acceptance item. Then move this same issue `open -> closed`, set fixed metadata, merge current master again if it advances, open `fixes/agent-6 -> master`, enable auto-merge, and monitor required PR gates until merged.
