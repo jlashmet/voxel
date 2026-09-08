@@ -14,6 +14,7 @@
 - [x] Carry only still-missing Mountain Dragon Showcase, reusable Cutscenes, WorldBuilder mountain/road, traversal, regression, module-local validation, startup-bake provenance, and evidence-route work.
 - [x] Preserve current-master overlap, including newer Showcase residency behavior, rather than replacing it with stale branch copies.
 - [x] Exclude unrelated Kentridge/GameSystem work, renderer experiments, CI-planner changes, and other SceneIssues.
+- [x] Reject branch CI classifier `a67758fa` after review: private implementation changes in an API assembly can alter behavior observed by unchanged dependents, so suppressing dependent validation would weaken the repository gate.
 - [x] Repair branch-only Unity asset identity problems: replace reused `.meta` GUIDs, track missing `.meta` files, and point evidence-route tests at the authoritative closed SceneIssue path.
 - [x] Review the clean master-to-feature diff and confirm it contains assignment-scoped files only.
 

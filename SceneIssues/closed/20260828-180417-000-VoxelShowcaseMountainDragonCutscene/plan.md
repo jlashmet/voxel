@@ -14,6 +14,8 @@ Human review still observed torn/floating near-surface strips/holes. Same-camera
 
 The reconciliation also repairs Unity asset identity defects that were safe only on the polluted branch: reused `.meta` GUIDs are replaced with unique GUIDs, missing `.meta` files are tracked, and the durable evidence-route regression points at the authoritative `SceneIssues/closed/...` path rather than legacy `open/...`.
 
+The late branch CI-planner change `a67758fa610c2b99782b338809f3cc25a0f9726d` and its focused tests are intentionally excluded. Its classifier assumes that a modified API file whose diff hunks are private-only cannot affect unchanged dependent assemblies. That is not a sound dependency contract: an existing public method can call a changed private helper, so a private implementation change can alter observable behavior without changing the public declaration. `WorldRoadNetwork` is exactly such an implementation-sensitive API. Keeping current-master fail-closed dependent expansion preserves the repository validation contract rather than weakening CI to fit this assignment's runtime budget.
+
 Revalidate the reconciled exact feature SHA through the assigned `ci-test/fixes/agent-4` transport only after any already queued/running request on that transport reaches a terminal state. Do not replace or cancel existing CI. After green exact-SHA validation and current startup-payload confirmation, refresh closure evidence as needed and promote only through PR + auto-merge.
 
 ## Final disposition
