@@ -61,10 +61,19 @@ namespace Game.Structures.Runtime
             int3 origin,
             int width,
             int depth,
-            int requestedRooms = 0)
+            int requestedRooms = 0,
+            int requestedStoreys = 0,
+            int requestedFloorHeight = 0)
         {
             GuildHouseSpatialPlan spatial = GuildHouseSpatialPlanner.Plan(
-                kind, worldSeed ^ structureId, origin, width, depth, requestedRooms);
+                kind,
+                worldSeed ^ structureId,
+                origin,
+                width,
+                depth,
+                requestedRooms,
+                requestedStoreys,
+                requestedFloorHeight);
             var rooms = new GuildHouseRoomComposition[spatial.Rooms.Length];
 
             for (int i = 0; i < spatial.Rooms.Length; i++)

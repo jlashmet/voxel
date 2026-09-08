@@ -13,9 +13,11 @@ namespace Game.Kentridge.PlayableSlice
     /// </summary>
     internal sealed class KentridgeTopDownWorldLayoutPresentation : MonoBehaviour
     {
+        private const string OverlayArgument = "-voxel-kentridge-world-layout-overlay";
         private const float PanelWidth = 390f;
         private const float PanelHeight = 270f;
         private const float PlotPadding = 24f;
+        private static readonly bool s_ShowOverlay = HasCommandLineArgument(OverlayArgument);
 
         private TopDownWorldLayout _layout;
 
@@ -59,7 +61,7 @@ namespace Game.Kentridge.PlayableSlice
 
         private void OnGUI()
         {
-            if (_layout == null || Event.current.type != EventType.Repaint)
+            if (!s_ShowOverlay || _layout == null || Event.current.type != EventType.Repaint)
                 return;
 
             float left = Mathf.Max(8f, Screen.width - PanelWidth - 12f);
@@ -161,6 +163,15 @@ namespace Game.Kentridge.PlayableSlice
                 Texture2D.whiteTexture);
             GUI.matrix = previousMatrix;
             GUI.color = previousColor;
+        }
+
+        private static bool HasCommandLineArgument(string argument)
+        {
+            string[] args = Environment.GetCommandLineArgs();
+            for (int i = 0; i < args.Length; i++)
+                if (string.Equals(args[i], argument, StringComparison.Ordinal))
+                    return true;
+            return false;
         }
     }
 }
