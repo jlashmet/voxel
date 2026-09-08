@@ -14,9 +14,11 @@ Source `29a1f35c2a152dbc89c27742beb0fbbc10f260b2`, request `fad4a1762b240966b77e
 
 Source `ec05793b82fa2104a34c6db420488e093d956870`, request `d73572f54e8b2ad05c25d3b6dee70d74e9c6b2a2`, run `34192950690`, artifact `10043889627`, digest `sha256:f83ae39503fc12a745a9182e4b955a7fec19b8e054766d56398bbeeee44e3728`, passed planning/tooling but failed Unity compilation before tests/players: release validation called production `WorldBuilderTownAuthoring` without `Game.WorldBuilder.Runtime`. `f191251fefa59b64df52dd3116fbf9bd07936c02` adds only that missing import.
 
+Source `496ead916fb3e2b4b24a37c62de4cce120f70fe7`, request `fc2aeebc038861279092c4e78e0d4e480e8dd460`, run `34196391858`, artifact `10044724604`, digest `sha256:adf2b4fd3a4325171afede45c9da161ec6dbe81dbe406dd235ee9d4e0bcd6204`, compiled and ran persistent EditMode tests. `Game.Application.Tests.EditMode` executed 78 tests with two failures: a prepared resume was rejected because `RequestPartyResume` reused the idle-only prepare guard after `_session.Prepare` had correctly moved the gameplay session to `Ready`, and a save from a different `SessionId` was accepted because save lookup matched only save ID. `28f84a929a680bc2d93b4fc3102d5d0ce193136b` keeps unprepared resume restricted to `Uninitialized`/`Stopped`, permits an already-prepared resume only from `Ready`, and rejects save metadata whose `SessionId` differs from the formed party's `_activeFormation.SessionId` before any Start intent.
+
 ## Current discriminator / remaining gates
 
-Hypothesis A: compile now reaches persistent tests and the authoritative-tick fixes carry smoke/release through their intended milestones. Hypothesis B: exact execution exposes the first remaining production ordering/state defect. Next experiment: exact-SHA targeted CI from current feature head; check runtime boxes only from matching built-player artifacts.
+Hypothesis A: the resume guard/session-match repair makes persistent Application tests green and allows the automatically selected smoke/release players to execute. Hypothesis B: exact execution reaches the first remaining production runtime ordering/state defect. Next experiment: exact-SHA targeted CI from current feature head; check runtime boxes only from matching built-player artifacts.
 
 1. Green exact-head smoke and structural release proof; fix only demonstrated failures. T25-051 is already proven.
 2. Mark remaining T25-010–052 runtime evidence truthfully.
