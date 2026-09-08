@@ -109,7 +109,9 @@ namespace Game.Application.Runtime
                 rejected = Reject(ApplicationFailure.Busy, "Another application operation is in progress.");
                 return false;
             }
-            if (_session.State != GameSessionState.Idle)
+            GameSessionLifecycle sessionLifecycle = _session.Snapshot.Lifecycle;
+            if (sessionLifecycle != GameSessionLifecycle.Uninitialized &&
+                sessionLifecycle != GameSessionLifecycle.Stopped)
             {
                 rejected = Reject(ApplicationFailure.InvalidState, "Party resume requires an idle gameplay session.");
                 return false;
