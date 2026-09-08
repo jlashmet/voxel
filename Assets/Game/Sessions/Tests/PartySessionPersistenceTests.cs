@@ -53,7 +53,7 @@ namespace Game.Sessions.Tests
 
             Assert.That(restored.Remove(remote.MemberId), Is.True);
             JoinResult replacement = restored.Join(new JoinRequest(sessionId, "client-b", "protocol", "content", true));
-            Assert.That(replacement.Succeeded, Is.True);
+            Assert.That(replacement.Accepted, Is.True);
             Assert.That(replacement.Member.MemberId.Value, Is.EqualTo("rehost-session:member:3"));
             Assert.That(replacement.Member.Slot.Value, Is.EqualTo(1));
         }
