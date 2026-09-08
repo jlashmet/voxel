@@ -93,6 +93,57 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             Assert.That(GpuSurfaceMirrorCoordinator.ActiveExtractions, Is.Zero);
         }
 
+        [Test]
+        public void ReleaseDropsCoordinatorCoverageWithoutAdmissionOwnership()
+        {
+            Assert.That(SystemInfo.supportsComputeShaders, Is.True);
+            using var storage = VoxelEngineBootstrap.CreateStorage(1, 1);
+            storage.Residency.EnsureRegionResident(int3.zero);
+            storage.PublishAllResidentRegions();
+
+            var previousSource = Runtime.VoxelRenderBridge.Source;
+            var previousChanges = Runtime.VoxelRenderBridge.Changes;
+            var world = new Runtime.VoxelWorldView
+            {
+                Storage = storage.Reads,
+                SurfaceCatalogueView = VoxelEngine.Storage.Runtime.SurfaceCatalogue.CreateBuiltIns(),
+                CoatingCatalogueView = VoxelEngine.Storage.Runtime.CoatingCatalogue.CreateBuiltIns(),
+            };
+
+            GpuSurfaceExtractionContext context = null;
+            try
+            {
+                Runtime.VoxelRenderBridge.Source = () => world;
+                Runtime.VoxelRenderBridge.Changes = storage.Changes;
+                context = GpuSurfaceExtractionContext.TryCreate(8, 2, 1024, 10);
+                Assert.That(context, Is.Not.Null);
+                GpuSurfaceMirrorCoordinator.PrepareFrame(
+                    storage.Reads, storage.Changes, Time.frameCount, 1.0);
+
+                var request = new GpuChunkExtraction(int3.zero, int3.zero, 1, 0.1f);
+                int extent = GpuSolidChunkCache.CellsPerAxis * request.SourceStep;
+                ulong coverageWorldEpoch = GpuSurfaceMirrorCoordinator.RequestCoverage(
+                    request.BrickCacheOrigin, 10, request.ChunkOriginVoxel,
+                    request.ChunkOriginVoxel + new int3(extent));
+                Assert.That(GpuSurfaceMirrorCoordinator.DemandFootprintCount, Is.EqualTo(1));
+                Assert.That(GpuSurfaceSourceAdmission.ActiveCount, Is.Zero,
+                    "This regression starts from coordinator-owned coverage, not admission ownership.");
+
+                GpuSurfaceSourceAdmission.Release(context, request, 10, coverageWorldEpoch);
+
+                Assert.That(GpuSurfaceMirrorCoordinator.DemandFootprintCount, Is.Zero,
+                    "Releasing context coverage must not leak demand when admission did not create it.");
+                Assert.That(GpuSurfaceSourceAdmission.ActiveCount, Is.Zero);
+                Assert.That(GpuSurfaceSourceAdmission.ReservedMixedSlots, Is.Zero);
+            }
+            finally
+            {
+                context?.Dispose();
+                Runtime.VoxelRenderBridge.Source = previousSource;
+                Runtime.VoxelRenderBridge.Changes = previousChanges;
+            }
+        }
+
         [UnityTest]
         public IEnumerator WaitingDifferentLodTakesAdmissionAfterCurrentLodReleases()
         {
