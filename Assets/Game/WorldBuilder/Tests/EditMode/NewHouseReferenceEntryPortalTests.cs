@@ -7,9 +7,10 @@ using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Tests.EditMode
 {
+    [NUnit.Framework.TestFixture]
     public sealed class NewHouseReferenceEntryPortalTests
     {
-        [Test]
+        [NUnit.Framework.Test]
         public void AuthorHouse_FinalEntryPortalProjectsStoneRingAroundRecessedArchedDoor()
         {
             NewHouseReferenceConfig config = NewHouseReferenceConfig.Default;
