@@ -56,6 +56,15 @@ namespace Game.WorldBuilder.Voxel
             a.Box(new int3(centre + innerRadius, portalY - 2, front - 8),
                 new int3(jambWidth + 1, spring + 3, 5), p.Stone);
 
+            // Exact iteration-14 player evidence showed those proud jambs, but the same-material
+            // round arch still visually collapsed into the facade. A thin continuous front lip is
+            // therefore part of the production surround, not an evidence-only marker: it gives the
+            // entire jamb/arch silhouette one extra shadow edge while preserving the recessed door.
+            a.Box(new int3(centre - outerRadius - 1, portalY - 2, front - 10),
+                new int3(jambWidth + 1, spring + 3, 2), p.Stone);
+            a.Box(new int3(centre + innerRadius, portalY - 2, front - 10),
+                new int3(jambWidth + 1, spring + 3, 2), p.Stone);
+
             int springY = portalY + spring;
             for (int dy = 0; dy <= outerRadius; dy++)
             {
@@ -65,8 +74,11 @@ namespace Game.WorldBuilder.Voxel
 
                 if (innerHalf < 0)
                 {
+                    int width = outerHalf * 2 + 1;
                     a.Box(new int3(centre - outerHalf, y, front - 8),
-                        new int3(outerHalf * 2 + 1, 1, 5), p.Stone);
+                        new int3(width, 1, 5), p.Stone);
+                    a.Box(new int3(centre - outerHalf, y, front - 10),
+                        new int3(width, 1, 2), p.Stone);
                 }
                 else
                 {
@@ -75,15 +87,19 @@ namespace Game.WorldBuilder.Voxel
                         new int3(sideWidth, 1, 5), p.Stone);
                     a.Box(new int3(centre + innerHalf + 1, y, front - 8),
                         new int3(sideWidth, 1, 5), p.Stone);
+                    a.Box(new int3(centre - outerHalf, y, front - 10),
+                        new int3(sideWidth, 1, 2), p.Stone);
+                    a.Box(new int3(centre + innerHalf + 1, y, front - 10),
+                        new int3(sideWidth, 1, 2), p.Stone);
                 }
 
-                // A restrained extra face every few courses suggests individual voussoirs without
-                // introducing a new material role or a parallel decorative mesh path.
+                // Restrained extra corner relief every few courses suggests individual voussoirs
+                // without introducing a new material role or a parallel decorative mesh path.
                 if ((dy % 3) == 1)
                 {
-                    a.Box(new int3(centre - outerHalf, y, front - 9),
+                    a.Box(new int3(centre - outerHalf, y, front - 11),
                         new int3(2, 1, 2), p.Stone);
-                    a.Box(new int3(centre + outerHalf - 1, y, front - 9),
+                    a.Box(new int3(centre + outerHalf - 1, y, front - 11),
                         new int3(2, 1, 2), p.Stone);
                 }
             }
