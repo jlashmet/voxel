@@ -33,10 +33,12 @@
 - [x] Reconcile `art-direction/index.md` and `art-direction/town-briefs.md` to the canonical seven-settlement roster, explicitly excluding uncorroborated Wharfington and restoring Orc Village/Fairy Village.
 - [x] Re-audit every roster-bearing document and the town-folder set for one consistent canonical roster.
 
-## Exact-SHA CI, closure, promotion
+## Exact-SHA CI and closure
 - [x] Record prior exact source `4ee3148f36c916928a1600aba9bb5a5f65408554` and successful request `22fe801f55fc6ac5ae65248d9d4260ae77f52ad8` / run `34204143335`; this gate predates the final consistency correction.
-- [ ] Submit the corrected intended feature head through `ci-test/fixes/agent-2` using the documented exact-SHA request workflow; do not replace a queued/running request.
-- [ ] Verify corrected exact source SHA, inspect the targeted-CI result/evidence, and record request/run/artifact details.
-- [ ] Complete every task/checklist item before closure.
-- [ ] Atomically move the reopened SceneIssue from `open` to `closed`, set `status=fixed`, resolution, and `resolvedUtc`; never use `pending`.
-- [ ] Mark PR #335 ready, enable auto-merge, and allow repository-required PR checks to promote it; do not push the exact branch head directly to `master`.
+- [x] Submit corrected exact source `9c92a736d52c818ac951c29b468f70093b9a43ff` through `ci-test/fixes/agent-2` as request `a267944ed2790b484d6885f8374c2d4fe8293874` without replacing queued/running work.
+- [x] Verify corrected exact source SHA, inspect the targeted-CI result/evidence, and record run `34215812697`, job `102027158713`, commit status, and artifact details.
+- [x] Complete every issue-work task/checklist item before closure.
+- [x] Atomically move the reopened SceneIssue from `open` to `closed`, set `status=fixed`, resolution metadata, and `resolvedUtc`; never use `pending`.
+
+## Post-closure promotion
+Repository workflow continues after closure: reconcile current `origin/master` if needed, mark PR #335 ready, enable auto-merge, and monitor the required `affected` PR gate through actual merge. These are integration steps, not pre-closure acceptance checkboxes.
