@@ -287,8 +287,21 @@ namespace Game.WorldBuilder.Voxel
                 int half = ArchHalfWidth(radius, spring, row);
                 a.Carve(new int3(centreX - half, y + row, frontZ - 4),
                     new int3(half * 2 + 1, 1, 9));
-                a.Box(new int3(centreX - half, y + row, frontZ + 1),
-                    new int3(half * 2 + 1, 1, 2), panel);
+
+                // The reference windows are recessed panes held by a substantial timber frame,
+                // not a full-width flat glass slab. Keep one voxel of visible inner frame around
+                // the pane contour so the arch reads as layered joinery at 10 cm resolution.
+                int panelHalf = math.max(0, half - 1);
+                a.Box(new int3(centreX - panelHalf, y + row, frontZ + 1),
+                    new int3(panelHalf * 2 + 1, 1, 2), panel);
+                if (half > 0)
+                {
+                    a.Box(new int3(centreX - half, y + row, frontZ - 4),
+                        new int3(1, 1, 2), frame);
+                    a.Box(new int3(centreX + half, y + row, frontZ - 4),
+                        new int3(1, 1, 2), frame);
+                }
+
                 if (row >= spring)
                 {
                     a.Box(new int3(centreX - half - 1, y + row, frontZ - 3),
