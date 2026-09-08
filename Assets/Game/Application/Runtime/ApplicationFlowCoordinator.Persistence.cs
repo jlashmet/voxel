@@ -4,6 +4,7 @@ using Game.Application.Api;
 using Game.Persistence.Api;
 using Game.SessionOrchestration.Api;
 using Game.SessionPresentation.Api;
+using Game.Sessions.Api;
 
 namespace Game.Application.Runtime
 {
@@ -108,6 +109,11 @@ namespace Game.Application.Runtime
                 rejected = Reject(ApplicationFailure.Busy, "Another application operation is in progress.");
                 return false;
             }
+            if (_session.State != GameSessionState.Idle)
+            {
+                rejected = Reject(ApplicationFailure.InvalidState, "Party resume requires an idle gameplay session.");
+                return false;
+            }
             rejected = default;
             return true;
         }
@@ -115,33 +121,23 @@ namespace Game.Application.Runtime
         private bool TryFindPartySave(
             string saveId,
             out SessionSaveMetadata selected,
-            out ApplicationOperationResult unavailable)
+            out ApplicationOperationResult rejected)
         {
             selected = default;
             if (string.IsNullOrWhiteSpace(saveId))
             {
-                unavailable = Reject(ApplicationFailure.SaveUnavailable, "A save id is required.");
+                rejected = Reject(ApplicationFailure.SaveUnavailable, "A save id is required.");
                 return false;
             }
-
             IReadOnlyList<SessionSaveMetadata> saves = _saves.ListSaves();
             for (int i = 0; i < saves.Count; i++)
             {
-                SessionSaveMetadata candidate = saves[i];
-                if (!string.Equals(candidate.SaveId.Value, saveId, StringComparison.Ordinal)) continue;
-                if (!string.Equals(candidate.SessionId, _activeFormation.SessionId.Value, StringComparison.Ordinal))
-                {
-                    unavailable = Reject(
-                        ApplicationFailure.SaveUnavailable,
-                        "Save session does not match the formed multiplayer party.");
-                    return false;
-                }
-                selected = candidate;
-                unavailable = default;
+                if (!string.Equals(saves[i].SaveId.Value, saveId, StringComparison.Ordinal)) continue;
+                selected = saves[i];
+                rejected = default;
                 return true;
             }
-
-            unavailable = Reject(ApplicationFailure.SaveUnavailable, "Save is not available: " + saveId);
+            rejected = Reject(ApplicationFailure.SaveUnavailable, "The selected save is unavailable.");
             return false;
         }
 
