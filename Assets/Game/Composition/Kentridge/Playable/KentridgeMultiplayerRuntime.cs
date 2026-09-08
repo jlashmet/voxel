@@ -277,7 +277,8 @@ namespace Game.Composition.Kentridge.Playable
 
         public PartyScreenPresentationSnapshot CapturePartyScreen(PartyMemberId localMemberId)
         {
-            if (!localMemberId.IsValid ||
+            if (!_readState.GameplayReady ||
+                !localMemberId.IsValid ||
                 !_readState.TryGetProjection(KentridgeReplicatedPartyState.SessionsProjectionId,
                     out GameplayProjectionState sessions) ||
                 !_readState.TryGetProjection(KentridgeSessionApplicationGameplayProjectionSource.ProjectionId,
