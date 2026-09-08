@@ -6,20 +6,18 @@ Complete the authored Kentridge -> Rorik/Moordell/Rossdam/Logan route, exactly-o
 
 ## Selected production path
 
-`KentridgePlayableSlice` enters through `KentridgePlayableFullRunBootstrap`: exact rich opening geometry is overlaid by semantic identity onto hierarchy-aware `AuthoredFullRunKentridgeComposition`, while continuation coordinates come only from the recovered `TopDownWorldPhysicalPlan`. The shipped scene requires `IsFullRun` and logs `KENTRIDGE_AUTHORED_FULL_RUN_READY`.
+`KentridgePlayableSlice` enters through `KentridgePlayableFullRunBootstrap`: exact rich opening geometry is overlaid by semantic identity onto hierarchy-aware `AuthoredFullRunKentridgeComposition`, while continuation coordinates come only from the recovered `TopDownWorldPhysicalPlan`. The dedicated Kentridge validation drives the canonical route through production session/application seams to System15 success and frontend aftermath.
 
-`Assets/Game/Composition/Kentridge/Playable/Validation/KentridgeFullRunCampaignValidation.unity` drives the shipped bootstrap through `GameSessionOrchestrator` and `ApplicationFlowCoordinator`, advances the canonical route through real Encounter facts, and asserts System15 success revision 1, Outcome screen, and normal frontend return.
+WorldBuilder is also affected player-visible runtime. T26-059 owns `Assets/Game/WorldBuilder/Validation/TopDownPhysicalWorld/`: production macro planning/reservations/voxel+water catalogues feed `ShowcaseWorld`, production streaming and `RenderingComposition`, surveying Moordell, Rossdam and authored water. Readiness uses only existing production signals: the target region must be `ShowcaseWorld.IsGenerated(...)` and `RenderingComposition.HasCompletePublishedNearSurfaceCoverage()` for four stable frames.
 
-WorldBuilder is also an affected player-visible module. Its prior only owned player scene (`Validation/SecretDiscovery`) exercises cave-secret generation, not the new top-down terrain/roads/towns/water path. T26-059 therefore adds `Assets/Game/WorldBuilder/Validation/TopDownPhysicalWorld/`, which uses the production macro planner, reservation adapter, voxel/water catalogues, `ShowcaseWorld`, streaming, and rendering composition with semantic Moordell/Rossdam/water survey targets.
+## Validation state / hypotheses
 
-## Current validation state
+Request `3796acf10f04fe266413f0956ebbd59e954336ad`, source `d6dd7a8100841b997b064afefc4d1e0fca19e333`, run `34164164923`, artifact `10034721892` (`sha256:364595f48f11e3c93445408110654e41b1593111a2a7b4498fffb3f7af3afc12`) exposed stale `AuthoredTownPlan.BackendPlan` test usage; fixed.
 
-Exact request `3796acf10f04fe266413f0956ebbd59e954336ad`, source `d6dd7a8100841b997b064afefc4d1e0fca19e333`, run `34164164923`, job `101871803067` reached automatic module validation but Unity aborted before tests. Artifact `10034721892` (`sha256:4e000d7a63b0235ca006f89c037ccc89369262813133ed5a9274be505d1cf6a9`) reports one compiler defect: `AuthoredFullRunKentridgeCompositionTests` accessed non-public `AuthoredTownPlan.BackendPlan`. The regression now uses the public authored-town plan for campaign planning and deterministic Kentridge settlement facts.
+Request `7d5ee6f751e0d4d72d3061b9a4474703921a5d58`, source `a3a7f9203f925d42a8bafc617e656b1995e003bd`, run `34170036879`, job `101888444958`, artifact `10037000615` (`sha256:03cc22112a8862b93f48c8fc04fa8d8b43d8b41fcc8cddb2dc5c586eb9579ad6`) proved automatic discovery of T26-059 but compilation stopped on two validation-boundary defects: nonexistent `IsPresentationColumnContentSettled` and missing direct `VoxelEngine.Storage.Api`. Both are corrected without changing production semantics.
 
-Next discriminator: exact-SHA automatic module/player validation from the new feature head, including the new WorldBuilder-owned scene. Fix only demonstrated failures.
+Hypothesis A: those two T26-059 boundary defects were the remaining compile blockers. Hypothesis B: once compilation succeeds, a real Kentridge/WorldBuilder player target may expose a semantic, streaming or visual defect. Next discriminator is one new direct-child exact-SHA automatic run; fix only demonstrated failures.
 
 ## External prerequisite / closure
 
-T26-043 remains owned by System25. Its authoritative branch still has separate-process authority/client topology, shared progression, reconnect/rehost and final evidence incomplete; System26 must not duplicate that harness or authority.
-
-After System26 exact validation is green, record evidence/check independent tasks. Check T26-043 only from authoritative System25 evidence. Close only when every checkbox is complete; then merge current master, promote by PR + auto-merge, and require the `affected` gate.
+T26-043 remains owned by System25. Check it only from authoritative separate-process multiplayer progression/outcome evidence; do not duplicate its harness. Close only after every task is complete, then merge current master into the feature and promote by fresh PR + auto-merge with required `affected` gate.
