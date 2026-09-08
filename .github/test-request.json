@@ -1,0 +1,6 @@
+{
+  "test": "Game.Structures.Tests.ArchitectureRegistryTests.SameRequestProducesSameAuthoritativeIdentity",
+  "platform": "EditMode",
+  "request_id": "house-architecture-final-1efa1123",
+  "scene_issue": "SceneIssues/open/20260907-132200-000-HouseShowcaseProceduralArchitectureFoundation/issue.json"
+}
