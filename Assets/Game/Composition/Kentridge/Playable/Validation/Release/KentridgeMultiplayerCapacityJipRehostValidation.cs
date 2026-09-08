@@ -36,6 +36,7 @@ using UnityEngine;
 using VoxelEngine.Edits.Runtime;
 using VoxelEngine.Net.Api;
 using VoxelEngine.Net.Runtime.Client;
+using VoxelEngine.Net.Runtime.Protocol;
 using VoxelEngine.Net.Runtime.Server;
 using VoxelEngine.Storage.Runtime;
 
