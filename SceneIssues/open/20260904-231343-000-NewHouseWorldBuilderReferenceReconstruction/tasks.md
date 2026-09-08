@@ -9,7 +9,7 @@ Recreate `Assets/Textures/Stylized/experiment1/house/10dddef5-de0a-4153-9c09-b1e
 - [x] Use WorldBuilder production authoring, material registry/texture layers, storage/meshing/rendering, and built-player replay.
 - [x] Keep reusable house geometry separate from reference site/camera/light composition.
 - [x] Keep module-local WorldBuilder validation and canonical standalone integration in the normal repo path.
-- [x] Keep meaningful visual iterations tied to exact feature SHA, request/run, artifact, and target/front-left/rear-right frames through iteration 17.
+- [x] Keep meaningful visual iterations tied to exact feature SHA, request/run, artifact, and target/front-left/rear-right frames through iteration 18.
 - [ ] Preserve the same exact evidence linkage for every subsequent product-changing iteration through final acceptance.
 
 ## 1. Production path / budgets / reuse
@@ -104,9 +104,15 @@ Recreate `Assets/Textures/Stylized/experiment1/house/10dddef5-de0a-4153-9c09-b1e
 - [x] Direct pinned-reference/target/front-left/rear-right inspection confirms the tall ivy columns are gone and shell/roof/portal/chimney survive; exact target remains **prototype/blockout quality**. Largest next demonstrated mismatch: the late middle facade is dominated by a giant rectangular timber cage around the compact arch, unlike the reference's plaster field/horizontal belts.
 
 ### Iteration 18 — remove oversized middle-facade timber cage
-- [ ] Keep plaster repair, compact 13x19 arched glass opening, shutters, flower box, roof, portal, ivy, site, camera/light, chimney, banner/sign, and shell fixed; remove only the oversized outer 39x31 timber cage/25-voxel side posts/diagonals.
-- [ ] Add one focused production-path regression proving the final middle facade contains no tall outer timber cage while the compact arch/shutters/refill still occur in correct late order.
-- [ ] Run the exact iteration-18 feature SHA through `ci-test/fixes/agent-5`, with transport differing only by `.github/test-request.json`, requiring focused non-zero execution + automatic module validation + standalone replay.
+- [x] Keep plaster repair, compact 13x19 arched glass opening, shutters, flower box, roof, portal, ivy, site, camera/light, chimney, banner/sign, and shell fixed; remove only the oversized outer 39x31 timber cage/25-voxel side posts/diagonals.
+- [x] Add one focused production-path regression proving the final middle facade contains no tall outer timber cage while the compact arch/shutters/refill still occur in correct late order.
+- [x] Exact feature `88db9de4ec92e7e15beccd9622910bf29e791fed`, request `aa0b3dba491063b3aacacc4caad0b7d88659e9d3`, run `34218064179`, artifact `single-test-34218064179` / ID `10052999848`: focused FQN executed non-zero (`8.43s`); all 11 derived EditMode assemblies and every required player, module-local NewHouse, SceneIssue 32s replay, and canonical `KentridgePlayableSlice` succeeded.
+- [x] Direct exact reference/target/front-left/rear-right inspection confirms the middle cage is gone and unrelated geometry survives; exact target remains **prototype/blockout quality**. Largest next demonstrated mismatch: the high-gable arched opening is crossed by a separate full-width 29-voxel timber belt, making it read as a flat cross/panel instead of a clean arched glazed opening.
+
+### Iteration 19 — clear the high-gable arch
+- [ ] Keep compact upper arched panel/mullions, flower box, lower structural belt, braces/posts outside the opening, roof, middle facade, portal, ivy, site, camera/light, chimney, banner/sign, and rear shell fixed; remove or relocate only the full-width belt that crosses the upper arch.
+- [ ] Add one focused production-path regression proving the wide crossing belt is absent while the compact upper arch, contained mullion, flower box, and surrounding finish ordering remain.
+- [ ] Run the exact iteration-19 feature SHA through `ci-test/fixes/agent-5`, with transport differing only by `.github/test-request.json`, requiring focused non-zero execution + automatic module validation + standalone replay.
 - [ ] Inspect exact target/front-left/rear-right artifact; if still below production-quality, record only the next largest demonstrated mismatch before another product change.
 
 ## 8. Final visual acceptance — all required
