@@ -20,6 +20,6 @@ Current branch head contains only post-r26 evidence/checklist bookkeeping beyond
 
 ## Remaining gate
 
-T26-043 is externally blocked by System25. At source `6401622dab168f474aa2abc19eb8828e36cbaa07`, its authoritative checklist still leaves real authority/client topology, baseline convergence, contention/conservation, combat/vitality, shared progression, reconnect/current-state recovery, explicit leave, rehost, and final separate-process evidence incomplete. Do not duplicate that harness in System26.
+T26-043 is externally blocked by System25. Latest observed System25 head `ae08ee1c97bbfdc8106e525db58147e285a4c54e` still leaves real authority/client topology, baseline convergence, contention/conservation, combat/vitality, shared progression, reconnect/current-state recovery, explicit leave, rehost, and final separate-process evidence incomplete. Do not duplicate that harness in System26.
 
 When System25 supplies authoritative evidence, check T26-043/T26-053, complete T26-054 metadata and `open -> closed`, merge current `origin/master`, push `fixes/agent-8`, open/update the PR, enable auto-merge, and monitor the required `affected` gate until merged.
