@@ -78,8 +78,8 @@ Recreate `Assets/Textures/Stylized/experiment1/house/10dddef5-de0a-4153-9c09-b1e
 
 ### Iteration 14 — projecting lower entry portal
 - [x] Isolate the dominant iteration-13 mismatch as authored lower-portal depth/surround geometry rather than camera framing.
-- [ ] Rebuild only the shallow central lower-entry patch with a recessed timber door, visibly projecting round stone voussoir ring/jambs, and restored compact hardware; preserve both lower side windows and all upper/roof/site/audit geometry.
-- [ ] Add a focused behavioral regression proving final entry refill, protruding arch/jamb geometry, recessed door, and shallow repair ordering through the production refinement path.
+- [x] Rebuild only the shallow central lower-entry patch with a recessed timber door, visibly projecting round stone voussoir ring/jambs, and restored compact hardware; preserve both lower side windows and all upper/roof/site/audit geometry.
+- [x] Add a focused behavioral regression proving final entry refill, protruding arch/jamb geometry, recessed door, and shallow x-bounded repair ordering through the production refinement path.
 - [ ] Run the resulting exact feature SHA through `ci-test/fixes/agent-5` with only `.github/test-request.json` on the transport.
 - [ ] Inspect exact target/front-left/rear-right artifact; if still below production-quality, record only the next largest demonstrated mismatch before another product change.
 
