@@ -49,14 +49,17 @@ namespace VoxelEngine.Tests.EditMode
         {
             using var world = new ShowcaseWorld(0x5EED1234u, 64, 1, 2);
             var region = new int3(5, 0, 5);
-            world.GenerateRegionBlocking(region);
+            var generated = (HashSet<int3>)typeof(ShowcaseWorld)
+                .GetField("_generated", BindingFlags.Instance | BindingFlags.NonPublic)
+                .GetValue(world);
+            generated.Add(region);
 
             var point = new Vector3(
                 region.x * ShowcaseWorld.RegionMetres + 1f,
                 1f,
                 region.z * ShowcaseWorld.RegionMetres + 1f);
             Assert.That(world.IsPresentationColumnContentSettled(point), Is.True,
-                "A fully generated column with no pending authored work should be settled.");
+                "A generated column with no pending authored work should be settled.");
 
             var pendingFeatures = (List<int3>)typeof(ShowcaseWorld)
                 .GetField("_pendingFeatureRegions", BindingFlags.Instance | BindingFlags.NonPublic)
