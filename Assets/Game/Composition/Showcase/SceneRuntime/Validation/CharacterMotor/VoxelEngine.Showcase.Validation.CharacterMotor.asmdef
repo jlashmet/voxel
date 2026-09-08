@@ -1,0 +1,19 @@
+{
+  "name": "VoxelEngine.Showcase.Validation.CharacterMotor",
+  "rootNamespace": "VoxelEngine.Showcase.Validation",
+  "references": [
+    "VoxelEngine.Showcase",
+    "Game.Composition.Showcase",
+    "Game.WorldBuilder.Api",
+    "Game.WorldBuilder.Voxel"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

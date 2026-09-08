@@ -16,6 +16,15 @@ namespace Game.Cutscenes.Api
         ICutsceneOperation Execute(CutsceneActorId speaker, CutsceneCueId cue);
     }
 
+    /// <summary>
+    /// Read-only client presentation seam for the currently visible dialogue line. Gameplay and
+    /// authored cutscene state stay independent from whichever Unity/UI view renders the text.
+    /// </summary>
+    public interface IActiveCutsceneDialogue
+    {
+        string ActiveDialogue { get; }
+    }
+
     /// <summary>Audio presentation adapter for one authored cue.</summary>
     public interface ICutsceneSoundCueRuntime
     {

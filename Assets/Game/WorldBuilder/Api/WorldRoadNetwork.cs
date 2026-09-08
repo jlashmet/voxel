@@ -464,7 +464,7 @@ namespace Game.WorldBuilder.Api
                     int nextHeight = terrain.HeightAtDm(nextXdm, nextZdm);
                     int planar = n < 4 ? spacing : DiagonalDistance(spacing);
                     int rise = Math.Abs(nextHeight - currentHeight);
-                    int maximumGradedRise = Math.Max(1, planar * profile.MaximumGradePermille / 1000);
+                    int maximumGradedRise = AllowedRiseDm(planar, profile.MaximumGradePermille);
                     int maximumRecoverableRise = maximumGradedRise + profile.MaximumCutFillDm * 2;
                     if (rise > maximumRecoverableRise) continue;
 
@@ -527,10 +527,16 @@ namespace Game.WorldBuilder.Api
             int fromHeight, int desiredHeight, int maximumGradePermille)
         {
             int run = Math.Max(1, Distance(from, to));
-            int maximumRise = Math.Max(1, run * maximumGradePermille / 1000);
+            int maximumRise = AllowedRiseDm(run, maximumGradePermille);
             if (desiredHeight > fromHeight + maximumRise) return fromHeight + maximumRise;
             if (desiredHeight < fromHeight - maximumRise) return fromHeight - maximumRise;
             return desiredHeight;
+        }
+
+        private static int AllowedRiseDm(int runDm, int maximumGradePermille)
+        {
+            long rise = (long)Math.Max(1, runDm) * Math.Max(0, maximumGradePermille) / 1000L;
+            return rise > int.MaxValue ? int.MaxValue : (int)rise;
         }
 
         private static bool Allowed(WorldRoadTerrainFlags flags, WorldRoadCrossingPolicy policy)

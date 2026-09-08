@@ -1,0 +1,28 @@
+{
+  "name": "Game.WorldBuilder.Voxel.Tests.EditMode",
+  "rootNamespace": "Game.WorldBuilder.Voxel.Tests.EditMode",
+  "references": [
+    "Game.WorldBuilder.Api",
+    "Game.WorldBuilder.Voxel",
+    "VoxelEngine.Structures.Api",
+    "Unity.Collections",
+    "Unity.Mathematics",
+    "UnityEngine.TestRunner",
+    "UnityEditor.TestRunner"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": true,
+  "precompiledReferences": [
+    "nunit.framework.dll"
+  ],
+  "autoReferenced": false,
+  "defineConstraints": [
+    "UNITY_INCLUDE_TESTS"
+  ],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

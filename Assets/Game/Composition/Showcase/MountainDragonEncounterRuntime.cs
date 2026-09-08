@@ -13,7 +13,7 @@ namespace VoxelEngine.Showcase
     /// Production composition for the mountain summit encounter. WorldBuilder owns spatial
     /// proximity, Story owns the semantic transition, and Cutscenes owns dialogue execution.
     /// </summary>
-    public sealed class MountainDragonEncounterRuntime
+    public sealed class MountainDragonEncounterRuntime : IActiveCutsceneDialogue
     {
         public const string Greeting = "Hello, I'm Mr. Dragon.";
         private static readonly CutsceneCueId GreetingCue =
@@ -22,15 +22,19 @@ namespace VoxelEngine.Showcase
         private readonly CampaignBlueprint _blueprint;
         private readonly CampaignRuntime _campaign;
         private readonly SiteProximityWatcher _proximity;
-        private readonly DialoguePresentation _presentation;
+        private readonly TimedCutsceneDialogueRuntime _dialogue;
 
-        public MountainLandmarkSpec Landmark { get; }
+        public MountainLandformSpec Landmark { get; }
+        public WorldRoadNetwork Ascent { get; }
         public bool HasTriggered => _proximity.FiredCount > 0;
-        public string ActiveDialogue => _presentation.ActiveDialogue;
+        public string ActiveDialogue => _dialogue.ActiveDialogue;
 
         public MountainDragonEncounterRuntime(uint seed)
         {
-            Landmark = ShowcaseMountainDragonLayout.CreateLandmark(seed);
+            MountainLandformSurface surface = ShowcaseMountainDragonLayout.CreateSurface(seed);
+            Landmark = surface.Spec;
+            Ascent = ShowcaseMountainDragonLayout.CreateAscentNetwork(seed, surface);
+            ResolvedWorldRoadPoint summitApproach = ShowcaseMountainDragonLayout.SummitApproach(Ascent);
 
             var game = Campaign.Create("showcase-mountain-dragon");
             RegionHandle mountainRegion = game.World.Region("showcase-mountain-region");
@@ -50,18 +54,24 @@ namespace VoxelEngine.Showcase
                 .Then(StoryEffect.PlayCutscene(greeting)));
 
             _blueprint = game.Build();
-            _presentation = new DialoguePresentation();
+            _dialogue = new TimedCutsceneDialogueRuntime(
+                ResolveDialogue,
+                displayDurationMilliseconds: 5000);
+            var presentation = new CutscenePresentationRouter(
+                ImmediateCutsceneCueRuntime.Instance,
+                _dialogue,
+                ImmediateCutsceneCueRuntime.Instance);
             _campaign = new CampaignRuntime(
                 _blueprint,
                 Array.Empty<CutsceneStageRealization>(),
                 EmptyActorProvider.Instance,
-                _presentation);
+                presentation);
             _proximity = new SiteProximityWatcher(new[]
             {
                 new SiteProximityTriggerSpec(
                     summit,
-                    Landmark.SummitApproachWorldX,
-                    Landmark.SummitApproachWorldZ,
+                    summitApproach.Xdm,
+                    summitApproach.Zdm,
                     radius: 90,
                     oneShot: true)
             });
@@ -72,7 +82,7 @@ namespace VoxelEngine.Showcase
             if (elapsedMilliseconds < 0)
                 throw new ArgumentOutOfRangeException(nameof(elapsedMilliseconds));
 
-            _presentation.Advance(elapsedMilliseconds);
+            _dialogue.Advance(elapsedMilliseconds);
             int matched = _proximity.Update(
                 playerVoxelX,
                 playerVoxelZ,
@@ -83,6 +93,9 @@ namespace VoxelEngine.Showcase
             _campaign.Tick(0);
             return matched;
         }
+
+        private static string ResolveDialogue(CutsceneActorId speaker, CutsceneCueId dialogueCue) =>
+            dialogueCue.Equals(GreetingCue) ? Greeting : dialogueCue.Value;
 
         private sealed class EmptyActorProvider : IWorldBoundCutsceneActorProvider
         {
@@ -100,37 +113,6 @@ namespace VoxelEngine.Showcase
                 actor = null;
                 return false;
             }
-        }
-
-        private sealed class DialoguePresentation : ICutscenePresentation
-        {
-            private int _remainingMilliseconds;
-
-            public string ActiveDialogue { get; private set; }
-
-            public void Advance(int elapsedMilliseconds)
-            {
-                if (_remainingMilliseconds <= 0) return;
-                _remainingMilliseconds -= elapsedMilliseconds;
-                if (_remainingMilliseconds <= 0) ActiveDialogue = null;
-            }
-
-            public ICutsceneOperation SetCamera(CutsceneCueId cameraCue) =>
-                CompletedCutsceneOperation.Instance;
-
-            public ICutsceneOperation ShowDialogue(
-                CutsceneActorId speaker,
-                CutsceneCueId dialogueCue)
-            {
-                ActiveDialogue = dialogueCue.Equals(GreetingCue)
-                    ? Greeting
-                    : dialogueCue.Value;
-                _remainingMilliseconds = 5000;
-                return CompletedCutsceneOperation.Instance;
-            }
-
-            public ICutsceneOperation PlaySound(CutsceneCueId soundCue) =>
-                CompletedCutsceneOperation.Instance;
         }
     }
 }
