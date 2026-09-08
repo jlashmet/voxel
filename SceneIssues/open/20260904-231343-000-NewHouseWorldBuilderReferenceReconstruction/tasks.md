@@ -9,7 +9,7 @@ Recreate `Assets/Textures/Stylized/experiment1/house/10dddef5-de0a-4153-9c09-b1e
 - [x] Use WorldBuilder production authoring, material registry/texture layers, storage/meshing/rendering, and built-player replay.
 - [x] Keep reusable house geometry separate from reference site/camera/light composition.
 - [x] Keep module-local WorldBuilder validation and canonical standalone integration in the normal repo path.
-- [x] Keep meaningful visual iterations tied to exact feature SHA, request/run, artifact, and target/front-left/rear-right frames through iteration 13.
+- [x] Keep meaningful visual iterations tied to exact feature SHA, request/run, artifact, and target/front-left/rear-right frames through iteration 14.
 - [ ] Preserve the same exact evidence linkage for every subsequent product-changing iteration through final acceptance.
 
 ## 1. Production path / budgets / reuse
@@ -82,7 +82,13 @@ Recreate `Assets/Textures/Stylized/experiment1/house/10dddef5-de0a-4153-9c09-b1e
 - [x] Add a focused behavioral regression proving final entry refill, protruding arch/jamb geometry, recessed door, and shallow x-bounded repair ordering through the production refinement path.
 - [x] Inspect exact request `ccd49641a680cf39f5582249b3fca447a815d3b6`, run `34179033173`: terminal product failure because `NewHouseReferenceEntryPortalTests.cs` compiled but its fixture was absent from the WorldBuilder test tree and the requested phase matched zero tests; standalone captures are diagnostic only.
 - [x] Isolate requested-filter matching as non-primary: the fixture was already absent from the preceding whole `VoxelEngine.Tests.EditMode` assembly phase. Add explicit NUnit fixture/test metadata without changing production geometry or weakening the invariant.
-- [ ] Run the resulting exact feature SHA through `ci-test/fixes/agent-5` with only `.github/test-request.json` on the transport and require the focused test to execute with a non-zero result.
+- [x] Exact feature `f33995a5877e67e1606ea043ace621435b78f32f`, request `a56b9bcd569f1d1a99e33a337cc562981d4a98a4`, run `34187949123`, artifact `single-test-34187949123`: focused FQN executed non-zero (`8.42s`), all automatic module validation passed, the module-local player and 32s SceneIssue replay succeeded.
+- [x] Inspect exact pinned reference plus target/front-left/rear-right artifact. Shell and portal ordering are correct, but classify the target **prototype/blockout quality**: the same-material lower arch still visually collapses into the facade and reads as angular proud jambs rather than the reference's continuous deep round voussoir ring.
+
+### Iteration 15 — continuous portal relief
+- [x] Keep all unrelated massing/material/site/camera/detail work fixed and add only a thin continuous front relief lip to the existing stone jamb/round-arch surround so the same-material curve gains a visible shadow edge.
+- [x] Expand the same already-discovered focused FQN `VoxelEngine.Tests.EditMode.NewHouseReferenceEntryPortalTests.AuthorHouse_FinalEntryPortalProjectsStoneRingAroundRecessedArchedDoor` to require both jamb relief and crown relief while preserving the original late-ordering, recessed-door, and side-window invariants.
+- [ ] Run the exact iteration-15 feature SHA through `ci-test/fixes/agent-5`, with the transport differing only by `.github/test-request.json`, and require focused non-zero execution + automatic module validation + standalone replay.
 - [ ] Inspect exact target/front-left/rear-right artifact; if still below production-quality, record only the next largest demonstrated mismatch before another product change.
 
 ## 8. Final visual acceptance — all required
