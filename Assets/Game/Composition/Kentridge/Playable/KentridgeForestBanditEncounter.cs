@@ -35,8 +35,6 @@ namespace Game.Composition.Kentridge.Playable
         private const string KentridgeSceneName = "KentridgePlayableSlice";
         private const string PlayerCameraName = "Kentridge Player Camera";
         private const string MaleCharacterResource = "Characters/placeholder_male";
-        private const int AutonomousBattleSeed = 20260829;
-        private const int InitialCombatVitality = 6;
         private const float BattleActionIntervalSeconds = 0.10f;
         private static readonly LocalPlayerId LocalPlayer = new LocalPlayerId(0);
         private static readonly EncounterId ForestBanditEncounterId = new EncounterId("kentridge-forest-bandits");
@@ -85,12 +83,12 @@ namespace Game.Composition.Kentridge.Playable
         public CombatTeam? WinningTeam => _combat == null ? null : _combat.WinningTeam;
         public int CombatActionCount => _combat == null ? 0 : _combat.ActionCount;
         public int CombatTurnNumber => _combat == null ? 0 : _combat.TurnNumber;
-        public int BattleSeed => AutonomousBattleSeed;
+        public int BattleSeed => KentridgeForestCombatTuning.BattleSeed;
         public bool HasPendingCombatWork =>
             (_combat != null && _combat.HasPendingBattleWork) ||
             (_battleDriver != null && _battleDriver.HasPendingAction);
         public string BattleDiagnostic => _battleDriver == null
-            ? "seed=" + AutonomousBattleSeed + " state=" + (_combat == null ? CombatLifecycleState.Idle : _combat.State)
+            ? "seed=" + KentridgeForestCombatTuning.BattleSeed + " state=" + (_combat == null ? CombatLifecycleState.Idle : _combat.State)
             : _battleDriver.Diagnostic("Kentridge forest battle");
         public InputContextId ActiveInputContext =>
             _inputContexts == null ? InputContextId.Exploration : _inputContexts.ActiveContext;
@@ -166,7 +164,7 @@ namespace Game.Composition.Kentridge.Playable
             _vitality = new VitalityRegistry();
             _combat = new CombatService(_vitality);
             _encounters = new EncounterRegistry(_characters);
-            EnsureVitalityRegistered(_playerCharacterId);
+            EnsureVitalityRegistered(_playerCharacterId, CombatTeam.Player);
 
             for (int i = 0; i < _banditCharacterIds.Length; i++)
             {
@@ -309,8 +307,16 @@ namespace Game.Composition.Kentridge.Playable
 
             float dt = Mathf.Max(0f, elapsedMilliseconds * 0.001f);
             _combatInput?.Tick(dt);
+            if (!_combat.IsActive)
+            {
+                SettleCompletedCombat();
+                return;
+            }
+
             _battleActionAccumulator += dt;
-            if (_battleDriver != null && _battleActionAccumulator >= BattleActionIntervalSeconds)
+            if (_battleDriver != null &&
+                _battleActionAccumulator >= BattleActionIntervalSeconds &&
+                IsEnemyTurn())
             {
                 _battleActionAccumulator -= BattleActionIntervalSeconds;
                 _battleDriver.Step();
@@ -318,6 +324,20 @@ namespace Game.Composition.Kentridge.Playable
                     SettleCompletedCombat();
             }
             _inputReader.SuppressLegacyReadersForCurrentFrame();
+        }
+
+        private bool IsEnemyTurn()
+        {
+            if (_combat == null || !_combat.IsActive) return false;
+            for (int i = 0; i < _combat.ActiveParticipants.Count; i++)
+            {
+                CombatParticipant participant = _combat.ActiveParticipants[i];
+                if (!participant.Id.Equals(_combat.ActiveParticipant)) continue;
+                return participant.Team == CombatTeam.Enemy;
+            }
+
+            throw new InvalidOperationException(
+                "Kentridge combat active participant is absent from the authoritative Combat participant list.");
         }
 
         private void SpawnBandits()
@@ -455,8 +475,8 @@ namespace Game.Composition.Kentridge.Playable
                 if (!_characters.TryGet(member.CharacterId, out _))
                     throw new InvalidOperationException(
                         "Encounter Combat member no longer exists: " + member.CharacterId + ".");
-                EnsureVitalityRegistered(member.CharacterId);
                 CombatTeam team = member.Role == "player" ? CombatTeam.Player : CombatTeam.Enemy;
+                EnsureVitalityRegistered(member.CharacterId, team);
                 CombatParticipant participant = CombatParticipant.FromCharacter(member.CharacterId, team);
                 participants[next++] = participant;
                 if (team == CombatTeam.Player)
@@ -469,14 +489,15 @@ namespace Game.Composition.Kentridge.Playable
             _combat.BeginCombat(new CombatEncounterRequest(request.EncounterId.Value, participants));
             _combatContext = _inputContexts.Push(InputContextId.Combat);
             _combatInput = new CombatInputController(_combat, _inputReader, LocalPlayer, playerCombatId);
-            _battleDriver = new CombatAiBattleDriver(_combat, AutonomousBattleSeed);
+            _battleDriver = new CombatAiBattleDriver(_combat, KentridgeForestCombatTuning.BattleSeed);
             _battleActionAccumulator = 0f;
         }
 
-        private void EnsureVitalityRegistered(CharacterId characterId)
+        private void EnsureVitalityRegistered(CharacterId characterId, CombatTeam team)
         {
             if (_vitality.TryGet(characterId, out _)) return;
-            if (!_vitality.Register(VitalitySnapshot.Alive(characterId, InitialCombatVitality)))
+            if (!_vitality.Register(
+                    VitalitySnapshot.Alive(characterId, KentridgeForestCombatTuning.InitialVitality(team))))
                 throw new InvalidOperationException(
                     "Failed to register combat vitality for character '" + characterId + "'.");
         }
@@ -525,7 +546,7 @@ namespace Game.Composition.Kentridge.Playable
             _combatInput = null;
             ReleaseCombatContext();
             Debug.Log(
-                "[KentridgeCombat] battle-complete seed=" + AutonomousBattleSeed +
+                "[KentridgeCombat] battle-complete seed=" + KentridgeForestCombatTuning.BattleSeed +
                 " winner=" + _combat.WinningTeam.Value +
                 " actions=" + _combat.ActionCount +
                 " turns=" + _combat.TurnNumber +
