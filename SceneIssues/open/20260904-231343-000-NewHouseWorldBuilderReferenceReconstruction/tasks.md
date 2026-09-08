@@ -9,7 +9,7 @@ Recreate `Assets/Textures/Stylized/experiment1/house/10dddef5-de0a-4153-9c09-b1e
 - [x] Use WorldBuilder production authoring, material registry/texture layers, storage/meshing/rendering, and built-player replay.
 - [x] Keep reusable house geometry separate from reference site/camera/light composition.
 - [x] Keep module-local WorldBuilder validation and canonical standalone integration in the normal repo path.
-- [x] Keep meaningful visual iterations tied to exact feature SHA, request/run, artifact, and target/front-left/rear-right frames through iteration 15.
+- [x] Keep meaningful visual iterations tied to exact feature SHA, request/run, artifact, and target/front-left/rear-right frames through iteration 16.
 - [ ] Preserve the same exact evidence linkage for every subsequent product-changing iteration through final acceptance.
 
 ## 1. Production path / budgets / reuse
@@ -74,28 +74,33 @@ Recreate `Assets/Textures/Stylized/experiment1/house/10dddef5-de0a-4153-9c09-b1e
 - [x] Iteration 10 feature `6e5501cf...`, request `ec5b0ec2...`, run `34162021441`: flower box survives; rejected because spring line too narrow.
 - [x] Iteration 11 feature `47000509...`, request `f0158433...`, run `34165061316`: broader spring line green; rejected because chimney was too short.
 - [x] Iteration 12 feature `800f5c5d1333cad1169b69f589de5b3928bd7f9e`, request `772e9e73eeb89bb790f37599e140a803d8302f2b`, run `34166993216`, artifact `single-test-34166993216`: tall chimney corrected; visual closure rejected because middle opening/framing remained oversized.
-- [x] Iteration 13 feature `b045e276b727f785d78d6f9069ca36e0b27df83e`, request `ac63e59647ab7d72baaabd3c4aa16647dfbe11b1`, run `34174645322`, artifact `single-test-34174645322`: full module validation and standalone replay succeeded; exact target/front-left/rear-right inspection confirms the compact middle arch/shutters improve hierarchy while gable/chimney/upper flower box/side openings/rear shell remain intact. Visual closure rejected as **prototype/blockout quality** because the ground-floor entry still reads as a flat rectangular door instead of the deep projecting round stone portal in the reference.
+- [x] Iteration 13 feature `b045e276b727f785d78d6f9069ca36e0b27df83e`, request `ac63e59647ab7d72baaabd3c4aa16647dfbe11b1`, run `34174645322`, artifact `single-test-34174645322`: module validation/standalone succeeded; compact middle arch improved hierarchy; rejected because lower entry remained flat/rectangular.
 
 ### Iteration 14 — projecting lower entry portal
-- [x] Isolate the dominant iteration-13 mismatch as authored lower-portal depth/surround geometry rather than camera framing.
-- [x] Rebuild only the shallow central lower-entry patch with a recessed timber door, visibly projecting round stone voussoir ring/jambs, and restored compact hardware; preserve both lower side windows and all upper/roof/site/audit geometry.
+- [x] Rebuild only the shallow central lower-entry patch with a recessed timber door, visibly projecting round stone surround/jambs, and restored compact hardware; preserve side windows and upper/roof/site/audit geometry.
 - [x] Add a focused behavioral regression proving final entry refill, protruding arch/jamb geometry, recessed door, and shallow x-bounded repair ordering through the production refinement path.
-- [x] Inspect exact request `ccd49641a680cf39f5582249b3fca447a815d3b6`, run `34179033173`: terminal product failure because `NewHouseReferenceEntryPortalTests.cs` compiled but its fixture was absent from the WorldBuilder test tree and the requested phase matched zero tests; standalone captures are diagnostic only.
-- [x] Isolate requested-filter matching as non-primary: the fixture was already absent from the preceding whole `VoxelEngine.Tests.EditMode` assembly phase. Add explicit NUnit fixture/test metadata without changing production geometry or weakening the invariant.
-- [x] Exact feature `f33995a5877e67e1606ea043ace621435b78f32f`, request `a56b9bcd569f1d1a99e33a337cc562981d4a98a4`, run `34187949123`, artifact `single-test-34187949123`: focused FQN executed non-zero (`8.42s`), all automatic module validation passed, the module-local player and 32s SceneIssue replay succeeded.
-- [x] Inspect exact pinned reference plus target/front-left/rear-right artifact. Shell and portal ordering are correct, but classify the target **prototype/blockout quality**: the same-material lower arch still visually collapses into the facade and reads as angular proud jambs rather than the reference's continuous deep round voussoir ring.
+- [x] Request `ccd49641a680cf39f5582249b3fca447a815d3b6`, run `34179033173`: terminal product failure because the fixture was absent from discovery and the requested phase matched zero tests.
+- [x] Add explicit NUnit fixture/test metadata without changing product geometry or weakening the invariant.
+- [x] Exact feature `f33995a5877e67e1606ea043ace621435b78f32f`, request `a56b9bcd569f1d1a99e33a337cc562981d4a98a4`, run `34187949123`, artifact `single-test-34187949123`: focused FQN non-zero; automatic module validation/module-local player/SceneIssue replay succeeded.
+- [x] Exact visual inspection rejected as prototype/blockout quality because same-material arch collapsed visually into facade.
 
 ### Iteration 15 — continuous portal relief
-- [x] Keep all unrelated massing/material/site/camera/detail work fixed and add only a thin continuous front relief lip to the existing stone jamb/round-arch surround so the same-material curve gains a visible shadow edge.
-- [x] Expand the same already-discovered focused FQN `VoxelEngine.Tests.EditMode.NewHouseReferenceEntryPortalTests.AuthorHouse_FinalEntryPortalProjectsStoneRingAroundRecessedArchedDoor` to require both jamb relief and crown relief while preserving the original late-ordering, recessed-door, and side-window invariants.
-- [x] Exact feature `29edfec6ce93ee7f2a247fdef62c2641ed5c8890`, request `90313bd07435dd5c223bc04673126b0e64dafc45`, run `34191643674`, artifact `single-test-34191643674`: focused FQN executed non-zero (`8.66s`); all derived module assemblies and players, WorldBuilder module-local validation, the 32s SceneIssue replay, and canonical `KentridgePlayableSlice` succeeded.
-- [x] Inspect exact pinned reference plus target/front-left/rear-right and `verification-final.png`. The added relief makes the recessed round portal materially more readable and side openings/shell survive, but classify the exact target **prototype/blockout quality**. The dominant front mismatch is the far-too-tall global-ridge portrait rebuild; source inspection separately traces the rear-right protruding triangle to `FinishAuditElevations.FillRearGable`, not to surviving old front-gable depth.
+- [x] Add only a thin continuous front relief lip to the stone jamb/round-arch surround.
+- [x] Expand the focused FQN to require jamb/crown relief while preserving ordering, recessed-door, and side-window invariants.
+- [x] Exact feature `29edfec6ce93ee7f2a247fdef62c2641ed5c8890`, request `90313bd07435dd5c223bc04673126b0e64dafc45`, run `34191643674`, artifact `single-test-34191643674`: focused FQN non-zero; all derived module/player gates succeeded.
+- [x] Exact visual inspection confirmed portal readability improved; rejected because portrait roof remained a needle-spire and rear-right showed obsolete triangle.
 
 ### Iteration 16 — lower portrait-gable silhouette
-- [x] Isolate authored causes rather than camera/FOV: the late swept portrait rebuild uses the obsolete global ridge for a 53-voxel default rise, while the rear-right protrusion comes from the separate global-ridge `FillRearGable`. Source inspection falsifies the initial shallow-clear theory because the earlier front-gable depth is already fully covered by the late clear.
-- [x] Keep portal/openings/materials/site/camera/light/chimney/planting/hanging details/lower roofs fixed; retain the full high-range front clear, rebuild only a lower width-driven swept portrait rise, anchor crest geometry to that lower apex, and remove only the obsolete rear triangle above the preserved rear wall/window/shoulder-roof zone.
-- [x] Extend production-path behavioral refinement regressions to prove the lower apex, absence of surviving high portrait-roof edges, nonlinear/seam-closed roof profile, restored high opening, late rear-triangle removal, and crest placement.
-- [ ] Run the exact iteration-16 feature SHA through `ci-test/fixes/agent-5`, with the transport differing only by `.github/test-request.json`, requiring focused non-zero execution + automatic module validation + standalone replay.
+- [x] Isolate authored causes: late swept portrait rebuild used obsolete global ridge while rear-right protrusion came from separate global-ridge `FillRearGable`.
+- [x] Keep unrelated work fixed; rebuild only a lower width-driven swept portrait rise, anchor crest to lower apex, and remove only obsolete rear triangle above the preserved rear wall/window/shoulder-roof zone.
+- [x] Extend production-path refinement regressions to prove lower apex, no surviving high portrait-roof edges, nonlinear/seam-closed roof profile, restored high opening, late rear-triangle removal, and crest placement.
+- [x] Exact feature `dc4217a8500fdcc88ca3398f42de44666e770a9d`, request `c2ba4d220564bd61f247a99682f696c15f4af051`, run `34198674000`, artifact `single-test-34198674000`: focused FQN executed non-zero (`8.28s`); all repository-derived module tests/players, WorldBuilder module-local player, SceneIssue 32s replay, and canonical `KentridgePlayableSlice` succeeded.
+- [x] Inspect exact pinned reference plus target/front-left/rear-right and `verification-final.png`. Needle-spire and rear triangle are corrected while portal/openings/chimney/crest/shell survive, but classify exact target **prototype/blockout quality** because both facade ivy masses read as tall segmented green columns rather than irregular wall-hugging growth.
+
+### Iteration 17 — sparse natural facade ivy
+- [ ] Keep roof, portal, windows, materials, flowers, site, camera/light, chimney, banner/sign, and shell fixed; change both production ivy emitters only to deterministic sparse wall-hugging clusters with smaller depth/height, irregular lateral drift/branching, and visible vertical gaps.
+- [ ] Add one focused final-path behavioral regression that rejects tall/deep column primitives and proves each side ivy mass spans multiple lateral positions with gaps while retaining semantic `p.Foliage` and translation invariance.
+- [ ] Run the exact iteration-17 feature SHA through `ci-test/fixes/agent-5`, with transport differing only by `.github/test-request.json`, requiring focused non-zero execution + automatic module validation + standalone replay.
 - [ ] Inspect exact target/front-left/rear-right artifact; if still below production-quality, record only the next largest demonstrated mismatch before another product change.
 
 ## 8. Final visual acceptance — all required
