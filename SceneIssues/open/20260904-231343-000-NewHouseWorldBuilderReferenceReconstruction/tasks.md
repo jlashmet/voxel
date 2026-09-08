@@ -9,7 +9,7 @@ Recreate `Assets/Textures/Stylized/experiment1/house/10dddef5-de0a-4153-9c09-b1e
 - [x] Use WorldBuilder production authoring, material registry/texture layers, storage/meshing/rendering, and built-player replay.
 - [x] Keep reusable house geometry separate from reference site/camera/light composition.
 - [x] Keep module-local WorldBuilder validation and canonical standalone integration in the normal repo path.
-- [x] Keep meaningful visual iterations tied to exact feature SHA, request/run, artifact, and target/front-left/rear-right frames through iteration 12.
+- [x] Keep meaningful visual iterations tied to exact feature SHA, request/run, artifact, and target/front-left/rear-right frames through iteration 13.
 - [ ] Preserve the same exact evidence linkage for every subsequent product-changing iteration through final acceptance.
 
 ## 1. Production path / budgets / reuse
@@ -45,7 +45,7 @@ Recreate `Assets/Textures/Stylized/experiment1/house/10dddef5-de0a-4153-9c09-b1e
 - [x] Restore middle-storey blue-shuttered arched window after earlier roof replacement.
 - [x] Restore smaller high-gable arched window after destructive silhouette repair.
 - [ ] Match final lower portal width/height, lower side-window size/spacing, sill/head heights, surround depth, frames/muntins, and recess depth.
-- [ ] Match final middle-storey central arch/shutters and surrounding timber/plaster hierarchy to the reference.
+- [x] Match middle-storey central arch/shutters to a materially more compact reference-driven scale; final combined facade acceptance remains pending.
 - [ ] Match high-gable opening size/placement/surround to the reference.
 - [ ] Render/compare all visible openings after the last product change.
 
@@ -73,14 +73,15 @@ Recreate `Assets/Textures/Stylized/experiment1/house/10dddef5-de0a-4153-9c09-b1e
 - [x] Iteration 9b feature `3574429e...`, request `1dabd0e9...`, run `34155498206`: seams/module/player green; rejected because final rebuild erased upper flower box.
 - [x] Iteration 10 feature `6e5501cf...`, request `ec5b0ec2...`, run `34162021441`: flower box survives; rejected because spring line too narrow.
 - [x] Iteration 11 feature `47000509...`, request `f0158433...`, run `34165061316`: broader spring line green; rejected because chimney was too short.
-- [x] Iteration 12 feature `800f5c5d1333cad1169b69f589de5b3928bd7f9e`, request `772e9e73eeb89bb790f37599e140a803d8302f2b`, run `34166993216`, artifact `single-test-34166993216`: full module validation and standalone replay succeeded; exact target/front-left/rear-right inspection confirms tall chimney, intact gable/flower box, and closed rear shell. Visual closure rejected as **prototype/blockout quality** because the middle opening/shutters/timber cross consume most of the storey versus the compact reference opening.
+- [x] Iteration 12 feature `800f5c5d1333cad1169b69f589de5b3928bd7f9e`, request `772e9e73eeb89bb790f37599e140a803d8302f2b`, run `34166993216`, artifact `single-test-34166993216`: tall chimney corrected; visual closure rejected because middle opening/framing remained oversized.
+- [x] Iteration 13 feature `b045e276b727f785d78d6f9069ca36e0b27df83e`, request `ac63e59647ab7d72baaabd3c4aa16647dfbe11b1`, run `34174645322`, artifact `single-test-34174645322`: full module validation and standalone replay succeeded; exact target/front-left/rear-right inspection confirms the compact middle arch/shutters improve hierarchy while gable/chimney/upper flower box/side openings/rear shell remain intact. Visual closure rejected as **prototype/blockout quality** because the ground-floor entry still reads as a flat rectangular door instead of the deep projecting round stone portal in the reference.
 
-### Iteration 13 — compact middle facade opening/framing
-- [x] Isolate the dominant iteration-12 mismatch as authored middle-opening/framing scale rather than camera/FOV; front-left evidence shows the geometry itself is oversized.
-- [x] Refill the oversized middle opening/framing region late in production and rebuild one compact central arched window with narrower blue shutters and restrained timber hierarchy while holding roof/chimney/camera/material/site/lower openings/rear shell fixed.
-- [x] Add a focused behavioral regression proving the compact final middle opening is authored after the destructive refill and remains shallow of the rear audit shell.
+### Iteration 14 — projecting lower entry portal
+- [x] Isolate the dominant iteration-13 mismatch as authored lower-portal depth/surround geometry rather than camera framing.
+- [ ] Rebuild only the shallow central lower-entry patch with a recessed timber door, visibly projecting round stone voussoir ring/jambs, and restored compact hardware; preserve both lower side windows and all upper/roof/site/audit geometry.
+- [ ] Add a focused behavioral regression proving final entry refill, protruding arch/jamb geometry, recessed door, and shallow repair ordering through the production refinement path.
 - [ ] Run the resulting exact feature SHA through `ci-test/fixes/agent-5` with only `.github/test-request.json` on the transport.
-- [ ] Inspect exact target/front-left/rear-right artifact; if still below production-quality, record only the next largest demonstrated mismatch before another production change.
+- [ ] Inspect exact target/front-left/rear-right artifact; if still below production-quality, record only the next largest demonstrated mismatch before another product change.
 
 ## 8. Final visual acceptance — all required
 - [ ] Overall silhouette very close to reference.
