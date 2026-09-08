@@ -17,7 +17,7 @@ namespace VoxelEngine.Rendering.Tests.EditMode
         private static readonly BindingFlags InstanceFields = BindingFlags.NonPublic | BindingFlags.Instance;
         private static readonly BindingFlags StaticFields = BindingFlags.NonPublic | BindingFlags.Static;
 
-        private GpuSurfaceExtractionContext _context;
+        private GpuSurfaceExtractionContext _context, _keeper;
         private GpuSurfacePageArena _arena;
         private ComputeShader _arenaShader;
 
@@ -26,6 +26,18 @@ namespace VoxelEngine.Rendering.Tests.EditMode
         {
             Assert.That(SystemInfo.supportsComputeShaders, Is.True);
             Assert.That(SystemInfo.supportsAsyncGPUReadback, Is.True);
+
+            // Match GpuQueuedBatchCancellationTests exactly: create two shared-mirror consumers
+            // before the page arena, then replace only the first one inside the test. This keeps
+            // one otherwise-idle context alive across the replacement and discriminates shared-
+            // context lifetime from first-full-publication cold cost.
+            _context = GpuSurfaceExtractionContext.TryCreate(8, 2, 1024);
+            _keeper = GpuSurfaceExtractionContext.TryCreate(8, 2, 1024);
+            Assert.NotNull(_context);
+            Assert.NotNull(_keeper);
+            typeof(GpuSurfaceExtractionContext).GetField("_hasStaged", InstanceFields).SetValue(_context, true);
+            typeof(GpuSurfaceExtractionContext).GetField("_hasStaged", InstanceFields).SetValue(_keeper, true);
+
             _arenaShader = UnityEngine.Object.Instantiate(Resources.Load<ComputeShader>("GpuSurfacePageArena"));
             _arena = new GpuSurfacePageArena(_arenaShader, 65536, 65536, 8);
             GpuSurfaceMirrorCoordinator.ConfigurePageArena(_arena);
@@ -35,6 +47,7 @@ namespace VoxelEngine.Rendering.Tests.EditMode
         public void TearDown()
         {
             _context?.Dispose();
+            _keeper?.Dispose();
             GpuSurfaceMirrorCoordinator.DetachPageArena(_arena, Time.frameCount);
             _arena?.Dispose();
             if (_arenaShader != null) UnityEngine.Object.DestroyImmediate(_arenaShader);
@@ -46,6 +59,7 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             const int step = 4;
             const int core = 8;
             int edge = core * step / 8 + 2;
+            _context.Dispose();
             _context = GpuSurfaceExtractionContext.TryCreate(core, 2, 1024, edge);
             Assert.NotNull(_context);
 
@@ -78,21 +92,31 @@ namespace VoxelEngine.Rendering.Tests.EditMode
                 _context, 0, _context.Extractor, _context.Tables, request, Time.frameCount), Is.True);
             object lane = FirstLane();
             int frame = Time.frameCount;
+            int iterations = 0;
+            double maxPrepareMs = 0.0;
             bool sawSummarySubmission = false;
+            bool sawFullSubmission = false;
             double deadline = Time.realtimeSinceStartupAsDouble + 5.0;
             while (Time.realtimeSinceStartupAsDouble < deadline)
             {
                 yield return null;
+                iterations++;
                 Coordinator.GetField("s_LastExtractionDispatchFrame", StaticFields).SetValue(null, -1);
                 lane.GetType().GetField("_lastSummaryFrame", InstanceFields).SetValue(lane, -1);
+                double prepareStarted = Time.realtimeSinceStartupAsDouble;
                 GpuSurfaceMirrorCoordinator.PrepareFrame(storage.Reads, storage.Changes, ++frame, 1.0);
+                maxPrepareMs = Math.Max(maxPrepareMs,
+                    (Time.realtimeSinceStartupAsDouble - prepareStarted) * 1000.0);
                 sawSummarySubmission |= (bool)Get(lane, "SummarySubmitted");
+                sawFullSubmission |= (bool)Get(lane, "Submitted");
                 if (!_context.TryTakePagedBatch(out _, out bool failed)) continue;
 
                 Assert.That(failed, Is.False, "The unedited step-four mixed candidate must publish successfully.");
                 var counters = new uint[GpuSurfaceExtractor.BatchHeaderWords + GpuSurfaceExtractor.BatchRecordWords];
                 ((ComputeBuffer)Get(lane, "Counters")).GetData(counters, 0, 0, counters.Length);
                 Assert.That(counters[6], Is.GreaterThan(0), "The repro must produce real geometry.");
+                Debug.Log($"STEP4 PHASE PASS iterations={iterations} maxPrepareMs={maxPrepareMs:0.000}"
+                    + $" sawSummary={sawSummarySubmission} sawFull={sawFullSubmission}");
                 _context.Release();
                 Assert.That(GpuSurfaceMirrorCoordinator.DemandFootprintCount, Is.Zero);
                 yield break;
@@ -101,7 +125,8 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             bool fenceValid = (bool)Get(lane, "CompletionFenceValid");
             GraphicsFence fence = (GraphicsFence)Get(lane, "CompletionFence");
             string phase =
-                $"step={step} sawSummary={sawSummarySubmission}"
+                $"step={step} iterations={iterations} maxPrepareMs={maxPrepareMs:0.000}"
+                + $" sawSummary={sawSummarySubmission} sawFull={sawFullSubmission}"
                 + $" preparing={Get(lane, "PreparingSummaries")}"
                 + $" summarySubmitted={Get(lane, "SummarySubmitted")}"
                 + $" summaryFailed={Get(lane, "SummaryFailed")}"
