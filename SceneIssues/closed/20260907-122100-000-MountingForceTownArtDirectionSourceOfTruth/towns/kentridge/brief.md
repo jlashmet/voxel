@@ -1,0 +1,7 @@
+# Kentridge concept brief
+
+Source inventory is locked in `../../town-art-direction-source-of-truth.md` before concept generation.
+
+Generate six separate environment concept images in this exact set, one output per role: (1) elevated overall town; (2) exterior signature civic/religious building; (3) exterior secondary commercial/working building; (4) interior signature civic/religious building; (5) interior secondary commercial/working building; (6) street/public-space well and supply-market square.
+
+Shared visual target: original Project North Star storybook environment concept art—handcrafted, heroic, welcoming, beautiful and highly readable, non-photoreal, production-reference quality, believable construction, no UI, no characters as subjects, no text labels. Architecture uses mossy fieldstone, honey/aged timber, warm cream plaster, muted terracotta roofs, moss green and faded blue accents. Town is a resilient working foothill settlement under supply pressure, organic lanes and retaining stones, central well/market, compact church, useful mayor house, inn/magic shop/warehouse, gardens and edge fields. Avoid generic medieval sameness, voxel/blockout forms, or excessive fantasy ornament.
