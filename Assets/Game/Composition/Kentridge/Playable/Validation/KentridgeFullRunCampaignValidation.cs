@@ -95,10 +95,10 @@ namespace Game.Composition.Kentridge.Playable.Validation
                 && ContainsNpc(bootstrap.Composition.World.Npcs, content.KentridgeMayor),
                 "Hierarchy-aware world realization omitted a continuation NPC.");
             Require(
-                ContainsStage(bootstrap.Composition.World.CutsceneStages, content.RorikChallengeCutscene)
-                && ContainsStage(bootstrap.Composition.World.CutsceneStages, content.RossdamBattleEndCutscene)
-                && ContainsStage(bootstrap.Composition.World.CutsceneStages, content.LoganCastleHoleCutscene),
-                "Hierarchy-aware world realization omitted a continuation cutscene stage.");
+                ContainsAllRequiredStages(
+                    content.Blueprint.Cutscenes,
+                    bootstrap.Composition.World.CutsceneStages),
+                "Hierarchy-aware world realization omitted a cutscene stage required by authored choreography.");
             Debug.Log(
                 "KENTRIDGE_FULL_RUN_MILESTONE physical-world-ready settlements="
                 + bootstrap.Composition.PhysicalWorld.Graph.HierarchyPlan.Settlements.Count
@@ -358,6 +358,21 @@ namespace Game.Composition.Kentridge.Playable.Validation
                 if (placements[i].Npc.Equals(npc))
                     return true;
             return false;
+        }
+
+        private static bool ContainsAllRequiredStages(
+            IReadOnlyList<CutsceneSpec> cutscenes,
+            IReadOnlyList<CutsceneStageRealization> stages)
+        {
+            for (var i = 0; i < cutscenes.Count; i++)
+            {
+                CutsceneSpec cutscene = cutscenes[i];
+                if (cutscene.Definition.StageRequirements.Count == 0)
+                    continue;
+                if (!ContainsStage(stages, cutscene.Ref))
+                    return false;
+            }
+            return true;
         }
 
         private static bool ContainsStage(
