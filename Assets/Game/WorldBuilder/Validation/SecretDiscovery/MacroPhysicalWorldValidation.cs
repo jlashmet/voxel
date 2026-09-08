@@ -13,6 +13,7 @@ using UnityEngine;
 using VoxelEngine.Composition;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Api;
+using VoxelEngine.Structures.Runtime;
 
 namespace Game.WorldBuilder.Validation
 {
