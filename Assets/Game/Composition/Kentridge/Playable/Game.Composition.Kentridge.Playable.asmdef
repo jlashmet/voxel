@@ -30,6 +30,7 @@
     "Game.Inventory.Api",
     "Game.Outcomes.Api",
     "Game.Persistence.Api",
+    "Game.Persistence.Runtime",
     "Game.Progression.Api",
     "Game.Quests.Api",
     "Game.SessionOrchestration.Api",
