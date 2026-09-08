@@ -1,0 +1,7 @@
+{
+  "test": "VoxelEngine.Rendering.Tests.EditMode.GpuSurfaceDemandIdentitySnapshotTests.RequestTimeIdentitySurvivesInputImageAdvanceBeforeConsumption",
+  "platform": "EditMode",
+  "request_id": "20260908-agent3-demand-request-identity",
+  "scene_issue": "SceneIssues/open/20260907-145211-000-VoxelShowcaseGpuCorrectnessAndPerformance/issue.json",
+  "replay_seconds": "180"
+}
