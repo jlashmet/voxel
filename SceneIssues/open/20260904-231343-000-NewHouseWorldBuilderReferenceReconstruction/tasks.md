@@ -80,7 +80,9 @@ Recreate `Assets/Textures/Stylized/experiment1/house/10dddef5-de0a-4153-9c09-b1e
 - [x] Isolate the dominant iteration-13 mismatch as authored lower-portal depth/surround geometry rather than camera framing.
 - [x] Rebuild only the shallow central lower-entry patch with a recessed timber door, visibly projecting round stone voussoir ring/jambs, and restored compact hardware; preserve both lower side windows and all upper/roof/site/audit geometry.
 - [x] Add a focused behavioral regression proving final entry refill, protruding arch/jamb geometry, recessed door, and shallow x-bounded repair ordering through the production refinement path.
-- [ ] Run the resulting exact feature SHA through `ci-test/fixes/agent-5` with only `.github/test-request.json` on the transport.
+- [x] Inspect exact request `ccd49641a680cf39f5582249b3fca447a815d3b6`, run `34179033173`: terminal product failure because `NewHouseReferenceEntryPortalTests.cs` compiled but its fixture was absent from the WorldBuilder test tree and the requested phase matched zero tests; standalone captures are diagnostic only.
+- [x] Isolate requested-filter matching as non-primary: the fixture was already absent from the preceding whole `VoxelEngine.Tests.EditMode` assembly phase. Add explicit NUnit fixture/test metadata without changing production geometry or weakening the invariant.
+- [ ] Run the resulting exact feature SHA through `ci-test/fixes/agent-5` with only `.github/test-request.json` on the transport and require the focused test to execute with a non-zero result.
 - [ ] Inspect exact target/front-left/rear-right artifact; if still below production-quality, record only the next largest demonstrated mismatch before another product change.
 
 ## 8. Final visual acceptance — all required
