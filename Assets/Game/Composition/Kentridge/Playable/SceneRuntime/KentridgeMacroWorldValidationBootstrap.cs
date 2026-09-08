@@ -12,9 +12,9 @@ namespace Game.Kentridge.PlayableSlice
     /// Module-local validation bootstrap for the shipped Kentridge SceneRuntime composition. The
     /// scene owns no alternate world graph or renderer: it hosts the real KentridgePlayableSlice,
     /// checks a few source-backed macro relationships, then attaches the same production evidence
-    /// and content-demand drivers used by the assignment's full built-player replay so streaming,
-    /// readiness, rendering, and CharacterMotor traversal all execute through the shipped
-    /// composition path.
+    /// and validation-only demand/framing helpers used by the assignment's full built-player replay
+    /// so streaming, readiness, rendering, and CharacterMotor traversal all execute through the
+    /// shipped composition path.
     /// </summary>
     internal static class KentridgeMacroWorldValidationBootstrap
     {
@@ -67,14 +67,19 @@ namespace Game.Kentridge.PlayableSlice
             Require(lakeRoute.GeographyConstrained,
                 "Rossdam hard route is no longer solved against authored geography");
 
-            // The full SceneIssue replay installs both helpers from its validation profile. The
-            // module-local player has no SceneIssue profile, so it must attach both explicitly;
-            // attaching only the evidence driver leaves its elevated settlement survey waiting on
-            // content whose CharacterMotor demand point is never advanced through the settlement.
+            // The full SceneIssue replay installs all three validation-profile helpers from its
+            // profile. The module-local player has no SceneIssue profile, so attach them explicitly:
+            // evidence owns semantic targets/strict readiness, content-demand keeps authored remote
+            // columns on the real streaming path, and close-survey composition aligns the streamed
+            // CharacterMotor demand with the readable oblique settlement camera selected in
+            // experiment 047. Omitting the third helper silently restored the old 70 m near-nadir
+            // workload even though the intended correction was still present in source.
             if (UnityEngine.Object.FindFirstObjectByType<KentridgeMacroWorldEvidenceDriver>() == null)
                 slice.gameObject.AddComponent<KentridgeMacroWorldEvidenceDriver>();
             if (UnityEngine.Object.FindFirstObjectByType<KentridgeMacroWorldContentDemandDriver>() == null)
                 slice.gameObject.AddComponent<KentridgeMacroWorldContentDemandDriver>();
+            if (UnityEngine.Object.FindFirstObjectByType<KentridgeMacroWorldSettlementSurveyComposition>() == null)
+                slice.gameObject.AddComponent<KentridgeMacroWorldSettlementSurveyComposition>();
 
             Debug.Log(
                 "KENTRIDGE_MACRO_MODULE_VALIDATION ready: " +

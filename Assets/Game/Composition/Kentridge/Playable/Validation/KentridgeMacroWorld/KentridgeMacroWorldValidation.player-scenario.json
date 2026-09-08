@@ -17,6 +17,7 @@
       "KENTRIDGE_MACRO_MODULE_VALIDATION ready:",
       "MACROEVIDENCE application-new-game-requested",
       "MACROEVIDENCE traversal=CharacterMotor-local",
+      "MACROEVIDENCE close-survey target=rossdam",
       "MACROEVIDENCE traversal=CharacterMotor-macro-road",
       "MACROEVIDENCE capture-ready target=macro-network-overview"
     ],

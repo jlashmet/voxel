@@ -54,6 +54,7 @@ namespace Game.Kentridge.PlayableSlice
         private FieldInfo _targetFocusDmField;
         private int _lastTargetIndex = -1;
         private bool _lastCloseSettlement;
+        private string _activeLabel;
         private Vector3 _closeSurveyPosition;
         private Vector3 _closeSurveyFocus;
 
@@ -69,54 +70,23 @@ namespace Game.Kentridge.PlayableSlice
             host.AddComponent<KentridgeMacroWorldSettlementSurveyComposition>();
         }
 
+        private void Update()
+        {
+            if (!ResolveActiveCloseSettlement()) return;
+
+            // EvidenceDriver runs at -100 and pins its generic survey demand first. This component
+            // runs at -90, still before the production KentridgePlayableSlice Update, so the real
+            // streaming step consumes the same close position that will be rendered in LateUpdate.
+            // Without this Update-stage override, the prior LateUpdate-only implementation rendered
+            // a close camera while streaming the old 70 m near-nadir point one frame after another.
+            PinStreamingAuthority();
+        }
+
         private void LateUpdate()
         {
-            _slice ??= FindFirstObjectByType<KentridgePlayableSlice>();
-            _driver ??= FindFirstObjectByType<KentridgeMacroWorldEvidenceDriver>();
-            if (_slice == null || _driver == null) return;
+            if (!ResolveActiveCloseSettlement()) return;
 
-            if (s_MotorField == null || s_TargetsField == null || s_TargetIndexField == null
-                || s_TargetContentReadyLoggedField == null)
-                throw new InvalidOperationException(
-                    "Close settlement survey composition cannot resolve macro evidence driver state.");
-
-            _motor ??= s_MotorField.GetValue(_slice) as KentridgeCharacterHost;
-            if (_motor == null || s_WorldField?.GetValue(_slice) == null) return;
-
-            int targetIndex = (int)s_TargetIndexField.GetValue(_driver);
-            Array targets = s_TargetsField.GetValue(_driver) as Array;
-            if (targets == null || targetIndex < 0 || targetIndex >= targets.Length)
-            {
-                _lastTargetIndex = -1;
-                _lastCloseSettlement = false;
-                return;
-            }
-
-            object target = targets.GetValue(targetIndex);
-            EnsureTargetFields(target);
-            string label = _targetLabelField.GetValue(target) as string;
-            bool closeSettlement = IsCloseSettlement(label);
-            if (targetIndex != _lastTargetIndex)
-            {
-                _lastTargetIndex = targetIndex;
-                _lastCloseSettlement = closeSettlement;
-                if (closeSettlement)
-                {
-                    Int2 focusDm = (Int2)_targetFocusDmField.GetValue(target);
-                    BuildCloseSurveyPose(focusDm, out _closeSurveyPosition, out _closeSurveyFocus);
-                    Debug.Log(
-                        $"MACROEVIDENCE close-survey target={label} position={Format(_closeSurveyPosition)} " +
-                        $"focus={Format(_closeSurveyFocus)} heightM={CloseSurveyHeightMetres:0.0}");
-                }
-            }
-
-            if (!_lastCloseSettlement) return;
-
-            // Keep streaming authority and rendered presentation at one point. This preserves the
-            // strict production coverage gate rather than widening it or treating missing chunks as
-            // optional evidence.
-            _motor.Position = _closeSurveyPosition;
-            _motor.Velocity = Vector3.zero;
+            PinStreamingAuthority();
             _slice.transform.position = _closeSurveyPosition;
             _slice.transform.rotation = Quaternion.LookRotation(
                 (_closeSurveyFocus - _closeSurveyPosition).normalized,
@@ -130,7 +100,59 @@ namespace Game.Kentridge.PlayableSlice
             // production readiness gate has actually turned green at this close pose.
             if ((bool)s_TargetContentReadyLoggedField.GetValue(_driver))
                 this.LogOncePerFrame(
-                    $"MACROEVIDENCE close-survey-content-ready target={label} demand={Format(_motor.EyePosition)}");
+                    $"MACROEVIDENCE close-survey-content-ready target={_activeLabel} demand={Format(_motor.EyePosition)}");
+        }
+
+        private bool ResolveActiveCloseSettlement()
+        {
+            _slice ??= FindFirstObjectByType<KentridgePlayableSlice>();
+            _driver ??= FindActiveEvidenceDriverForValidation();
+            if (_slice == null || _driver == null) return false;
+
+            if (s_MotorField == null || s_TargetsField == null || s_TargetIndexField == null
+                || s_TargetContentReadyLoggedField == null)
+                throw new InvalidOperationException(
+                    "Close settlement survey composition cannot resolve macro evidence driver state.");
+
+            _motor ??= s_MotorField.GetValue(_slice) as KentridgeCharacterHost;
+            if (_motor == null || s_WorldField?.GetValue(_slice) == null) return false;
+
+            int targetIndex = (int)s_TargetIndexField.GetValue(_driver);
+            Array targets = s_TargetsField.GetValue(_driver) as Array;
+            if (targets == null || targetIndex < 0 || targetIndex >= targets.Length)
+            {
+                _lastTargetIndex = -1;
+                _lastCloseSettlement = false;
+                _activeLabel = null;
+                return false;
+            }
+
+            object target = targets.GetValue(targetIndex);
+            EnsureTargetFields(target);
+            string label = _targetLabelField.GetValue(target) as string;
+            bool closeSettlement = IsCloseSettlement(label);
+            if (targetIndex != _lastTargetIndex)
+            {
+                _lastTargetIndex = targetIndex;
+                _lastCloseSettlement = closeSettlement;
+                _activeLabel = closeSettlement ? label : null;
+                if (closeSettlement)
+                {
+                    Int2 focusDm = (Int2)_targetFocusDmField.GetValue(target);
+                    BuildCloseSurveyPose(focusDm, out _closeSurveyPosition, out _closeSurveyFocus);
+                    Debug.Log(
+                        $"MACROEVIDENCE close-survey target={label} position={Format(_closeSurveyPosition)} " +
+                        $"focus={Format(_closeSurveyFocus)} heightM={CloseSurveyHeightMetres:0.0}");
+                }
+            }
+
+            return _lastCloseSettlement;
+        }
+
+        private void PinStreamingAuthority()
+        {
+            _motor.Position = _closeSurveyPosition;
+            _motor.Velocity = Vector3.zero;
         }
 
         private void EnsureTargetFields(object target)
@@ -148,6 +170,16 @@ namespace Game.Kentridge.PlayableSlice
             if (_targetLabelField == null || _targetFocusDmField == null)
                 throw new InvalidOperationException(
                     "Close settlement survey composition cannot resolve evidence target label/focus state.");
+        }
+
+        internal static KentridgeMacroWorldEvidenceDriver FindActiveEvidenceDriverForValidation()
+        {
+            KentridgeMacroWorldEvidenceDriver[] drivers =
+                Resources.FindObjectsOfTypeAll<KentridgeMacroWorldEvidenceDriver>();
+            for (var i = 0; i < drivers.Length; i++)
+                if (drivers[i] != null && drivers[i].isActiveAndEnabled)
+                    return drivers[i];
+            return null;
         }
 
         private static bool IsCloseSettlement(string label) =>
@@ -175,7 +207,22 @@ namespace Game.Kentridge.PlayableSlice
         private static bool TryReadValidationProfile(out string profile)
         {
             profile = ReadArgument("-voxel-validation-profile");
-            return !string.IsNullOrWhiteSpace(profile);
+            if (!string.IsNullOrWhiteSpace(profile)) return true;
+
+            string sceneIssuePath = ReadArgument("-voxel-scene-issue");
+            if (string.IsNullOrWhiteSpace(sceneIssuePath) || !File.Exists(sceneIssuePath))
+                return false;
+
+            string json = File.ReadAllText(sceneIssuePath);
+            const string key = "\"validationProfile\"";
+            int keyIndex = json.IndexOf(key, StringComparison.Ordinal);
+            if (keyIndex < 0) return false;
+            int colon = json.IndexOf(':', keyIndex + key.Length);
+            int firstQuote = colon >= 0 ? json.IndexOf('"', colon + 1) : -1;
+            int secondQuote = firstQuote >= 0 ? json.IndexOf('"', firstQuote + 1) : -1;
+            if (firstQuote < 0 || secondQuote <= firstQuote) return false;
+            profile = json.Substring(firstQuote + 1, secondQuote - firstQuote - 1);
+            return true;
         }
 
         private static string ReadArgument(string key)

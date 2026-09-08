@@ -51,6 +51,10 @@ namespace VoxelEngine.Tests.EditMode
                 KentridgeMacroWorldApplicationStartDriver.HasActiveValidationEvidence(),
                 Is.False,
                 "Test requires no pre-existing macro validation evidence instance.");
+            Assert.That(
+                KentridgeMacroWorldSettlementSurveyComposition.FindActiveEvidenceDriverForValidation(),
+                Is.Null,
+                "Test requires no pre-existing close-survey evidence instance.");
 
             float originalTimeScale = Time.timeScale;
             var host = new GameObject("Hidden macro evidence test")
@@ -59,17 +63,26 @@ namespace VoxelEngine.Tests.EditMode
             };
             try
             {
-                host.AddComponent<KentridgeMacroWorldEvidenceDriver>();
+                KentridgeMacroWorldEvidenceDriver driver =
+                    host.AddComponent<KentridgeMacroWorldEvidenceDriver>();
                 Assert.That(
                     KentridgeMacroWorldApplicationStartDriver.HasActiveValidationEvidence(),
                     Is.True,
                     "DontSave SceneIssue evidence must remain discoverable by the application-start companion.");
+                Assert.That(
+                    KentridgeMacroWorldSettlementSurveyComposition.FindActiveEvidenceDriverForValidation(),
+                    Is.SameAs(driver),
+                    "DontSave SceneIssue evidence must remain discoverable by close-survey composition.");
 
                 host.SetActive(false);
                 Assert.That(
                     KentridgeMacroWorldApplicationStartDriver.HasActiveValidationEvidence(),
                     Is.False,
                     "Disabled validation evidence must not trigger application startup.");
+                Assert.That(
+                    KentridgeMacroWorldSettlementSurveyComposition.FindActiveEvidenceDriverForValidation(),
+                    Is.Null,
+                    "Disabled validation evidence must not drive close-survey composition.");
             }
             finally
             {
