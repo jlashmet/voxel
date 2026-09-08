@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "mode": "multiProcess",
+  "runSeconds": 480,
+  "processes": [
+    {"role": "authority", "headless": true, "arguments": ["-gamesystem25-port", "39126", "-gamesystem25-capacity", "5"]},
+    {"role": "client-a", "headless": true, "arguments": ["-gamesystem25-port", "39126", "-gamesystem25-capacity", "5"]},
+    {"role": "client-b", "headless": true, "arguments": ["-gamesystem25-port", "39126", "-gamesystem25-capacity", "5"]},
+    {"role": "client-c", "headless": true, "arguments": ["-gamesystem25-port", "39126", "-gamesystem25-capacity", "5"]},
+    {"role": "client-d", "headless": true, "arguments": ["-gamesystem25-port", "39126", "-gamesystem25-capacity", "5"]}
+  ],
+  "operations": [
+    {"op": "launch", "role": "authority"},
+    {"op": "wait", "role": "authority", "name": "authority-listening", "timeoutSeconds": 30, "fields": {"sessionId": "gamesystem25-release", "port": 39126, "configuredCapacity": 5, "processAttempt": 1}},
+
+    {"op": "launch", "role": "client-a"},
+    {"op": "launch", "role": "client-b"},
+    {"op": "launch", "role": "client-c"},
+    {"op": "wait", "role": "client-a", "name": "party-joined", "timeoutSeconds": 45, "fields": {"sessionId": "gamesystem25-release", "configuredCapacity": 5, "processAttempt": 1}},
+    {"op": "wait", "role": "client-b", "name": "party-joined", "timeoutSeconds": 45, "fields": {"sessionId": "gamesystem25-release", "configuredCapacity": 5, "processAttempt": 1}},
+    {"op": "wait", "role": "client-c", "name": "party-joined", "timeoutSeconds": 45, "fields": {"sessionId": "gamesystem25-release", "configuredCapacity": 5, "processAttempt": 1}},
+    {"op": "wait", "role": "authority", "name": "release-mutated-state", "timeoutSeconds": 45, "fields": {"sessionId": "gamesystem25-release", "configuredCapacity": 5, "rosterCount": 4, "quantity": 1, "progressionState": "Completed", "processAttempt": 1}},
+    {"op": "wait", "role": "client-a", "name": "release-mutated-state", "timeoutSeconds": 45, "fields": {"sessionId": "gamesystem25-release", "configuredCapacity": 5, "rosterCount": 4, "quantity": 1, "progressionState": "Completed", "processAttempt": 1}},
+    {"op": "wait", "role": "client-b", "name": "release-mutated-state", "timeoutSeconds": 45, "fields": {"sessionId": "gamesystem25-release", "configuredCapacity": 5, "rosterCount": 4, "quantity": 1, "progressionState": "Completed", "processAttempt": 1}},
+    {"op": "wait", "role": "client-c", "name": "release-mutated-state", "timeoutSeconds": 45, "fields": {"sessionId": "gamesystem25-release", "configuredCapacity": 5, "rosterCount": 4, "quantity": 1, "progressionState": "Completed", "processAttempt": 1}},
+
+    {"op": "launch", "role": "client-d"},
+    {"op": "wait", "role": "client-d", "name": "party-joined", "timeoutSeconds": 45, "fields": {"sessionId": "gamesystem25-release", "memberId": "gamesystem25-release:member:5", "characterId": "kentridge-player-5", "slot": 4, "configuredCapacity": 5, "processAttempt": 1}},
+    {"op": "wait", "role": "client-d", "name": "jip-current-state", "timeoutSeconds": 45, "fields": {"sessionId": "gamesystem25-release", "memberId": "gamesystem25-release:member:5", "characterId": "kentridge-player-5", "slot": 4, "configuredCapacity": 5, "rosterCount": 5, "quantity": 1, "progressionState": "Completed", "processAttempt": 1, "recoveryMode": "current-projections-only"}},
+    {"op": "wait", "role": "authority", "name": "configured-capacity-full", "timeoutSeconds": 45, "fields": {"sessionId": "gamesystem25-release", "configuredCapacity": 5, "rosterCount": 5, "processAttempt": 1}},
+
+    {"op": "kill", "role": "client-a"},
+    {"op": "wait", "role": "authority", "name": "reconnect-interrupted", "timeoutSeconds": 30, "fields": {"sessionId": "gamesystem25-release", "reconnectCount": 1, "recoveryState": "ConnectionInterrupted", "processAttempt": 1}},
+    {"op": "relaunch", "role": "client-a"},
+    {"op": "wait", "role": "client-a", "name": "party-joined", "timeoutSeconds": 45, "fields": {"sessionId": "gamesystem25-release", "configuredCapacity": 5, "rosterCount": 5, "processAttempt": 2}},
+    {"op": "wait", "role": "client-a", "name": "reconnect-current-state", "timeoutSeconds": 45, "fields": {"sessionId": "gamesystem25-release", "configuredCapacity": 5, "rosterCount": 5, "quantity": 1, "progressionState": "Completed", "processAttempt": 2, "transportMode": "fresh-client-process", "recoveryMode": "current-projections-only"}},
+    {"op": "wait", "role": "authority", "name": "reconnect-recovered", "timeoutSeconds": 30, "fields": {"sessionId": "gamesystem25-release", "reconnectCount": 1, "recoveryState": "Recovered", "processAttempt": 1}},
+
+    {"op": "kill", "role": "client-a"},
+    {"op": "wait", "role": "authority", "name": "reconnect-interrupted", "timeoutSeconds": 30, "fields": {"sessionId": "gamesystem25-release", "reconnectCount": 2, "recoveryState": "ConnectionInterrupted", "processAttempt": 1}},
+    {"op": "relaunch", "role": "client-a"},
+    {"op": "wait", "role": "client-a", "name": "party-joined", "timeoutSeconds": 45, "fields": {"sessionId": "gamesystem25-release", "configuredCapacity": 5, "rosterCount": 5, "processAttempt": 3}},
+    {"op": "wait", "role": "client-a", "name": "reconnect-current-state", "timeoutSeconds": 45, "fields": {"sessionId": "gamesystem25-release", "configuredCapacity": 5, "rosterCount": 5, "quantity": 1, "progressionState": "Completed", "processAttempt": 3, "transportMode": "fresh-client-process", "recoveryMode": "current-projections-only"}},
+    {"op": "wait", "role": "authority", "name": "reconnect-recovered", "timeoutSeconds": 30, "fields": {"sessionId": "gamesystem25-release", "reconnectCount": 2, "recoveryState": "Recovered", "processAttempt": 1}},
+    {"op": "wait", "role": "authority", "name": "release-save-published", "timeoutSeconds": 30, "fields": {"sessionId": "gamesystem25-release", "saveId": "gamesystem25-release-rehost", "configuredCapacity": 5, "rosterCount": 5, "reconnectCount": 2, "processAttempt": 1}},
+
+    {"op": "kill", "role": "client-a"},
+    {"op": "kill", "role": "client-b"},
+    {"op": "kill", "role": "client-c"},
+    {"op": "kill", "role": "client-d"},
+    {"op": "kill", "role": "authority"},
+
+    {"op": "relaunch", "role": "authority"},
+    {"op": "wait", "role": "authority", "name": "authority-listening", "timeoutSeconds": 30, "fields": {"sessionId": "gamesystem25-release", "port": 39126, "configuredCapacity": 5, "processAttempt": 2}},
+    {"op": "wait", "role": "authority", "name": "rehost-restore-prepared", "timeoutSeconds": 45, "fields": {"sessionId": "gamesystem25-release", "configuredCapacity": 5, "rosterCount": 5, "processAttempt": 2, "transportMode": "fresh-authority-process"}},
+    {"op": "relaunch", "role": "client-a"},
+    {"op": "relaunch", "role": "client-b"},
+    {"op": "relaunch", "role": "client-c"},
+    {"op": "relaunch", "role": "client-d"},
+    {"op": "wait", "role": "client-a", "name": "party-joined", "timeoutSeconds": 60, "fields": {"sessionId": "gamesystem25-release", "configuredCapacity": 5, "rosterCount": 5, "processAttempt": 4}},
+    {"op": "wait", "role": "client-b", "name": "party-joined", "timeoutSeconds": 60, "fields": {"sessionId": "gamesystem25-release", "configuredCapacity": 5, "rosterCount": 5, "processAttempt": 2}},
+    {"op": "wait", "role": "client-c", "name": "party-joined", "timeoutSeconds": 60, "fields": {"sessionId": "gamesystem25-release", "configuredCapacity": 5, "rosterCount": 5, "processAttempt": 2}},
+    {"op": "wait", "role": "client-d", "name": "party-joined", "timeoutSeconds": 60, "fields": {"sessionId": "gamesystem25-release", "configuredCapacity": 5, "rosterCount": 5, "processAttempt": 2}},
+    {"op": "wait", "role": "authority", "name": "rehost-current-state", "timeoutSeconds": 60, "fields": {"sessionId": "gamesystem25-release", "configuredCapacity": 5, "rosterCount": 5, "quantity": 1, "progressionState": "Completed", "processAttempt": 2, "transportMode": "fresh-process-utp", "recoveryMode": "restored-system16-current-projections"}},
+    {"op": "wait", "role": "client-a", "name": "rehost-current-state", "timeoutSeconds": 60, "fields": {"sessionId": "gamesystem25-release", "configuredCapacity": 5, "rosterCount": 5, "quantity": 1, "progressionState": "Completed", "processAttempt": 4, "transportMode": "fresh-process-utp", "recoveryMode": "restored-system16-current-projections"}},
+    {"op": "wait", "role": "client-b", "name": "rehost-current-state", "timeoutSeconds": 60, "fields": {"sessionId": "gamesystem25-release", "configuredCapacity": 5, "rosterCount": 5, "quantity": 1, "progressionState": "Completed", "processAttempt": 2, "transportMode": "fresh-process-utp", "recoveryMode": "restored-system16-current-projections"}},
+    {"op": "wait", "role": "client-c", "name": "rehost-current-state", "timeoutSeconds": 60, "fields": {"sessionId": "gamesystem25-release", "configuredCapacity": 5, "rosterCount": 5, "quantity": 1, "progressionState": "Completed", "processAttempt": 2, "transportMode": "fresh-process-utp", "recoveryMode": "restored-system16-current-projections"}},
+    {"op": "wait", "role": "client-d", "name": "rehost-current-state", "timeoutSeconds": 60, "fields": {"sessionId": "gamesystem25-release", "configuredCapacity": 5, "rosterCount": 5, "quantity": 1, "progressionState": "Completed", "processAttempt": 2, "transportMode": "fresh-process-utp", "recoveryMode": "restored-system16-current-projections"}}
+  ],
+  "assertions": {
+    "equalMilestoneFields": [
+      {"name": "release-mutated-state", "roles": ["authority", "client-a", "client-b", "client-c"], "fields": ["quantity", "progressionState", "configuredCapacity"]},
+      {"name": "rehost-current-state", "roles": ["authority", "client-a", "client-b", "client-c", "client-d"], "fields": ["quantity", "progressionState", "configuredCapacity", "rosterCount"]}
+    ],
+    "requiredLogPatterns": ["VOXEL_VALIDATION_MILESTONE"],
+    "forbiddenLogPatterns": ["GAMESYSTEM25_MULTIPLAYER_RELEASE FAIL", "NullReferenceException", "MissingReferenceException", "InvalidOperationException"]
+  }
+}
