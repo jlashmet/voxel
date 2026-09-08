@@ -105,10 +105,16 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         {
             if (owner == null) return;
             s_Waiters.Remove(owner);
-            if (!s_Owners.Remove(owner)) return;
+            bool owned = s_Owners.Remove(owner);
             if (s_OwnerReservations.Remove(owner, out int reservation))
                 s_ReservedMixedSlots = Math.Max(0, s_ReservedMixedSlots - reservation);
 
+            // Coverage/edit-watch lifetime is explicit at the extraction context. Some production-
+            // faithful queue paths can already hold coordinator coverage when they enter the
+            // admission-aware context, so release that coordinator ownership even when this
+            // admission set did not create it. World-epoch checks inside the coordinator make a
+            // stale-world release harmless, while an early return here would leak demand and
+            // contaminate later requests.
             int step = request.SourceStep;
             int coreExtentVoxels = GpuSolidChunkCache.CellsPerAxis * step;
             int3 coreMaxVoxelExclusive = request.ChunkOriginVoxel + new int3(coreExtentVoxels);
@@ -119,6 +125,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 GpuSurfaceMirrorCoordinator.ReleaseCoverage(request.BrickCacheOrigin, brickCacheEdge,
                     request.ChunkOriginVoxel, coreMaxVoxelExclusive, coverageWorldEpoch);
 
+            if (!owned) return;
             if (s_Owners.Count != 0) return;
             int releasedStep = s_ActiveStep;
             s_ActiveStep = 0;
