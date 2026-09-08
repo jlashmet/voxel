@@ -48,27 +48,38 @@ namespace VoxelEngine.Tests.EditMode
         public void PresentationColumnReadinessWaitsForPendingAuthoredFeaturePublication()
         {
             using var world = new ShowcaseWorld(0x5EED1234u, 64, 1, 2);
-            var region = new int3(5, 0, 5);
+            const int regionX = 5;
+            const int regionZ = 5;
+
+            object[] spanArguments = { regionX, regionZ, 0, 0 };
+            typeof(ShowcaseWorld)
+                .GetMethod("SurfaceLayerSpan", BindingFlags.Instance | BindingFlags.NonPublic)
+                .Invoke(world, spanArguments);
+            int minLayer = (int)spanArguments[2];
+            int maxLayer = (int)spanArguments[3];
+
             var generated = (HashSet<int3>)typeof(ShowcaseWorld)
                 .GetField("_generated", BindingFlags.Instance | BindingFlags.NonPublic)
                 .GetValue(world);
-            generated.Add(region);
+            for (int y = minLayer; y <= maxLayer; y++)
+                generated.Add(new int3(regionX, y, regionZ));
 
+            var checkedRegion = new int3(regionX, minLayer, regionZ);
             var point = new Vector3(
-                region.x * ShowcaseWorld.RegionMetres + 1f,
-                1f,
-                region.z * ShowcaseWorld.RegionMetres + 1f);
+                regionX * ShowcaseWorld.RegionMetres + 1f,
+                minLayer * ShowcaseWorld.RegionMetres + 1f,
+                regionZ * ShowcaseWorld.RegionMetres + 1f);
             Assert.That(world.IsPresentationColumnContentSettled(point), Is.True,
                 "A generated column with no pending authored work should be settled.");
 
             var pendingFeatures = (List<int3>)typeof(ShowcaseWorld)
                 .GetField("_pendingFeatureRegions", BindingFlags.Instance | BindingFlags.NonPublic)
                 .GetValue(world);
-            pendingFeatures.Add(region);
+            pendingFeatures.Add(checkedRegion);
             Assert.That(world.IsPresentationColumnContentSettled(point), Is.False,
                 "Terrain residency must not race pending authored feature publication.");
 
-            pendingFeatures.Remove(region);
+            pendingFeatures.Remove(checkedRegion);
             Assert.That(world.IsPresentationColumnContentSettled(point), Is.True,
                 "The same generated column should settle once authored feature publication is complete.");
         }
