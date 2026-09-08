@@ -350,11 +350,19 @@ namespace Game.Composition.Kentridge.Playable.Validation
         {
             if (_contentionInputSent) return;
             ClientNetworkRuntime network = _client.UtpFormation.ActiveClient;
-            if (network == null || !network.IsConnected) return;
+            ushort networkPlayerId = _client.UtpFormation.ActiveNetworkPlayerId;
+            if (network == null || !network.IsConnected || networkPlayerId == 0) return;
 
-            uint tick = (uint)Mathf.Max(1, Time.frameCount);
+            // C_PlayerInput.tick is in the authority fixed-tick clock domain. A separate OS process's
+            // Unity frame count is unrelated and is correctly rejected by ServerCommandProcessor's
+            // rollback/future window. Owner player-state snapshots provide the production authoritative
+            // tick without exposing transport identity or a test-only mutation seam.
+            if (!network.TrySampleRemotePlayer(networkPlayerId, 1f, out RemotePlayerSample authoritativeSample) ||
+                authoritativeSample.ServerTick == 0)
+                return;
+
             var input = new C_PlayerInput(
-                tick,
+                authoritativeSample.ServerTick,
                 1,
                 float2.zero,
                 new float3(0f, 0f, 1f),
