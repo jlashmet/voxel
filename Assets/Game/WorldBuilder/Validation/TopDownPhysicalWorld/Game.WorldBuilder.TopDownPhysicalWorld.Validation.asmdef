@@ -9,6 +9,7 @@
     "MountingForce.WorldGen.Voxel",
     "VoxelEngine.Composition.Api",
     "VoxelEngine.Composition",
+    "VoxelEngine.Storage.Api",
     "VoxelEngine.Structures.Api",
     "VoxelEngine.Terrain.Api",
     "Unity.Collections"
