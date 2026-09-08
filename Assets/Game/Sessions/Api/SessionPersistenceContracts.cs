@@ -7,6 +7,7 @@ namespace Game.Sessions.Api
     /// <summary>
     /// Durable Sessions identity only. Applicant/member/slot/character bindings may cross an authority
     /// process boundary; transport handles, readiness and connection state deliberately cannot.
+    /// CharacterId may be unset for a lobby member that has not reached character binding yet.
     /// </summary>
     public readonly struct PartyMemberStateCapture
     {
@@ -15,17 +16,17 @@ namespace Game.Sessions.Api
         public string ApplicantKey { get; }
         public PartyLeadershipRole LeadershipRole { get; }
         public CharacterId CharacterId { get; }
+        public bool HasCharacter => CharacterId.IsValid;
 
         public PartyMemberStateCapture(
             PartyMemberId memberId,
             PlayerSlot slot,
             string applicantKey,
             PartyLeadershipRole leadershipRole,
-            CharacterId characterId)
+            CharacterId characterId = default)
         {
             if (!memberId.IsValid) throw new ArgumentException("Member id is required.", nameof(memberId));
             if (string.IsNullOrWhiteSpace(applicantKey)) throw new ArgumentException("Applicant key is required.", nameof(applicantKey));
-            if (!characterId.IsValid) throw new ArgumentException("Character id is required.", nameof(characterId));
             MemberId = memberId;
             Slot = slot;
             ApplicantKey = applicantKey.Trim();
