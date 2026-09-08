@@ -72,7 +72,7 @@ namespace Game.Composition.Kentridge.Playable.Validation
                         destinationSpeaker,
                         new CutsceneCueId("destination-conversation.dialogue"))
                 });
-            SettlementPlan settlement = KentridgeDefinition.Build(Seed);
+            SettlementPlan settlement = Game.Kentridge.PlayableSlice.KentridgeDefinition.Build(Seed);
             KentridgePlayableFullRunBootstrap bootstrap =
                 KentridgePlayableFullRunBootstrap.Compose(
                     destinationCutscene,
@@ -129,7 +129,7 @@ namespace Game.Composition.Kentridge.Playable.Validation
                 ApplicationOperationResult start = app.RequestNewGame(
                     new ApplicationSessionDescriptor(
                         "main-campaign",
-                        KentridgeDefinition.Id,
+                        Game.Kentridge.PlayableSlice.KentridgeDefinition.Id,
                         "system26-built-player-validation",
                         "kentridge-authored-full-run"));
                 Require(start.Succeeded, "Application failed to start the authored full-run session: " + start.Detail);
@@ -646,7 +646,7 @@ namespace Game.Composition.Kentridge.Playable.Validation
                 GameSessionStartRequest.NewGame(
                     new GameSessionIdentity(
                         "main-campaign",
-                        KentridgeDefinition.Id,
+                        Game.Kentridge.PlayableSlice.KentridgeDefinition.Id,
                         formation.SessionId.Value,
                         "kentridge-multiplayer"));
         }
