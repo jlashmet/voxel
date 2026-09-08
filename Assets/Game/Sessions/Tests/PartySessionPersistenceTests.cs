@@ -36,7 +36,7 @@ namespace Game.Sessions.Tests
 
             Assert.That(restored.RestoreState(capture), Is.EqualTo(PartySessionRestoreFailure.None));
             PartyRosterSnapshot roster = restored.Snapshot();
-            Assert.That(roster.Members, Has.Count.EqualTo(2));
+            Assert.That(roster.Members.Count, Is.EqualTo(2));
             Assert.That(roster.Members[0].MemberId, Is.EqualTo(host.MemberId));
             Assert.That(roster.Members[0].Slot, Is.EqualTo(host.Slot));
             Assert.That(roster.Members[0].CharacterId, Is.EqualTo(new CharacterId("hero-host")));
