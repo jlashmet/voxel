@@ -21,7 +21,7 @@ namespace Game.Sessions.Runtime
     /// Session-owned durable roster. Transport connection handles are an ephemeral association only;
     /// member/slot/character identity remains stable when that association changes.
     /// </summary>
-    public sealed class PartySession : IPartySessionQuery
+    public sealed class PartySession : IPartySessionQuery, IPartySessionStatePort
     {
         private readonly GameSessionId _sessionId;
         private readonly SessionStartupConfiguration _configuration;
@@ -226,6 +226,111 @@ namespace Game.Sessions.Runtime
 
         public bool TryResolveConnection(TransportConnectionHandle connection, out PartyMemberId memberId) =>
             _memberByConnection.TryGetValue(connection, out memberId);
+
+        public PartySessionStateCapture CaptureState()
+        {
+            var members = new PartyMemberStateCapture[_members.Count];
+            for (int i = 0; i < _members.Count; i++)
+            {
+                MemberState member = _members[i];
+                members[i] = new PartyMemberStateCapture(
+                    member.MemberId,
+                    member.Slot,
+                    member.ApplicantKey,
+                    member.LeadershipRole,
+                    member.CharacterId);
+            }
+            return new PartySessionStateCapture(_sessionId, _nextMemberOrdinal, members);
+        }
+
+        public PartySessionRestoreFailure RestoreState(PartySessionStateCapture state)
+        {
+            if (state == null) return PartySessionRestoreFailure.InvalidState;
+            if (state.SessionId != _sessionId) return PartySessionRestoreFailure.SessionMismatch;
+            if (state.Members.Count > _configuration.Capacity) return PartySessionRestoreFailure.CapacityExceeded;
+            if (state.NextMemberOrdinal == 0) return PartySessionRestoreFailure.InvalidState;
+
+            var memberIds = new HashSet<PartyMemberId>();
+            var applicants = new HashSet<string>(StringComparer.Ordinal);
+            var slots = new HashSet<int>();
+            var characters = new HashSet<CharacterId>();
+            int leaderCount = 0;
+            for (int i = 0; i < state.Members.Count; i++)
+            {
+                PartyMemberStateCapture member = state.Members[i];
+                if (!member.MemberId.IsValid || string.IsNullOrWhiteSpace(member.ApplicantKey) ||
+                    member.Slot.Value < 0 || member.Slot.Value >= _configuration.Capacity)
+                    return PartySessionRestoreFailure.InvalidState;
+                if (!memberIds.Add(member.MemberId)) return PartySessionRestoreFailure.DuplicateMember;
+                if (!applicants.Add(member.ApplicantKey)) return PartySessionRestoreFailure.DuplicateApplicant;
+                if (!slots.Add(member.Slot.Value)) return PartySessionRestoreFailure.DuplicateSlot;
+                if (member.HasCharacter && !characters.Add(member.CharacterId))
+                    return PartySessionRestoreFailure.DuplicateCharacter;
+                if (member.LeadershipRole == PartyLeadershipRole.Leader) leaderCount++;
+                else if (member.LeadershipRole != PartyLeadershipRole.Member)
+                    return PartySessionRestoreFailure.InvalidState;
+            }
+            if (state.Members.Count > 0 && leaderCount != 1)
+                return PartySessionRestoreFailure.InvalidState;
+
+            var liveByApplicant = new Dictionary<string, MemberState>(StringComparer.Ordinal);
+            for (int i = 0; i < _members.Count; i++)
+            {
+                MemberState current = _members[i];
+                if (!current.HasConnection) continue;
+                if (!applicants.Contains(current.ApplicantKey))
+                    return PartySessionRestoreFailure.LiveMemberMissing;
+                liveByApplicant[current.ApplicantKey] = current;
+            }
+
+            if (_characterBindings != null)
+            {
+                for (int i = 0; i < state.Members.Count; i++)
+                {
+                    PartyMemberStateCapture member = state.Members[i];
+                    if (!member.HasCharacter) continue;
+                    CharacterRegistryFailure failure = _characterBindings.Bind(
+                        member.CharacterId,
+                        new CharacterBinding("party-member", member.MemberId.Value));
+                    if (failure != CharacterRegistryFailure.None)
+                        return PartySessionRestoreFailure.CharacterBindingRejected;
+                }
+            }
+
+            _members.Clear();
+            _indexByMember.Clear();
+            _memberByApplicant.Clear();
+            _memberByConnection.Clear();
+            for (int i = 0; i < state.Members.Count; i++)
+            {
+                PartyMemberStateCapture captured = state.Members[i];
+                var restored = new MemberState(
+                    captured.MemberId,
+                    captured.Slot,
+                    captured.ApplicantKey,
+                    captured.LeadershipRole)
+                {
+                    CharacterId = captured.CharacterId,
+                    Presence = PartyPresenceState.Disconnected,
+                    Readiness = SessionReadinessState.Joined
+                };
+                if (liveByApplicant.TryGetValue(captured.ApplicantKey, out MemberState live))
+                {
+                    restored.Connection = live.Connection;
+                    restored.HasConnection = true;
+                    restored.Presence = PartyPresenceState.Connected;
+                    restored.Readiness = live.Readiness;
+                    _memberByConnection.Add(restored.Connection, restored.MemberId);
+                }
+                _indexByMember.Add(restored.MemberId, _members.Count);
+                _memberByApplicant.Add(restored.ApplicantKey, restored.MemberId);
+                _members.Add(restored);
+            }
+
+            _nextMemberOrdinal = state.NextMemberOrdinal;
+            _gameplayStarted = false;
+            return PartySessionRestoreFailure.None;
+        }
 
         private JoinFailureReason ValidateJoin(JoinRequest request)
         {
