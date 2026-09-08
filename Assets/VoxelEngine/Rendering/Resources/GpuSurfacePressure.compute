@@ -12,7 +12,7 @@ struct ResidentBounds { float4 center; float4 extent; };
 StructuredBuffer<ResidentBounds> _Bounds;
 StructuredBuffer<uint2> _Desired;
 StructuredBuffer<uint2> _Owners;
-uint _FilterStep, _FilterShard, _FilterShardCount;
+uint _FilterStep, _FilterShard, _FilterShardCount, _IncludeStale;
 StructuredBuffer<GeometryRecord> _Pending;
 RWStructuredBuffer<GeometryRecord> _Live;
 StructuredBuffer<uint> _VertexTable;
@@ -42,16 +42,25 @@ void CSRank(uint3 id : SV_DispatchThreadID, uint lane : SV_GroupIndex,
         uint2 owner = _Owners[id.x];
         bool owned = _FilterStep == 0 || (owner.x == _FilterStep &&
             owner.y % max(1u, _FilterShardCount) == _FilterShard);
+        bool stale = live.generationLow != desired.x || live.generationHigh != desired.y;
         if (owned && live.ready != 0 && live.vertexPageCount + live.indexPageCount > 0 &&
-            live.generationLow == desired.x && live.generationHigh == desired.y &&
-            _Pending[id.x].ready == 0)
+            _Pending[id.x].ready == 0 && (!stale || _IncludeStale != 0))
         {
             ResidentBounds bounds = _Bounds[id.x];
             bool outside = false;
             for (uint plane = 0; plane < 6; plane++)
                 outside = outside || dot(_Planes[plane].xyz, bounds.center.xyz) +
                     _Planes[plane].w + dot(abs(_Planes[plane].xyz), bounds.extent.xyz) < 0;
-            if (outside)
+            if (stale && _IncludeStale != 0)
+            {
+                // A replacement generation already owns Desired. If that replacement exhausted
+                // the arena, retaining the obsolete live pages makes them impossible to reclaim:
+                // they are no longer current, yet they are exactly the capacity the replacement
+                // needs. Allocation pressure therefore retires stale live pages before ordinary
+                // off-screen victims, even when the stale bounds are still in the frustum.
+                distance = 3.0e38;
+            }
+            else if (outside)
             {
                 float3 delta = bounds.center.xyz - _Camera.xyz;
                 distance = dot(delta, delta);
