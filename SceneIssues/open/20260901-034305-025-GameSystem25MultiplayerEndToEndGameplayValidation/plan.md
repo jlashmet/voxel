@@ -16,14 +16,16 @@ Exact source `56fb5de177b7b3eda9798588565ac898d26023fd`, request `c523e765adc068
 
 Exact source `a4a023184c3084d5975b0d221d617592ce6eaa20`, request `922b92c25027bf9cf7db33907ccacba7660f6558`, run `34175096808`, artifact digest `sha256:d006056b25d9087c9998c73653a4f15f81129a10597c28ac3c8619a89bf34e8f`, failed before player execution at `ApplicationFlowCoordinator.Persistence.cs:70`: `PartySessionCommandResult` lacked its `Game.Sessions.Api` import. Commit `607abf9fbe855e3f32860fc9a2c7987d9039842e` adds only that demonstrated import.
 
+Exact source `6fedf1e54c2690cc88a17dc9b62b0fc0c0e46bf3`, request `c11b769f1ae25c29ad43305a97d4dbfcbf315991`, run `34178744571`, first suffered a proven self-hosted-runner shutdown during checkout; the same-run infrastructure retry was preserved without replacing the request. Retry artifact digest `sha256:2c998814a155aec73f2c19e80a521cd050b3400fa6b1ee098a19737c893a9a20` then reached repository planning and automatically selected both `KentridgeMultiplayerTopologyValidation` and structural release `KentridgeMultiplayerCapacityJipRehostValidation`, satisfying the final automatic-selection requirement. Unity then stopped before tests/player execution because `ApplicationFlowCoordinator.Persistence.cs:112` referenced nonexistent `_session.State` / `GameSessionState`; production `IGameSessionControl` exposes `Snapshot.Lifecycle`. Commit `2b0a6899869bb09f8a971ca8a65ad9f6c260b3f9` repairs only that demonstrated guard by treating the same production lifecycle states already used by `ShutdownIfActive` (`Uninitialized` or `Stopped`) as idle.
+
 T25-030–034 and structural release T25-040–043 are implemented but remain unaccepted until green exact built-player evidence.
 
 ## Current discriminator
 
-Hypothesis A: current head compiles and the authoritative-tick repairs carry smoke through contention/progression, interruption/reconnect, absent-period combat recovery, explicit leave, then release through capacity/JIP/repeated reconnect/persisted rehost. Hypothesis B: the next exact execution exposes the first remaining production ordering/state defect after inputs reach authority. **Next experiment:** exact-SHA targeted CI from this plan commit; check task boxes only from matching green built-player artifacts.
+Hypothesis A: the lifecycle-contract repair compiles and the authoritative-tick repairs carry smoke through contention/progression, interruption/reconnect, absent-period combat recovery, explicit leave, then release through capacity/JIP/repeated reconnect/persisted rehost. Hypothesis B: the next exact execution exposes the first remaining production ordering/state defect after compilation. **Next experiment:** exact-SHA targeted CI from the current feature head; check runtime task boxes only from matching green built-player artifacts.
 
 ## Remaining gates
 
 1. Green exact-head smoke proof; fix only demonstrated failures.
-2. Green structural release proof for T25-040–043 and automatic selection T25-051.
-3. Mark T25-010–052 truthfully from exact evidence, reconcile current master, close open -> closed with metadata, run any post-reconciliation exact gate required by source changes, then PR + auto-merge + required `affected` gate; finish only after merged closure is visible on master.
+2. Green structural release proof for T25-040–043. T25-051 automatic selection is exact-run proven by `34178744571`.
+3. Mark the remaining T25-010–052 runtime evidence tasks truthfully, reconcile current master, close open -> closed with metadata, run any post-reconciliation exact gate required by source changes, then PR + auto-merge + required `affected` gate; finish only after merged closure is visible on master.
