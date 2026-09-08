@@ -26,13 +26,17 @@
 - [x] Add a concept catalog mapping each image role to town, required category, depicted named places/infrastructure, and brief requirements.
 
 ## Evidence and regression
-- [x] Audit the final master→feature diff to prove no production runtime/gameplay/scene implementation changed; if that ceases to be true, add the required behavioral regression and built-scene evidence.
+- [x] Audit the master→feature diff to prove no production runtime/gameplay/scene implementation changed; if that ceases to be true, add the required behavioral regression and built-scene evidence.
 - [x] Record why built-scene evidence is not applicable **provided** the final diff remains docs/art-only: existing gallery visuals are explicitly non-authoritative and final in-engine implementation is out of scope.
 - [x] Audit every `expected` acceptance clause in `issue.json` against a concrete committed artifact.
+- [x] During final PR review, detect the stale six-town sidecar roster contradiction and prevent PR #335 from merging.
+- [ ] Reconcile `art-direction/index.md` and `art-direction/town-briefs.md` to the canonical seven-settlement roster, explicitly excluding uncorroborated Wharfington and restoring Orc Village/Fairy Village.
+- [ ] Re-audit every roster-bearing document and the town-folder set for one consistent canonical roster.
 
 ## Exact-SHA CI, closure, promotion
-- [x] Submit the intended feature head through `ci-test/fixes/agent-2` using the documented exact-SHA request workflow; do not replace a queued/running request.
-- [x] Verify exact source SHA, inspect the targeted-CI result/evidence, and record request/run/artifact details.
-- [x] Complete every task/checklist item before closure.
-- [x] Atomically move the SceneIssue from `open` to `closed`, set `status=fixed`, resolution, and `resolvedUtc`; never use `pending`.
-- [x] Open/update the PR from `fixes/agent-2` to `master`, enable auto-merge, and allow repository-required PR checks to promote it; do not push the exact branch head directly to `master`. (Performed as the post-closure promotion sequence.)
+- [x] Record prior exact source `4ee3148f36c916928a1600aba9bb5a5f65408554` and successful request `22fe801f55fc6ac5ae65248d9d4260ae77f52ad8` / run `34204143335`; this gate predates the final consistency correction.
+- [ ] Submit the corrected intended feature head through `ci-test/fixes/agent-2` using the documented exact-SHA request workflow; do not replace a queued/running request.
+- [ ] Verify corrected exact source SHA, inspect the targeted-CI result/evidence, and record request/run/artifact details.
+- [ ] Complete every task/checklist item before closure.
+- [ ] Atomically move the reopened SceneIssue from `open` to `closed`, set `status=fixed`, resolution, and `resolvedUtc`; never use `pending`.
+- [ ] Mark PR #335 ready, enable auto-merge, and allow repository-required PR checks to promote it; do not push the exact branch head directly to `master`.
