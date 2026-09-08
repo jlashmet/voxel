@@ -51,10 +51,18 @@ namespace VoxelEngine.Tests.EditMode
                 op.Kind == OperationKind.Box && op.Material == palette.Stone &&
                 op.Position.Equals(new int3(centre + 8, portalY - 2, front - 8)) &&
                 op.Size.Equals(new int3(7, 19, 5)));
+            int leftJambRelief = session.Operations.FindIndex(op =>
+                op.Kind == OperationKind.Box && op.Material == palette.Stone &&
+                op.Position.Equals(new int3(centre - 14, portalY - 2, front - 10)) &&
+                op.Size.Equals(new int3(7, 19, 2)));
             int crown = session.Operations.FindIndex(op =>
                 op.Kind == OperationKind.Box && op.Material == palette.Stone &&
                 op.Position.Equals(new int3(centre, springY + 13, front - 8)) &&
                 op.Size.Equals(new int3(1, 1, 5)));
+            int crownRelief = session.Operations.FindIndex(op =>
+                op.Kind == OperationKind.Box && op.Material == palette.Stone &&
+                op.Position.Equals(new int3(centre, springY + 13, front - 10)) &&
+                op.Size.Equals(new int3(1, 1, 2)));
 
             Assert.That(middleClear, Is.GreaterThanOrEqualTo(0));
             Assert.That(entryClear, Is.GreaterThan(middleClear),
@@ -64,8 +72,12 @@ namespace VoxelEngine.Tests.EditMode
                 "The arched timber door must be restored after the destructive lower-entry refill.");
             Assert.That(leftJamb, Is.GreaterThan(recessedDoor));
             Assert.That(rightJamb, Is.GreaterThan(recessedDoor));
+            Assert.That(leftJambRelief, Is.GreaterThan(rightJamb),
+                "The portal needs a front relief lip so same-material stone jambs remain visibly proud of the facade.");
             Assert.That(crown, Is.GreaterThan(leftJamb),
                 "The final portal must include a projecting round stone crown, not only flat jambs.");
+            Assert.That(crownRelief, Is.GreaterThan(crown),
+                "The round crown must carry the same front relief as the jambs so the arch reads continuously in the player render.");
 
             RecordedOperation clear = session.Operations[entryClear];
             int leftSideWindowCentre = centre - 29;
