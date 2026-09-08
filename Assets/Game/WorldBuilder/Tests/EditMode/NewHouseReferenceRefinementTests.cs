@@ -250,6 +250,70 @@ namespace VoxelEngine.Tests.EditMode
                 "Final upper openings must be carved after the swept shell rebuild so the silhouette correction cannot erase them.");
         }
 
+        [NUnit.Framework.Test]
+        public void AuthorHouse_FinalIvyUsesSparseWallHuggingClustersWithoutColumnPrimitives()
+        {
+            NewHouseReferenceConfig config = NewHouseReferenceConfig.Default;
+            NewHouseReferencePalette palette = Palette();
+            int3 origin = new(19, 10, -31);
+            var session = new RecordingSession();
+
+            NewHouseReferenceRefinement.AuthorHouse(session, origin, in config, in palette);
+
+            int first = origin.y + config.FirstFloorY;
+            int refinementIvyZ = origin.z - 8;
+            List<RecordedOperation> left = session.Operations.FindAll(op =>
+                op.Kind == OperationKind.Box && op.Material == palette.Foliage &&
+                op.Position.z == refinementIvyZ && op.Position.x <= origin.x + 18 &&
+                op.Position.y >= first && op.Position.y < first + 60);
+            List<RecordedOperation> right = session.Operations.FindAll(op =>
+                op.Kind == OperationKind.Box && op.Material == palette.Foliage &&
+                op.Position.z == refinementIvyZ && op.Position.x >= origin.x + config.Width - 20 &&
+                op.Position.y >= first && op.Position.y < first + 60);
+
+            Assert.That(left.Count, Is.GreaterThan(4), "Left facade must retain intentional climbing foliage.");
+            Assert.That(right.Count, Is.GreaterThan(8), "Right facade must retain the taller reference ivy mass.");
+
+            var leftX = new HashSet<int>();
+            var rightX = new HashSet<int>();
+            var leftY = new HashSet<int>();
+            var rightY = new HashSet<int>();
+            foreach (RecordedOperation op in left)
+            {
+                Assert.That(op.Size.z, Is.EqualTo(1), "Final ivy must hug the wall instead of projecting as deep blocks.");
+                Assert.That(op.Size.y, Is.LessThanOrEqualTo(3), "Final ivy may not rebuild the rejected tall rectangular column segments.");
+                Assert.That(op.Size.x, Is.LessThanOrEqualTo(4), "Final ivy clusters must remain small enough to read as leaves/patches.");
+                leftX.Add(op.Position.x);
+                leftY.Add(op.Position.y);
+            }
+            foreach (RecordedOperation op in right)
+            {
+                Assert.That(op.Size.z, Is.EqualTo(1), "Final ivy must hug the wall instead of projecting as deep blocks.");
+                Assert.That(op.Size.y, Is.LessThanOrEqualTo(3), "Final ivy may not rebuild the rejected tall rectangular column segments.");
+                Assert.That(op.Size.x, Is.LessThanOrEqualTo(4), "Final ivy clusters must remain small enough to read as leaves/patches.");
+                rightX.Add(op.Position.x);
+                rightY.Add(op.Position.y);
+            }
+
+            Assert.That(leftX.Count, Is.GreaterThanOrEqualTo(4),
+                "Left ivy must drift laterally instead of stacking on one vertical x column.");
+            Assert.That(rightX.Count, Is.GreaterThanOrEqualTo(6),
+                "Right ivy must drift and branch across the facade instead of stacking on one vertical x column.");
+
+            var leftRows = new List<int>(leftY);
+            var rightRows = new List<int>(rightY);
+            leftRows.Sort();
+            rightRows.Sort();
+            bool leftGap = false;
+            bool rightGap = false;
+            for (int i = 1; i < leftRows.Count; i++)
+                leftGap |= leftRows[i] - leftRows[i - 1] >= 3;
+            for (int i = 1; i < rightRows.Count; i++)
+                rightGap |= rightRows[i] - rightRows[i - 1] >= 3;
+            Assert.That(leftGap, Is.True, "Left ivy needs visible vertical gaps rather than a continuous ladder.");
+            Assert.That(rightGap, Is.True, "Right ivy needs visible vertical gaps rather than a continuous ladder.");
+        }
+
         private static NewHouseReferencePalette Palette() =>
             new(plaster: 41, timber: 42, roof: 43, stone: 44, glass: 45,
                 door: 46, accent: 47, ground: 48, flowers: 49, foliage: 50, ornament: 51);
