@@ -14,11 +14,13 @@ Subsequent exact compile gates exposed only narrow production-boundary drift. `6
 
 Exact source `29a1f35c2a152dbc89c27742beb0fbbc10f260b2`, request `fad4a1762b240966b77e9787f7f45e67addf2161`, run `34185364415`, artifact digest `sha256:d0277120de43196f14607e52482353a4f197d6bda84fdf0afdc86dad1fbf5879`, reached Unity compilation and exposed the next direct dependency defect: `KentridgeMultiplayerPersistence.cs` imports `Game.Composition.Campaign.Runtime`, but `Game.Composition.Kentridge.Playable` referenced only `Game.Composition.Campaign`. `b46525ad096f6477c7c37e77823e64c88ceefc34` adds only the required `Game.Composition.Campaign.Runtime` asmdef reference.
 
+Exact source `567d3d506896cc9490b124cea9516a96fbab27b6`, request `e31215ae533713bae6f2f4cfbb037bc88ad903d0`, run `34188578469`, artifact digest `sha256:bfc61be47c1796e45ccbb3b62cd479aacb4125ef6f146174bd4683faa441e484`, passed repository planning/tooling and then failed Unity compilation before tests/player execution. `KentridgeMultiplayerCapacityJipRehostValidation.cs` used production `C_PlayerInput` in its release mutation and `NoInputSink` interface implementation but omitted `VoxelEngine.Net.Runtime.Protocol`; the smoke validator already imports that namespace. `11225482e55f987a0176f1256bec86b612160a9f` adds only that missing import.
+
 T25-030–034 and structural release T25-040–043 are implemented but remain unaccepted until green exact built-player evidence.
 
 ## Current discriminator
 
-Hypothesis A: the direct campaign-runtime dependency repair compiles and the authoritative-tick fixes carry smoke through contention/progression, interruption/reconnect, absent-period combat recovery, explicit leave, then release through capacity/JIP/repeated reconnect/rehost. Hypothesis B: the next exact execution exposes the first remaining production ordering/state defect. **Next experiment:** exact-SHA targeted CI from the current feature head; check runtime boxes only from matching built-player artifacts.
+Hypothesis A: the release protocol import now lets persistent tests compile and the authoritative-tick fixes carry smoke through contention/progression, interruption/reconnect, absent-period combat recovery, explicit leave, then release through capacity/JIP/repeated reconnect/rehost. Hypothesis B: the next exact execution exposes the first remaining production ordering/state defect after compilation. **Next experiment:** exact-SHA targeted CI from the current feature head; check runtime boxes only from matching built-player artifacts.
 
 ## Remaining gates
 
