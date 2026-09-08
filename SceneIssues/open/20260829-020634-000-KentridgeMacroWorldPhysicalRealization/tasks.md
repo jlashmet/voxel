@@ -7,7 +7,7 @@
 - [x] Preserve existing streaming/device/scheduler budgets and radius-3 horizontal residency (29 X/Z columns).
 - [x] Replace demonstrated-cost solid generic blockouts with grounded hollow shells/perimeter plinths; combined foundation+timber synthetic work reduced 79.7%.
 - [x] Add focused behavioral regressions for deterministic macro realization, reachability, route continuity/constraints, settlement placement, spatial reservations, bounded water cost, evidence sequencing, vertical residency/readiness, settlement framing, shell cost, GPU count-batch fairness, and distant mirror relocation/churn.
-- [ ] Complete executable required macro-specific validation scene/scenario pairs for WorldBuilder macro physical output, Showcase feature residency, Kentridge playable macro world, and current-renderer GPU mirror relocation. All four pairs now exist on the branch; exact run `34213075572` builds/runs the Kentridge pair but its strict network-overview assertion fails before repository validation can execute the downstream pairs, so keep this item open until every required pair actually executes successfully.
+- [x] Create module-local scene/scenario pairs for WorldBuilder `MacroPhysicalWorldValidation`, Showcase `FeatureResidencyValidation`, Kentridge `KentridgeMacroWorldValidation`, and Rendering `GpuSurfaceMirrorRelocationValidation`.
 
 ## Demonstrated corrections retained
 - [x] Correct macro catalogue ownership so generic `ShowcaseWorld` uses local-only definitions while the concrete Kentridge playable catalogue remains macro-selection owner; cover production Showcase-first startup order.
@@ -17,30 +17,23 @@
 - [x] Correct GPU extraction ownership lifetime so active-count/mirror-reader protection transfers to the graphics fence and retires exactly once.
 - [x] Prioritize phase-2 paged results while preserving scheduler fairness and existing budgets.
 - [x] Keep phase-9 paged completion owners pollable after ordinary admission budget expiry while ordinary workers still obey the unchanged deadline.
-- [x] Preserve the stronger root-cause result from exact run `33962213806`: strict opening/publication convergence, not another phase-9 poll defect, blocks Kentridge evidence.
-- [x] Preserve acceptance semantics: do not weaken `HasCompletePublishedNearSurfaceCoverage`, force-generate acceptance content, widen residency, raise budgets, or substitute storage-only evidence.
-- [x] Verify overlapping renderer/page-arena/publication/shared-presentation ownership belongs to Agent 1; do not duplicate that work on agent-6.
-- [x] Reconcile current `origin/master=6e34db751a76e61708d70edebb6bf7af6fe94658` into agent-6 via two-parent merge `62f91a663a1132920e44c8561d4dfd0e03dd9055`; keep newer Application/Input ownership and keep the retired `KentridgeUnityInputBridge` deleted.
-- [x] Classify synchronized exact run `34176733834`: all selected module tests, requested macro-world PlayMode regression, and all 13 discovered real-player validations completed, then GitHub cancelled at the workflow timeout boundary after the `1196.92s` module summary; the 180-second SceneIssue replay itself completed.
-- [x] Diagnose fresh SceneIssue product/evidence failure from `34176733834`: production streaming converges underneath, but the real Application remains `FrontEnd/MainMenu`, preventing `GameplayControlEnabled` and all macro evidence phases.
-- [x] Add a validation-only Application start companion that is inert without `KentridgeMacroWorldEvidenceDriver`, waits for the real production composition root, and calls public `RequestNewGame()` exactly once only from `FrontEnd/MainMenu`; cover the state decision with a focused EditMode regression.
+- [x] Add a validation-only Application start companion that is inert without `KentridgeMacroWorldEvidenceDriver`, waits for the production composition root, and invokes public `RequestNewGame()` exactly once from `FrontEnd/MainMenu`; cover the state decision with EditMode regression.
+- [x] Preserve strict acceptance semantics: do not weaken `HasCompletePublishedNearSurfaceCoverage`, force-generate acceptance content, widen residency, raise budgets, or substitute storage-only evidence.
+- [x] Reconcile current `origin/master=5c9a715a42735a0b573f436af1e3700dff2f591c`; branch is 0 behind current master.
 
-## Exact-SHA validation / external prerequisite
-- [x] Agent-6 exact source `870c6bd0b9fed9005586945a328a9e5a8ed2f1dd`, request `51dd1ded1e1c3778fc8cfcec178b28c7c04dee8e`, run `33962213806`: persistent tests and requested GPU relocation/liveness regression pass; 120-second Kentridge module and 180-second SceneIssue replay remain acceptance-red for strict publication convergence.
-- [x] Physical timing boundary from `33962213806`: opening publication consumes roughly the first high-90 seconds; Moordell demand starts ~108s, content ready ~161s, capture still blocked with `missing=89` at 180s.
-- [x] Renderer-owner exact run `33986630571` on source `7ceaa0120a4e30c260b1f383e7fc973c3c205309`: compile failure before tests/player because the Rendering EditMode test assembly lacked `VoxelEngine.Rendering.Api`; Agent 1 fixed the owning assembly reference in `b971001b642f7b763aa0d42e585f4784e80cea9e`.
-- [x] Renderer-owner replacement exact run `33987770257` on source `2008e51fc070228757ec5c7aa33d69ba50c805ce`: compilation and the 45-second CPU-only VoxelShowcase standalone replay succeed with zero scenario assertion failures, but repository validation repeats three `ShowcaseInputSystemTests` failures. Full-resolution built-player review is also red: a huge featureless gray far-world slab persists through the final frame, so CPU visual acceptance is not `production-quality`.
-- [x] `origin/master=ef475182b866eabfe8e1d1a39c82bf7810a03f49` contains the validated shared SmallVoxelShowcase Input System restoration from `3654c13f72ed157c53b340443a766795d772f596`; later history remains unrelated manager/admin work. PR #310 adds Astra built-player screenshot review tooling and does not provide the renderer correction required here.
-- [x] Classify renderer-owner exact run `33991474823`: transport `3fc980e8757cff92e891a68b3f3235605eca3cc5`, source `1c2720f54268054d90ac50f1a15999126bcc3c35`, completed product failure. Repository validation repeats the three `ShowcaseInputSystemTests`; the standalone VoxelShowcase build also fails in ILLink because an NUnit composition regression leaked into the player dependency graph.
-- [x] Re-fetch renderer correction state: `fixes/agent-1=fc767620a0fe5d0dfee204947d13e7eefaa2a3fa` is a clean continuation based on then-current master; it preserves only far-presentation CPU-diagnosis work/module-local regressions and adopts master-owned Showcase Input System/runtime validation.
-- [x] Renderer-owner exact run `33996360570`: transport `8e6aac9fe8845a04a0bdfca2640fc11988e50506`, source `fc767620a0fe5d0dfee204947d13e7eefaa2a3fa`, completed workflow success. Derived module tests/players and the 45-second VoxelShowcase replay pass, but direct full-resolution inspection remains visual-red: the giant gray left slab and other far blockout masses persist; player diagnostics report `gpu[req=0 ... pub=0]`, so this is CPU-only defect evidence, not renderer acceptance.
-- [x] Agent 1 isolated the next bounded discriminator: source `da3f5be338c57f5fe99ad4324405422e78c3918e` adds far-frustum geometry-loss regressions; candidate `a164456a9eac5091ec3e5d6c2e03a9de7b675199` preserves normalized frustum cap centres/radii for renderer tessellation.
-- [x] Classify the far-frustum fail-before exactly: `ci-test/fixes/agent-1=6ddc72724c6653538be5c5a9818ebee059726264`, parent/source `da3f5be338c57f5fe99ad4324405422e78c3918e`, run `33999899224` completed failure while the 45-second standalone replay succeeded. Artifact `single-test-33999899224` shows exactly 8 non-quarantined failures, all parameterizations of requested `FarFeatureFrustumGeometryTests.FrustumSilhouetteMatchesCanonicalTaper`; every failure says the canonical taper was replaced by its bounding box (e.g. expected `11.5 +/- 1.25`, got `24.5`). This is valid fail-before evidence, not collateral module/assembly failure.
-- [x] Historical pass-after request `ci-test/fixes/agent-1=fc6c3320d9b986b8d2401fcae0a17de80d286691` targeted source `e4e2f9975dc2d3f3d437b5bfe3f853b6f2cf468b`; current master reconciliation supersedes the old external-wait wording for this assignment.
-- [x] Exact source `abff52bba0c04c3940d98d6c24ebab2b081258ec`, transport `522fe183329e6ad645664e4bf1f88515b51ae5dc`, run `34213075572`: compile-boundary correction succeeds, repository tests/requested macro regression complete, then the real 180-second Kentridge module player fails required `MACROEVIDENCE capture-ready target=macro-network-overview` after advancing through real Application New Game, CharacterMotor traversal, Moordell, Rossdam, and `rossdam-lake-detour`; classify as product/acceptance red, not infrastructure.
-- [x] Reconcile current `origin/master=5c9a715a42735a0b573f436af1e3700dff2f591c` through clean two-parent merge `0be3434b5111d9284c2b02a2586675e82ce35b66`. The inherited change is only the unrelated Mounting Force town-art-direction SceneIssue closure; no production Rendering correction is present, so a same-cause exact retry is not authorized.
-- [x] If the same acceptance symptom remains after two materially different fixes, isolate the new minimal repro/root cause before another production change; do not speculate across unrelated renderer ownership.
-- [ ] Require repository-derived module validation to pass every affected owned test assembly and every required/discovered module-local player on the final synchronized exact SHA.
+## GPU publication liveness root cause
+- [x] Classify exact source `abff52bba0c04c3940d98d6c24ebab2b081258ec`, transport `522fe183329e6ad645664e4bf1f88515b51ae5dc`, run `34213075572` as product/acceptance red: tests and requested macro regression complete, real Kentridge player advances through New Game / CharacterMotor / Moordell / Rossdam / lake-detour, then misses required `macro-network-overview` at 180 seconds.
+- [x] Preserve synchronized discriminator evidence from run `34200648642`: lake content settles while strict GPU publication remains nearly flat under sustained retryable `NoSlot` exhaustion; not a streaming-authority mismatch.
+- [x] After multiple materially different fixes, isolate the minimal production cause before another change: replacement generation advances Desired; an exhausted replacement leaves old live pages allocated; pressure previously rejected those pages because `live.generation != desired`, so obsolete pages could permanently pin their replacement capacity.
+- [x] Verify host acknowledgement already keys eviction to `Entry.PublishedGpuGeneration`, so retiring the stale live identity is compatible with existing ownership semantics.
+- [x] Correct only allocation pressure to reclaim stale live generations, including visible stale live geometry; keep filtered capacity pressure current-generation/off-screen-only.
+- [x] Add real compute regression `GpuAllocationPressureStaleLiveTests` proving ordinary capacity pressure preserves visible current/stale live records while allocation pressure retires only the stale published generation and reports its published identity.
+- [ ] Exact-SHA validation proves the new pressure regression passes and distant Kentridge relocation makes useful publication progress without the prior sustained stale-page `NoSlot` liveness stall.
+
+## Exact-SHA validation
+- [ ] Run targeted CI from the final synchronized `fixes/agent-6` SHA using only `ci-test/fixes/agent-6`; do not replace a queued/running request.
+- [ ] Require every repository-derived affected EditMode/unit assembly to pass.
+- [ ] Require every discovered affected module-local player to execute successfully, including all four macro-specific validation pairs.
 - [ ] Require the 180-second SceneIssue replay to transition through the real Application lifecycle, reach strict built-player coverage beyond Moordell, and emit settlement/geography/network/traversal evidence without runtime exceptions.
 
 ## Module-local visual/runtime acceptance
@@ -60,7 +53,7 @@
 
 ## Runtime / cost
 - [x] Physical baseline recorded: 20 hard routes, 824 route tiles, 5 constrained routes, 1,090 solve steps, 16 generic buildings, max road rise 2 voxels, road step 30 dm, Rossdam water depth 24 voxels.
-- [x] Partial runtime baseline recorded: median FPS 103.9, median mean-frame 9.61 ms, worker-p95 median 3.018 ms, admission-total median 1.1605 ms, ~26.99 MiB cumulative render-arena uploads over 114 calls.
+- [x] Partial runtime baseline recorded: median FPS 103.9, mean-frame 9.61 ms, worker-p95 3.018 ms, admission-total 1.1605 ms, ~26.99 MiB cumulative render-arena uploads over 114 calls.
 - [ ] Quantify final per-target convergence timing and additional vertical resident/generated region count across the completed multi-target replay.
 - [ ] Record final FPS/CPU/GPU/streaming plus process/managed/native/GPU memory against existing budgets; do not weaken budgets to pass.
 
@@ -76,7 +69,7 @@
 - [ ] (9) Focused behavioral regressions and required module-local players pass on the final exact SHA.
 - [ ] (10) Exact built application reaches usable rendered macro-world evidence with no startup/runtime exceptions and demonstrates settlements, roads, geography, constrained route, and CharacterMotor traversal.
 - [ ] (11) Blast radius and world-build/route/CPU/GPU/memory/streaming cost are measured against existing budgets.
-- [ ] Merge current `origin/master` before final promotion and revalidate the exact merged feature SHA if required by the repo workflow. Current sync through `5c9a715a42735a0b573f436af1e3700dff2f591c` is recorded above; repeat only if master advances after the blocking product correction.
+- [ ] Fetch/merge current `origin/master` again before final promotion if it advances; revalidate exact merged feature SHA when required.
 - [ ] Complete `resolutionSummary`, `regressionTest`, `fixCommit`, set `status: fixed`/`resolvedUtc`, and move only this assignment `open -> closed` after all gates pass.
-- [ ] Open/update PR `fixes/agent-6 -> master`, enable auto-merge, monitor required PR checks until merged, and verify the closed SceneIssue is visible on `origin/master`.
+- [ ] Open/update PR `fixes/agent-6 -> master`, enable auto-merge, monitor required `affected` checks until merged, and verify the closed SceneIssue is visible on `origin/master`.
 - [ ] Every checkbox above is complete before closure.
