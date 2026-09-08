@@ -12,6 +12,8 @@
     "Game.Continuity.Api",
     "Game.Encounters.Api",
     "Game.GameplayReplication.Api",
+    "Game.Outcomes.Api",
+    "Game.Persistence.Api",
     "Game.Quests.Api",
     "Game.SessionOrchestration.Api",
     "Game.SessionOrchestration.Runtime",
