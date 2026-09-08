@@ -1,0 +1,7 @@
+{
+  "request_id": "agent5-new-house-inset-arched-glazing-e7eb7088",
+  "platform": "EditMode",
+  "test": "VoxelEngine.Tests.EditMode.NewHouseReferenceCompactFacadeTests.AuthorHouse_HighGableArchKeepsMullionContained_WithoutCrossingStructuralBelt",
+  "scene_issue": "SceneIssues/open/20260904-231343-000-NewHouseWorldBuilderReferenceReconstruction/issue.json",
+  "replay_seconds": 32
+}
