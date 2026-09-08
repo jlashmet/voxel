@@ -24,7 +24,9 @@ namespace Game.WorldBuilder.Validation
     public sealed class WorldBuilderTopDownPhysicalWorldValidation : MonoBehaviour
     {
         private const float DecimetresToMetres = 0.1f;
+        private const float SurveyOffsetMetres = 24f;
         private const int StableReadyFrames = 4;
+        private const int StreamingSafetyMarginRegions = 1;
 
         private readonly struct SurveyTarget
         {
@@ -106,6 +108,18 @@ namespace Game.WorldBuilder.Validation
 
         private void BuildProductionWorld()
         {
+            if (m_LoadRadiusRegions <= StreamingSafetyMarginRegions)
+                throw new InvalidOperationException(
+                    "Top-down physical validation requires at least one streamed region of safety margin around the rendered ring.");
+
+            float publishedRingRadius =
+                (m_LoadRadiusRegions - StreamingSafetyMarginRegions) * ShowcaseWorld.RegionMetres;
+            float surveyDistance = SurveyOffsetMetres * Mathf.Sqrt(2f);
+            if (publishedRingRadius <= surveyDistance)
+                throw new InvalidOperationException(
+                    "Top-down physical validation render radius no longer reaches its surveyed feature: " +
+                    $"ring={publishedRingRadius:F1}m survey={surveyDistance:F1}m.");
+
             TopDownWorldLayout layout = MountingForceTopDownWorldDefinition.Build(m_Seed);
             TopDownWorldPhysicalIntentSpec intent = KentridgeTopDownWorldPhysicalIntent.Build();
             TopDownWorldPhysicalPlan physical = TopDownWorldPhysicalPlanner.Plan(
@@ -166,8 +180,11 @@ namespace Game.WorldBuilder.Validation
                 "worldbuilder-topdown-physical-validation-enabled");
             RenderingComposition.SetSurfaceBuildEnabled(false);
             RenderingComposition.SetFarBaseHeight(ShowcaseWorld.BaseHeightVoxels);
-            RenderingComposition.SetVoxelRingRadiusMetres(
-                m_LoadRadiusRegions * ShowcaseWorld.RegionMetres);
+            // Keep one whole streamed region beyond the renderer's visible ring. A radius equal
+            // to the complete streamed extent is only safe when the camera happens to sit at a
+            // region centre; near a boundary the visible circle crosses into an unstreamed third
+            // region and MissingVisibleSolidChunks can never reach zero.
+            RenderingComposition.SetVoxelRingRadiusMetres(publishedRingRadius);
             RenderingComposition.SetVoxelDetailBandScale(0.8f);
             var renderingWorld = new RenderingWorldBinding(
                 _world.ReadStorage,
@@ -192,7 +209,9 @@ namespace Game.WorldBuilder.Validation
                 "WORLDBUILDER_MACRO_PHYSICAL_READY settlements=" + physical.Settlements.Count +
                 " routes=" + physical.Routes.Count +
                 " buildings=" + physical.BuildingCount +
-                " targets=" + _targets.Length);
+                " targets=" + _targets.Length +
+                " streamRadius=" + (m_LoadRadiusRegions * ShowcaseWorld.RegionMetres).ToString("F1") +
+                " renderRadius=" + publishedRingRadius.ToString("F1"));
         }
 
         private static SurveyTarget[] BuildTargets(TopDownWorldPhysicalPlan physical)
@@ -280,7 +299,7 @@ namespace Game.WorldBuilder.Validation
         private void PlaceCamera(SurveyTarget target)
         {
             Vector3 focus = SurfacePoint(target.CentreDm, 5f);
-            transform.position = focus + new Vector3(-24f, 24f, -24f);
+            transform.position = focus + new Vector3(-SurveyOffsetMetres, SurveyOffsetMetres, -SurveyOffsetMetres);
             Vector3 direction = focus - transform.position;
             if (direction.sqrMagnitude > 0.001f)
                 transform.rotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
