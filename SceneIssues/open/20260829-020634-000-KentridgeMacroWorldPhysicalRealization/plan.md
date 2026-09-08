@@ -7,17 +7,17 @@ Owned validation surfaces:
 - WorldBuilder: `Validation/MacroPhysicalWorld`.
 - Showcase: `Validation/FeatureResidency`.
 - Kentridge Playable: `Validation/KentridgeMacroWorld`.
-- Rendering integration: validate against the current production GPU renderer; do not restore the retired historical renderer implementation merely to satisfy old evidence.
+- Rendering integration: validate against the current production GPU renderer; do not restore retired renderer internals merely to satisfy historical evidence.
 
-## Resume / reconciliation state — 2026-09-07
-The user explicitly authorized resuming agent-6 work. The administrative deferral commit preserved unfinished feature head `62533f5c0b1716c70414eb82d0e2b0def9e99f39` with merge base `ed5c6f908361228819b3368bcd8427d4b44d89e3`. Before resumption, `fixes/agent-6` had no unique commits versus current `master=d89495bcccd6ae2cccd2f8b44f8993165754af12`; the preserved feature content therefore must be reconciled rather than assumed merged.
+## Current reconciliation state — 2026-09-07
+Current `origin/master=c5fdd3af09c9ae1bf27b2ee06ba6876ebe91dcbd` is already integrated into `fixes/agent-6`; the branch is ahead only by this prior Kentridge/WorldBuilder assignment. The reconciled code head `8ecc2fc2cf2cd62c803c4faf6c63443ee9e8b5b0` adapts historical validation to current production contracts while preserving strict authored presentation-column readiness and the existing publication/budget semantics. Current master includes the merged GPU checkpoint, but that checkpoint did not itself claim visual/coverage completion, so acceptance remains evidence-driven rather than assumed.
 
-The old renderer prerequisite is not accepted: `20260902-171853-000-GpuRendererProductionRestoration` was superseded by `20260907-145211-000-VoxelShowcaseGpuCorrectnessAndPerformance`. Continue every independent WorldBuilder/Kentridge task now and record any renderer-owned acceptance blocker without weakening readiness, residency, quality, or budgets.
+The earlier exact request `03ee78265fd4d5f52d50855eed5296043868805b` (run `34172038737`) targets pre-correction source `8475e3df831b5962dd8478f3841ab5ae1b613699` and is still queued. Per `AGENTS.md`/`SceneIssues/README.md`, do not replace or cancel it. Even if it later passes, it is not final closure proof for the corrected head; after it becomes terminal, issue one new exact request from the then-current feature SHA through the same `ci-test/fixes/agent-6` transport.
 
 ## Execution
-1. Reconcile only the preserved agent-6 feature delta onto current `master`. Restore WorldBuilder macro-physical APIs/generation, Kentridge composition/evidence/residency integration, Showcase residency integration, Structures feature-generation trace integration, and feature-focused tests/validation scenes. Do not transplant obsolete renderer/scheduler experiments unless current compilation or behavior proves a necessary equivalent adaptation.
-2. Reconcile shared files semantically against their current versions; preserve later module-boundary, input, renderer, and architecture work already on `master`.
-3. Run repository-derived exact-SHA validation through `ci-test/fixes/agent-6`: affected tests, all required module-local players, then the 180-second Kentridge SceneIssue replay. Do not replace a queued/running exact-SHA request.
+1. Preserve the reconciled WorldBuilder macro-physical APIs/generation, Kentridge composition/evidence/residency integration, current Showcase compatibility, and feature-focused regressions/validation scenes. Do not transplant obsolete renderer/scheduler experiments.
+2. Keep shared files semantic against current master and preserve later module-boundary, input, renderer, and architecture work.
+3. Run repository-derived exact-SHA validation through `ci-test/fixes/agent-6`: affected tests, all required module-local players, then the 180-second Kentridge SceneIssue replay. Leave queued/running requests alone.
 4. Inspect full-resolution durable evidence for Moordell, Rossdam, Fairy Village, Orc Village, lake/constrained route, Southern Ridge/pass, macro network, differentiated terrain, and real CharacterMotor traversal. Require production-quality presentation; debug overlays alone do not satisfy acceptance.
 5. Record convergence and CPU/GPU/streaming/process/managed/native/GPU-memory costs against existing budgets. If current renderer correctness prevents acceptance, record the exact demonstrated blocker and continue every independent gate.
-6. Complete every checkbox and acceptance item. Only then move this same issue `open -> closed`, set fixed metadata, open `fixes/agent-6 -> master`, enable auto-merge, and monitor required gates until merged.
+6. Complete every checkbox and acceptance item. Only then move this same issue `open -> closed`, set fixed metadata, merge current master if it advanced, open `fixes/agent-6 -> master`, enable auto-merge, and monitor required gates until merged.
