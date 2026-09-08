@@ -110,8 +110,16 @@ namespace Game.Application.Runtime
                 return false;
             }
             GameSessionLifecycle sessionLifecycle = _session.Snapshot.Lifecycle;
-            if (sessionLifecycle != GameSessionLifecycle.Uninitialized &&
-                sessionLifecycle != GameSessionLifecycle.Stopped)
+            if (_partyResumePrepared)
+            {
+                if (sessionLifecycle != GameSessionLifecycle.Ready)
+                {
+                    rejected = Reject(ApplicationFailure.InvalidState, "Prepared party resume requires a ready gameplay session.");
+                    return false;
+                }
+            }
+            else if (sessionLifecycle != GameSessionLifecycle.Uninitialized &&
+                     sessionLifecycle != GameSessionLifecycle.Stopped)
             {
                 rejected = Reject(ApplicationFailure.InvalidState, "Party resume requires an idle gameplay session.");
                 return false;
@@ -135,6 +143,12 @@ namespace Game.Application.Runtime
             for (int i = 0; i < saves.Count; i++)
             {
                 if (!string.Equals(saves[i].SaveId.Value, saveId, StringComparison.Ordinal)) continue;
+                if (!_activeFormation.SessionId.IsValid ||
+                    !string.Equals(saves[i].SessionId, _activeFormation.SessionId.Value, StringComparison.Ordinal))
+                {
+                    rejected = Reject(ApplicationFailure.SaveUnavailable, "The selected save belongs to a different session.");
+                    return false;
+                }
                 selected = saves[i];
                 rejected = default;
                 return true;
