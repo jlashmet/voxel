@@ -6,17 +6,17 @@ Complete the authored Kentridge -> Rorik/Moordell/Rossdam/Logan route, exactly-o
 
 ## Selected production path
 
-`KentridgePlayableSlice` enters through `KentridgePlayableFullRunBootstrap`: exact rich opening geometry is overlaid by semantic identity onto hierarchy-aware `AuthoredFullRunKentridgeComposition`, while continuation coordinates come only from the recovered `TopDownWorldPhysicalPlan`. The dedicated Kentridge validation drives the canonical route through production session/application seams to System15 success and frontend aftermath.
+`KentridgePlayableSlice` enters through `KentridgePlayableFullRunBootstrap`: exact rich opening geometry is overlaid by semantic identity onto hierarchy-aware `AuthoredFullRunKentridgeComposition`, while continuation coordinates come only from the recovered `TopDownWorldPhysicalPlan`. Both the shipped player and dedicated full-run validation must obtain Kentridge through `Game.Kentridge.PlayableSlice.KentridgeDefinition`, which enters `WorldBuilderTownAuthoring` and preserves the exact authored town/settlement pair required by `KentridgePlayableWorldBuilderBridge`.
 
 WorldBuilder is also affected player-visible runtime. T26-059 owns `Assets/Game/WorldBuilder/Validation/TopDownPhysicalWorld/`: production macro planning/reservations/voxel+water catalogues feed `ShowcaseWorld`, production streaming and `RenderingComposition`, surveying Moordell, Rossdam and authored water. Readiness uses only existing production signals: the target region must be `ShowcaseWorld.IsGenerated(...)` and `RenderingComposition.HasCompletePublishedNearSurfaceCoverage()` for four stable frames.
 
 ## Validation state / hypotheses
 
-Request `3796acf10f04fe266413f0956ebbd59e954336ad`, source `d6dd7a8100841b997b064afefc4d1e0fca19e333`, run `34164164923`, artifact `10034721892` (`sha256:364595f48f11e3c93445408110654e41b1593111a2a7b4498fffb3f7af3afc12`) exposed stale `AuthoredTownPlan.BackendPlan` test usage; fixed.
+Request `3796acf10f04fe266413f0956ebbd59e954336ad` exposed stale `AuthoredTownPlan.BackendPlan` test usage; fixed. Request `7d5ee6f751e0d4d72d3061b9a4474703921a5d58` exposed two T26-059 compile-boundary defects; both were fixed without changing production semantics.
 
-Request `7d5ee6f751e0d4d72d3061b9a4474703921a5d58`, source `a3a7f9203f925d42a8bafc617e656b1995e003bd`, run `34170036879`, job `101888444958`, artifact `10037000615` (`sha256:03cc22112a8862b93f48c8fc04fa8d8b43d8b41fcc8cddb2dc5c586eb9579ad6`) proved automatic discovery of T26-059 but compilation stopped on two validation-boundary defects: nonexistent `IsPresentationColumnContentSettled` and missing direct `VoxelEngine.Storage.Api`. Both are corrected without changing production semantics.
+Request `cdba76adecef1ea1104cbd8c7b8a3b1f2ea4da08`, source `360cad203f30f7b771ff2c93798cfa29d4a7591c`, run `34178608752`, job `101912883262`, artifact `10040106171` (`sha256:b5291fbbdffce3eca44940d19ca76f29097f9e1ead25441a761014666656ccd1`) compiled and passed every selected persistent test assembly plus CaveWorldBuilder and Kentridge encounter players. The full-run player then failed before `physical-world-ready`: validation had called legacy `MountingForce...KentridgeDefinition.Build`, so `KentridgePlayableWorldBuilderBridge.Resolve` correctly rejected a settlement not authored through the scene-session WorldBuilder seam. Commit `c36dca64a08aa2af50ee16b97fba5a9e640d2a48` routes validation settlement/id selection through the shipped compatibility wrapper.
 
-Hypothesis A: those two T26-059 boundary defects were the remaining compile blockers. Hypothesis B: once compilation succeeds, a real Kentridge/WorldBuilder player target may expose a semantic, streaming or visual defect. Next discriminator is one new direct-child exact-SHA automatic run; fix only demonstrated failures.
+Next discriminator: one fresh direct-child exact-SHA automatic run. If it passes this seam, inspect the subsequent Kentridge full-run, T26-059 WorldBuilder, and normal Kentridge integration player evidence; fix only demonstrated failures.
 
 ## External prerequisite / closure
 
