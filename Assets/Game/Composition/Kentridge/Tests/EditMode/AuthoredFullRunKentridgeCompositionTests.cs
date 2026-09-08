@@ -50,6 +50,42 @@ namespace Game.Composition.Kentridge.Tests
         }
 
         [Test]
+        public void ProductionRealizationProvidesEveryAuthoredRequiredCutsceneStage()
+        {
+            const uint seed = 0x4B454E54u;
+            var settlement = KentridgeDefinition.Build(seed);
+            var destinationSpeaker = new CutsceneActorId("destination-npc");
+
+            AuthoredFullRunKentridgeComposition composition =
+                AuthoredFullRunKentridgeComposition.Build(
+                    DialogueOnly("destination-conversation", destinationSpeaker),
+                    seed,
+                    settlement.CentreDm,
+                    voxelsPerDecimetre: 1,
+                    configureDestinationCutscene: (scene, roles) =>
+                        scene.Bind(destinationSpeaker, roles.DestinationNpc));
+
+            var requiredStageCount = 0;
+            for (var i = 0; i < composition.Content.Blueprint.Cutscenes.Count; i++)
+            {
+                CutsceneSpec cutscene = composition.Content.Blueprint.Cutscenes[i];
+                if (cutscene.Definition.StageRequirements.Count == 0)
+                    continue;
+
+                requiredStageCount++;
+                Assert.That(
+                    FindStage(composition.World, cutscene.Ref),
+                    Is.Not.Null,
+                    "Production realization must contain every stage required by authored choreography.");
+            }
+
+            Assert.That(
+                requiredStageCount,
+                Is.GreaterThan(0),
+                "The regression must exercise at least one authored staged cutscene.");
+        }
+
+        [Test]
         public void RichOpeningRealizationOverlaysMatchingFullRunSemanticIdentities()
         {
             const uint seed = 0x4B454E54u;
