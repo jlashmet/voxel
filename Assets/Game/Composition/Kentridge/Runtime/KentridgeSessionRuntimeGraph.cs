@@ -13,17 +13,9 @@ using Game.WorldBuilder.Api;
 
 namespace Game.Composition.Kentridge.Runtime
 {
-    /// <summary>
-    /// Composition extension point for production systems that are Unity-bound to the playable slice
-    /// (for example the forest encounter/input/combat presentation). The extension is created from
-    /// inside the session graph factory, so it participates in the same readiness/update/teardown path
-    /// without forcing Unity dependencies into this engine-neutral assembly.
-    /// </summary>
     public interface IKentridgeSessionRuntimeExtensionFactory
     {
-        IKentridgeSessionRuntimeExtension Compose(
-            GameSessionIdentity identity,
-            IKentridgeCampaignActorHost actors);
+        IKentridgeSessionRuntimeExtension Compose(GameSessionIdentity identity, IKentridgeCampaignActorHost actors);
     }
 
     public interface IKentridgeSessionRuntimeExtension : IDisposable
@@ -36,21 +28,16 @@ namespace Game.Composition.Kentridge.Runtime
         void DetachExternalAdapters();
     }
 
-    /// <summary>
-    /// Optional capability on a composition-supplied actor host. It exposes only the extension factory;
-    /// concrete Input/Encounter/Combat/Vitality services remain private to the extension and are never
-    /// published as a broad service locator.
-    /// </summary>
+    public interface IKentridgeSessionAuthorityReset
+    {
+        void BeginSessionAuthority(GameSessionIdentity identity);
+    }
+
     public interface IKentridgeSessionRuntimeExtensionSource
     {
         IKentridgeSessionRuntimeExtensionFactory SessionRuntimeExtensionFactory { get; }
     }
 
-    /// <summary>
-    /// Kentridge composition adapter for the production SessionOrchestration graph. It reuses the
-    /// existing campaign/world bootstrap and composes optional Unity-bound gameplay extensions from a
-    /// factory supplied by the playable composition root.
-    /// </summary>
     public sealed class KentridgeSessionRuntimeGraphFactory : ISessionRuntimeGraphFactory
     {
         private readonly CampaignBlueprint _blueprint;
@@ -62,6 +49,8 @@ namespace Game.Composition.Kentridge.Runtime
         private readonly IKentridgeSessionRuntimeExtensionFactory _extensionFactory;
 
         public KentridgeSessionRuntimeGraph Current { get; private set; }
+        public IKentridgeCampaignActorHost ActorHost => _actors;
+        public KentridgeCampaignGenerationPlan Generation => _generation;
 
         public KentridgeSessionRuntimeGraphFactory(
             CampaignBlueprint blueprint,
@@ -89,13 +78,10 @@ namespace Game.Composition.Kentridge.Runtime
                     GameSessionFailure.CompositionFailed,
                     "Kentridge already has a composed runtime graph. Shut it down before composing another run.");
 
+            (_actors as IKentridgeSessionAuthorityReset)?.BeginSessionAuthority(identity);
+
             KentridgeCampaignSession session = KentridgeCampaignSessionBootstrap.CreateSession(
-                _blueprint,
-                _generation,
-                _realizationFacts,
-                _actors,
-                _presentation,
-                _secretHost);
+                _blueprint, _generation, _realizationFacts, _actors, _presentation, _secretHost);
             IKentridgeSessionRuntimeExtension extension = null;
             try
             {
@@ -124,10 +110,8 @@ namespace Game.Composition.Kentridge.Runtime
         private sealed class CampaignUpdateStep : ISessionUpdateStep
         {
             private readonly KentridgeCampaignSession _session;
-
             public CampaignUpdateStep(KentridgeCampaignSession session) =>
                 _session = session ?? throw new ArgumentNullException(nameof(session));
-
             public SessionUpdatePhase Phase => SessionUpdatePhase.ProgressionAndStory;
             public int Order => 0;
             public string SemanticId => "kentridge.campaign";
@@ -142,12 +126,12 @@ namespace Game.Composition.Kentridge.Runtime
         public KentridgeCampaignSession Session { get; }
         public bool IsDisposed { get; private set; }
         public bool GameplayBindingsReady =>
-            !IsDisposed
-            && Session != null
-            && (_extension == null || _extension.GameplayBindingsReady);
+            !IsDisposed && Session != null && (_extension == null || _extension.GameplayBindingsReady);
         public IReadOnlyList<ISessionUpdateStep> UpdateSteps => _steps;
         public IGameOutcomeQuery OutcomeQuery => null;
         public int LastNewGameMatchedCount { get; private set; }
+        public bool InitializedNewGame { get; private set; }
+        public bool RestoredFromPersistence { get; private set; }
 
         internal KentridgeSessionRuntimeGraph(
             KentridgeCampaignSession session,
@@ -177,7 +161,18 @@ namespace Game.Composition.Kentridge.Runtime
         public void InitializeNewGame()
         {
             ThrowIfDisposed();
+            if (RestoredFromPersistence)
+                throw new InvalidOperationException("A restored Kentridge graph cannot replay New Game initialization.");
             LastNewGameMatchedCount = Session.StartNewGame();
+            InitializedNewGame = true;
+        }
+
+        public void MarkRestoredFromPersistence()
+        {
+            ThrowIfDisposed();
+            if (InitializedNewGame)
+                throw new InvalidOperationException("A New Game Kentridge graph cannot be reclassified as restored.");
+            RestoredFromPersistence = true;
         }
 
         public void StartCommands()
@@ -222,10 +217,7 @@ namespace Game.Composition.Kentridge.Runtime
         {
             if (IsDisposed) return;
             _commandsEnabled = false;
-            try
-            {
-                _extension?.Dispose();
-            }
+            try { _extension?.Dispose(); }
             finally
             {
                 IsDisposed = true;

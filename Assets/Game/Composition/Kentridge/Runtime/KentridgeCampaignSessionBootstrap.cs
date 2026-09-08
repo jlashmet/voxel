@@ -106,6 +106,8 @@ namespace Game.Composition.Kentridge.Runtime
 
     public static class KentridgeCampaignSessionBootstrap
     {
+        public const string ForestBanditLootItemId = "kentridge-forest-bandit-keepsake";
+
         public static KentridgeCampaignGenerationPlan Plan(
             CampaignBlueprint blueprint,
             AuthoredTownPlan town)
@@ -160,10 +162,15 @@ namespace Game.Composition.Kentridge.Runtime
                 KentridgeWellQuestDefinition.CreateDefinitions());
 
             ItemRef reward = new ItemRef(KentridgeWellQuestDefinition.RewardItemId);
+            ItemRef forestLoot = new ItemRef(ForestBanditLootItemId);
             CharacterId primaryCharacter = CharacterId.FromStableKey("player-slot", "0");
             var playerInventoryId = new InventoryId("kentridge.inventory.player-slot-0");
             var inventory = new InventoryRuntime(
-                new[] { new ItemDefinition(reward, "Well Rescue Token", "W") },
+                new[]
+                {
+                    new ItemDefinition(reward, "Well Rescue Token", "W"),
+                    new ItemDefinition(forestLoot, "Bandit Keepsake", "B")
+                },
                 new[]
                 {
                     new InventoryDescriptor(
