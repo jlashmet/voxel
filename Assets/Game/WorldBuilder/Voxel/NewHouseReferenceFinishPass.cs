@@ -4,9 +4,8 @@ using VoxelEngine.Structures.Api;
 namespace Game.WorldBuilder.Voxel
 {
     /// <summary>
-    /// Late reference-only finish pass applied after the structural refinement. It corrects the
-    /// highest-value silhouette/details exposed by standalone-player comparison without moving
-    /// camera, lighting, site policy, or material ownership into reusable authoring.
+    /// Late reference-only finish pass applied after structural refinement. Camera, lighting, site
+    /// policy, and material ownership remain outside reusable house authoring.
     /// </summary>
     internal static class NewHouseReferenceFinishPass
     {
@@ -17,6 +16,7 @@ namespace Game.WorldBuilder.Voxel
         {
             RefinePortraitGable(a, o, in c, in p);
             RefineMiddleFacadeOpening(a, o, in c, in p);
+            NewHouseReferenceEntryPortalFinish.Apply(a, o, in c, in p);
             ExtendReferenceChimney(a, o, in c, in p);
             ReplaceOversizedCrest(a, o, in c, in p);
             RebuildHangingDetails(a, o, in c, in p);
@@ -37,7 +37,6 @@ namespace Game.WorldBuilder.Voxel
             FillArch(a, centre, eave + 10, front, 15, 21, p.Plaster);
             ArchedPanel(a, centre, eave + 12, front, 11, 17,
                 p.Glass, p.Timber, p.Timber);
-
             AddDenseFlowerBox(a, centre - 12, portraitEave + 7, front - 2, 24, in p);
 
             a.Box(new int3(centre - 20, portraitEave + 4, front - 4),
@@ -66,11 +65,6 @@ namespace Game.WorldBuilder.Voxel
             int upper = o.y + c.UpperFloorY;
             int front = o.z - 2;
 
-            // Iteration 12 showed that the middle-storey opening, shutters, and cross framing still
-            // consumed most of the register. Remove only that shallow central facade patch, refill
-            // it with the normal plaster material, and author one compact reference-scale opening.
-            // This intentionally leaves outer posts, roof/chimney, lower openings, and audit shell
-            // outside the destructive volume.
             a.Carve(new int3(centre - 21, upper + 4, front - 6), new int3(43, 31, 10));
             a.Box(new int3(centre - 20, upper + 4, front - 4), new int3(41, 31, 7), p.Plaster);
 
@@ -79,8 +73,6 @@ namespace Game.WorldBuilder.Voxel
             AddCompactShutters(a, centre, upper + 9, front, 13, 17, p.Accent, p.Timber);
             AddDenseFlowerBox(a, centre - 11, upper + 4, front - 2, 22, in p);
 
-            // Reintroduce restrained structural hierarchy around the smaller opening without the
-            // blockout-size cross that previously dominated the facade.
             a.Box(new int3(centre - 19, upper + 4, front - 5),
                 new int3(39, 2, TimberDepth), p.Timber);
             a.Box(new int3(centre - 17, upper + 31, front - 5),
@@ -118,7 +110,6 @@ namespace Game.WorldBuilder.Voxel
                 float remaining = 1f - math.saturate(t);
                 int half = apexHalf + (int)math.round(
                     (baseHalf - apexHalf) * math.pow(remaining, 1.45f));
-
                 if (row < 6)
                     half += (6 - row + 1) / 2;
 
@@ -126,7 +117,6 @@ namespace Game.WorldBuilder.Voxel
                 int shellHalf = math.max(1, half - 2);
                 a.Box(new int3(centre - shellHalf, y, front - 1),
                     new int3(shellHalf * 2 + 1, 1, 6), p.Plaster);
-
                 a.Box(new int3(centre - half - 2, y, roofZ),
                     new int3(4, 2, roofDepth), p.Roof);
                 a.Box(new int3(centre + half - 1, y, roofZ),
