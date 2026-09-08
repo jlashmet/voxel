@@ -404,17 +404,21 @@ namespace Game.WorldBuilder.Voxel
             int startX, int startY, int z, int segments, int xDirection,
             in NewHouseReferencePalette p)
         {
-            // Connected overlapping clusters read as climbing foliage instead of a dotted ladder.
-            for (int i = 0; i < segments; i++)
+            int clusterCount = math.max(2, (segments + 2) / 3);
+            for (int band = 0; band < clusterCount; band++)
             {
-                int y = startY + i * 2;
-                int x = startX + xDirection * ((i / 4) % 5);
-                int width = (i % 3 == 0) ? 4 : 3;
-                int height = (i % 4 == 0) ? 4 : 3;
+                int y = startY + band * 4 + ((band % 4) == 3 ? 1 : 0);
+                int drift = (band * 3 + band / 2) % 8;
+                int x = startX + xDirection * drift;
+                int width = 2 + ((band + 1) % 3);
+                int height = 2 + ((band & 1) == 1 ? 1 : 0);
                 a.Box(new int3(x, y, z), new int3(width, height, 1), p.Foliage);
-                if ((i & 1) == 0)
-                    a.Box(new int3(x - 2 * xDirection, y + 1, z),
-                        new int3(3, 2, 1), p.Foliage);
+
+                if ((band % 3) == 1)
+                {
+                    int branchX = x + xDirection * (width + 1);
+                    a.Box(new int3(branchX, y + 1, z), new int3(2, 2, 1), p.Foliage);
+                }
             }
         }
 
