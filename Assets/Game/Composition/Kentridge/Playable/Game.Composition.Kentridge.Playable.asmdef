@@ -11,6 +11,7 @@
     "Game.Combat.Api",
     "Game.Combat.Runtime",
     "Game.Composition.Campaign",
+    "Game.Composition.Campaign.Runtime",
     "Game.Composition.EncounterRealization",
     "Game.Composition.Kentridge.Api",
     "Game.Composition.Kentridge.Runtime",
