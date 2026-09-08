@@ -5,6 +5,7 @@ using UnityEngine;
 using UnityEngine.TestTools;
 using VoxelEngine.Composition;
 using VoxelEngine.Rendering.Runtime.GpuVoxel;
+using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 
 namespace VoxelEngine.Rendering.Tests.EditMode
 {
