@@ -110,6 +110,22 @@ namespace VoxelEngine.Tests.EditMode
                 op.Kind == OperationKind.Carve &&
                 op.Position.Equals(new int3(centre - 5, eave + 12, front - 4)) &&
                 op.Size.Equals(new int3(11, 1, 9)));
+            int insetGlass = session.Operations.FindIndex(op =>
+                op.Kind == OperationKind.Box && op.Material == palette.Glass &&
+                op.Position.Equals(new int3(centre - 4, eave + 12, front + 1)) &&
+                op.Size.Equals(new int3(9, 1, 2)));
+            int fullWidthGlass = session.Operations.FindIndex(op =>
+                op.Kind == OperationKind.Box && op.Material == palette.Glass &&
+                op.Position.Equals(new int3(centre - 5, eave + 12, front + 1)) &&
+                op.Size.Equals(new int3(11, 1, 2)));
+            int leftInnerFrame = session.Operations.FindIndex(op =>
+                op.Kind == OperationKind.Box && op.Material == palette.Timber &&
+                op.Position.Equals(new int3(centre - 5, eave + 12, front - 4)) &&
+                op.Size.Equals(new int3(1, 1, 2)));
+            int rightInnerFrame = session.Operations.FindIndex(op =>
+                op.Kind == OperationKind.Box && op.Material == palette.Timber &&
+                op.Position.Equals(new int3(centre + 5, eave + 12, front - 4)) &&
+                op.Size.Equals(new int3(1, 1, 2)));
             int containedHorizontalMullion = session.Operations.FindIndex(op =>
                 op.Kind == OperationKind.Box && op.Material == palette.Timber &&
                 op.Position.Equals(new int3(centre - 4, eave + 17, front - 4)) &&
@@ -129,6 +145,12 @@ namespace VoxelEngine.Tests.EditMode
 
             Assert.That(compactArch, Is.GreaterThanOrEqualTo(0),
                 "The final high-gable reference opening must remain an 11-voxel arched panel.");
+            Assert.That(insetGlass, Is.GreaterThan(compactArch),
+                "The final high-gable pane must be inset one voxel inside the timber arch frame.");
+            Assert.That(fullWidthGlass, Is.EqualTo(-1),
+                "The late reference pane must not remain a flat full-width glass slab.");
+            Assert.That(leftInnerFrame, Is.GreaterThan(compactArch));
+            Assert.That(rightInnerFrame, Is.GreaterThan(compactArch));
             Assert.That(containedHorizontalMullion, Is.GreaterThan(compactArch),
                 "The high-gable window must retain its compact internal mullion after the arch is carved.");
             Assert.That(flowerBox, Is.GreaterThan(compactArch),
