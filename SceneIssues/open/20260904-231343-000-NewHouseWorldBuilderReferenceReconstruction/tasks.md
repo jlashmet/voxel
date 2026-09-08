@@ -9,7 +9,7 @@ Recreate `Assets/Textures/Stylized/experiment1/house/10dddef5-de0a-4153-9c09-b1e
 - [x] Use WorldBuilder production authoring, material registry/texture layers, storage/meshing/rendering, and built-player replay.
 - [x] Keep reusable house geometry separate from reference site/camera/light composition.
 - [x] Keep module-local WorldBuilder validation and canonical standalone integration in the normal repo path.
-- [x] Keep meaningful visual iterations tied to exact feature SHA, request/run, artifact, and target/front-left/rear-right frames through iteration 14.
+- [x] Keep meaningful visual iterations tied to exact feature SHA, request/run, artifact, and target/front-left/rear-right frames through iteration 15.
 - [ ] Preserve the same exact evidence linkage for every subsequent product-changing iteration through final acceptance.
 
 ## 1. Production path / budgets / reuse
@@ -88,7 +88,14 @@ Recreate `Assets/Textures/Stylized/experiment1/house/10dddef5-de0a-4153-9c09-b1e
 ### Iteration 15 — continuous portal relief
 - [x] Keep all unrelated massing/material/site/camera/detail work fixed and add only a thin continuous front relief lip to the existing stone jamb/round-arch surround so the same-material curve gains a visible shadow edge.
 - [x] Expand the same already-discovered focused FQN `VoxelEngine.Tests.EditMode.NewHouseReferenceEntryPortalTests.AuthorHouse_FinalEntryPortalProjectsStoneRingAroundRecessedArchedDoor` to require both jamb relief and crown relief while preserving the original late-ordering, recessed-door, and side-window invariants.
-- [ ] Run the exact iteration-15 feature SHA through `ci-test/fixes/agent-5`, with the transport differing only by `.github/test-request.json`, and require focused non-zero execution + automatic module validation + standalone replay.
+- [x] Exact feature `29edfec6ce93ee7f2a247fdef62c2641ed5c8890`, request `90313bd07435dd5c223bc04673126b0e64dafc45`, run `34191643674`, artifact `single-test-34191643674`: focused FQN executed non-zero (`8.66s`); all derived module assemblies and players, WorldBuilder module-local validation, the 32s SceneIssue replay, and canonical `KentridgePlayableSlice` succeeded.
+- [x] Inspect exact pinned reference plus target/front-left/rear-right and `verification-final.png`. The added relief makes the recessed round portal materially more readable and side openings/shell survive, but classify the exact target **prototype/blockout quality**. The dominant mismatch is now overall portrait-gable/roof silhouette: authored rise is far too tall/needle-like and the rear audit exposes remaining full-height legacy front-gable depth.
+
+### Iteration 16 — lower portrait-gable silhouette
+- [x] Select authored gable rise/legacy front-roof depth as the demonstrated cause rather than camera/FOV; the front target itself proves the height/width ratio is wrong.
+- [ ] Keep portal/openings/materials/site/camera/light/chimney/planting/hanging details/lower roofs fixed; clear the complete old front-gable footprint without reaching the rear shell, rebuild a lower width-driven swept portrait rise, and anchor crest geometry to the rebuilt apex.
+- [ ] Extend the existing behavioral swept-profile regression to prove full old-gable clear, lower apex, nonlinear/seam-closed roof edges, restored high opening, and crest placement through production refinement.
+- [ ] Run the exact iteration-16 feature SHA through `ci-test/fixes/agent-5`, with transport differing only by `.github/test-request.json`, requiring focused non-zero execution + automatic module validation + standalone replay.
 - [ ] Inspect exact target/front-left/rear-right artifact; if still below production-quality, record only the next largest demonstrated mismatch before another product change.
 
 ## 8. Final visual acceptance — all required
