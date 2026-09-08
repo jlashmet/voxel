@@ -1,6 +1,7 @@
 using Game.Application.Api;
 using Game.Kentridge.PlayableSlice;
 using NUnit.Framework;
+using UnityEngine;
 
 namespace VoxelEngine.Tests.EditMode
 {
@@ -41,6 +42,40 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(
                 KentridgeMacroWorldApplicationStartDriver.ShouldAwaitEvidence(elapsedSeconds),
                 Is.EqualTo(expected));
+        }
+
+        [Test]
+        public void DontSaveSceneIssueEvidenceIsFoundByValidationSafeDiscovery()
+        {
+            Assert.That(
+                KentridgeMacroWorldApplicationStartDriver.HasActiveValidationEvidence(),
+                Is.False,
+                "Test requires no pre-existing macro validation evidence instance.");
+
+            float originalTimeScale = Time.timeScale;
+            var host = new GameObject("Hidden macro evidence test")
+            {
+                hideFlags = HideFlags.DontSave
+            };
+            try
+            {
+                host.AddComponent<KentridgeMacroWorldEvidenceDriver>();
+                Assert.That(
+                    KentridgeMacroWorldApplicationStartDriver.HasActiveValidationEvidence(),
+                    Is.True,
+                    "DontSave SceneIssue evidence must remain discoverable by the application-start companion.");
+
+                host.SetActive(false);
+                Assert.That(
+                    KentridgeMacroWorldApplicationStartDriver.HasActiveValidationEvidence(),
+                    Is.False,
+                    "Disabled validation evidence must not trigger application startup.");
+            }
+            finally
+            {
+                Object.DestroyImmediate(host);
+                Time.timeScale = originalTimeScale;
+            }
         }
     }
 }
