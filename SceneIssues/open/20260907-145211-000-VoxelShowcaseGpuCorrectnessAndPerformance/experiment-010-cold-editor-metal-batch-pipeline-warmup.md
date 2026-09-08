@@ -2,33 +2,29 @@
 
 ## Hypothesis
 
-Experiment 009 matched the legacy fixture's second shared context. If that matched diagnostic still passes while the legacy test remains the only failure, shared-context lifetime is falsified. Compare first-use shader activity with later successful full publications before changing renderer behavior or the five-second transaction deadline.
+Experiments 008/009 isolated the legacy step-4 timeout from source readiness and shared-context lifetime. The remaining question was whether one-time Editor/Metal shader compilation should be separated from the submitted batch's asynchronous publication bound.
 
-## Exact input
+## Exact failed warm-up experiment
 
-- Feature/source SHA: `e03d7b60ff14eaffe3940c23d7ce158a228e6ed1`
-- Exact request SHA: `152b97d3365a05117b848f456fb6d4f46b4de009`
-- Run/job: `34194247464` / `101958423704`
-- Artifact: `single-test-34194247464`, id `10044112801`
-- Artifact digest: `sha256:b12be3542ff3e3c49dd81871774137d88b508811194ffb5ab9bd93239a07f30a`
+- Feature/source SHA: `f51184569f55ddc954e63e5915e816fecb6a9b2b`
+- Exact request SHA: `e296a25c4cf526f52e9d35bb1ce356aa79b1dd7d`
+- Run/job: `34197667062` / `101968908805`
+- Artifact: `single-test-34197667062`, id `10045769921`
+- Artifact digest: `sha256:35fdc3ce61a497b1282e982213500c3b5d4f7d517614664fe40af9ee5f6be622`
 - Unity 6000.5.6f1 / Apple M4 Max / Metal
 
 ## Evidence
 
-Persistent Rendering EditMode completed 575 tests: 574 passed, 1 failed, 0 quarantined and 0 inconclusive. The only failure remained `GpuQueuedBatchCancellationTests.FineStepFourPublishesRealMixedStorageThroughGpuReadiness`, which took 14.448 seconds and failed the unchanged five-second publication deadline.
+The attempted module-global `SetUpFixture` warm-up is invalid. Automatic Rendering validation failed in one-time setup before the normal suite: the warm-up did not observe `SummarySubmitted`, so NUnit reported 229 parent/test failures from the failed setup. The standalone VoxelShowcase replay still completed successfully. This is a test-harness failure, not evidence of a new renderer regression.
 
-The matched two-context diagnostic `GpuStepFourPublicationPhaseTests.StepFourMixedPublicationReportsItsTerminalPhaseWithinBound` passed in 0.034 seconds in the same persistent editor. It completed in 14 scheduler iterations with `maxPrepareMs=4.446`, saw real summary submission and full submission, produced real geometry and released all demand. Therefore an idle second shared-mirror consumer does not reproduce the failure.
+The preceding exact run `34194247464` remains the causal discriminator: the matched two-context production-path diagnostic passed in 0.034 seconds (`maxPrepareMs=4.446`) while the legacy first full step-4 case took 14.448 seconds. That first full batch emitted 640 `VoxelBrickMesher` Editor/Metal warnings; immediately following real step-1/2 publications completed in 0.029/0.026 seconds with no mesher warnings.
 
-The failing legacy step-4 case is the first successful full `VoxelBrickMesher` batch publication in that fixture. During that one test the editor emitted 714 compute-shader warnings, including 640 `VoxelBrickMesher` warnings across `CSBatchSampleDensity`, count, faceted, decoration, transition and write kernels. The immediately following real mixed publications passed in 0.029 seconds (step 1) and 0.026 seconds (step 2), with zero `VoxelBrickMesher` shader warnings. Earlier step-4 edit and retirement cases complete before the full mesher publication chain and emitted no mesher warnings.
+Current master `b56436f198702fa91bfaccec69a30df25a52a2cd` already contains the narrower shared correction (`8bb6663324e88ae36abaf723e7141440eccbf40f`): `GpuQueuedBatchCancellationTests.ValidateSummaryLane` keeps the five-second publication contract, but starts a fresh five-second asynchronous publication window when the real lane first reaches `Submitted`. One-time synchronous Editor/Metal compilation during submission is therefore not charged as post-submission liveness, while source preparation and actual submitted-batch publication remain bounded and runtime behavior is unchanged.
 
-This isolates the 14-second wall-clock overrun to one-time Editor/Metal batch-kernel compilation on first successful dispatch, not source readiness, shared-context ownership, GPU outcome readback, fence completion or steady-state step-4 publication. Standalone player startup/performance remains a separate acceptance surface and is not inferred from this editor-only result.
+## Reconciliation
 
-## Repair
-
-Add a module-level EditMode `SetUpFixture` that executes the exact mixed-storage step-4 production coordinator path once before bounded tests. The warm-up must itself reach real summary submission, real full batch submission, non-failed paged completion and nonzero geometry within a 30-second cold-compiler setup ceiling, then release all demand/resources. It drains only coordinator-issued async GPU readbacks. Existing per-transaction five-second deadlines are unchanged.
-
-Implementation through `893b08c8de345e1af22991bf7202fa215073f844` changes tests only; renderer/runtime code, device budgets, content, distance, quality and CI limits are untouched.
+Merge commit `292c2768258e89b19f006bc6b737e278ff5c6d5a` integrates current master into `fixes/agent-3`, preserves the assignment's production admission/coverage work and diagnostics, and deliberately omits the invalid global warm-up source/meta. No renderer capacity, content, distance, quality, device budget or production deadline was weakened.
 
 ## Verdict / next step
 
-H1 shared-context lifetime is falsified for the remaining module red gate. The demonstrated gate cause is cold Editor/Metal shader compilation being charged to a steady-state liveness assertion. Validate the warm-up fixture on exact SHA. If the module suite becomes green, return immediately to the still-open full-scene correctness work; a green module suite does not satisfy VoxelShowcase acceptance.
+The global warm-up hypothesis is rejected. Validate the merged source on exact SHA with `FineStepFourPublishesRealMixedStorageThroughGpuReadiness`. A green Rendering gate is only a prerequisite; full-scene correctness, performance, migration, lifetime and final integration acceptance remain open.
