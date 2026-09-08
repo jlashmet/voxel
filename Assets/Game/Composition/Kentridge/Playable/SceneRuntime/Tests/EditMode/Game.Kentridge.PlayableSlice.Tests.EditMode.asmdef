@@ -3,6 +3,7 @@
   "rootNamespace": "VoxelEngine.Tests.EditMode",
   "references": [
     "Game.Kentridge.PlayableSlice",
+    "Game.Application.Api",
     "Game.Characters.Api",
     "Game.Hud.Api",
     "Game.Hud.Runtime",
