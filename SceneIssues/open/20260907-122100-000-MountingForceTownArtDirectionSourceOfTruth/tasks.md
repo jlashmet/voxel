@@ -1,21 +1,21 @@
 # Tasks
 
 ## Source inventory and roster
-- [ ] Pin original and secondary Mounting Force source commits and record all authoritative reference paths used.
-- [ ] Inventory every town/location represented by original scene/map/story references; distinguish towns from wilderness, dungeons, castles, junctions, and encounter-only locations.
-- [ ] Search connected reference material for Cambridge and any additional town names not obvious from source filenames.
-- [ ] Resolve competing source claims and record disconfirming evidence; do not silently merge conflicts.
-- [ ] Freeze and document the complete canonical town roster before town concept generation.
+- [x] Pin original and secondary Mounting Force source commits and record all authoritative reference paths used.
+- [x] Inventory every town/location represented by original scene/map/story references; distinguish towns from wilderness, dungeons, castles, junctions, and encounter-only locations.
+- [x] Search connected reference material for Cambridge and any additional town names not obvious from source filenames.
+- [x] Resolve competing source claims and record disconfirming evidence; do not silently merge conflicts.
+- [x] Freeze and document the complete canonical town roster before town concept generation.
 
 ## Game-wide art direction
-- [ ] Define the shared Project North Star environment language: shape grammar, architectural abstraction, materials, palette/lighting principles, readable detail hierarchy, stylization, terrain integration, and interior/exterior continuity.
-- [ ] Define explicit anti-drift rules preventing generic-town convergence and preventing current voxel placeholders from becoming canon.
-- [ ] Create a game-wide town comparison/index covering identity, palette, materials, silhouette, culture/economy, terrain, infrastructure, motifs, and signature landmarks.
+- [x] Define the shared Project North Star environment language: shape grammar, architectural abstraction, materials, palette/lighting principles, readable detail hierarchy, stylization, terrain integration, and interior/exterior continuity.
+- [x] Define explicit anti-drift rules preventing generic-town convergence and preventing current voxel placeholders from becoming canon.
+- [x] Create a game-wide town comparison/index covering identity, palette, materials, silhouette, culture/economy, terrain, infrastructure, motifs, and signature landmarks.
 
 ## Per-town pre-concept inventory and briefs
-- [ ] For every frozen-roster town, lock the exact named/specific buildings, landmarks, public spaces, infrastructure, and source provenance **before** generating that town's concepts.
-- [ ] For every town, clearly separate historical/source-backed facts from newly derived Project North Star art direction.
-- [ ] For every town, author the required brief: identity/theme, architecture language, materials, palette, culture/economy, terrain/environment integration, signature motifs/landmarks, infrastructure, and provenance.
+- [x] For every frozen-roster town, lock the exact named/specific buildings, landmarks, public spaces, infrastructure, and source provenance **before** generating that town's concepts.
+- [x] For every town, clearly separate historical/source-backed facts from newly derived Project North Star art direction.
+- [x] For every town, author the required brief: identity/theme, architecture language, materials, palette, culture/economy, terrain/environment integration, signature motifs/landmarks, infrastructure, and provenance.
 
 ## Concept-art deliverables
 - [ ] For every town, commit at least one production-quality overall/elevated town concept.
