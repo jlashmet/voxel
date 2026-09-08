@@ -64,7 +64,9 @@ namespace Game.WorldBuilder.Validation
             _world.StepStreaming(transform.position, m_GenerateBudgetMs);
             SurveyTarget target = _targets[_targetIndex];
             Vector3 focus = SurfacePoint(target.CentreDm, 4f);
-            if (!_world.IsPresentationColumnContentSettled(focus))
+            var targetRegion = ShowcaseWorld.RegionAt(focus);
+            bool hasPublishedCoverage = RenderingComposition.HasCompletePublishedNearSurfaceCoverage();
+            if (!_world.IsGenerated(targetRegion) || !hasPublishedCoverage)
             {
                 _stableFrames = 0;
                 return;
@@ -75,7 +77,7 @@ namespace Game.WorldBuilder.Validation
 
             Debug.Log(
                 "WORLDBUILDER_MACRO_PHYSICAL_RENDER target=" + target.Label +
-                " PASS coverage=" + RenderingComposition.HasCompletePublishedNearSurfaceCoverage());
+                " PASS coverage=" + hasPublishedCoverage);
 
             _targetIndex++;
             _stableFrames = 0;
