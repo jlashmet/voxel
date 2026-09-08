@@ -457,10 +457,17 @@ namespace Game.Combat.Runtime
             if (_repeatCooldown > 0f)
                 return CombatCommandResult.Reject("Input repeat cooldown is active.");
 
+            if (snapshot.PrimaryPressed)
+            {
+                CombatCommandResult attack = TryPrimaryAttack();
+                if (attack.Succeeded) _repeatCooldown = 0.18f;
+                return attack;
+            }
+
             float absX = Math.Abs(snapshot.MoveX);
             float absY = Math.Abs(snapshot.MoveY);
             if (absX < 0.5f && absY < 0.5f)
-                return CombatCommandResult.Reject("No movement intent.");
+                return CombatCommandResult.Reject("No movement or primary action intent.");
 
             int dx = 0;
             int dz = 0;
@@ -472,6 +479,34 @@ namespace Game.Combat.Runtime
             CombatCommandResult result = _combat.TryExecute(new MoveCombatantCommand(_participant, dx, dz));
             if (result.Succeeded) _repeatCooldown = 0.18f;
             return result;
+        }
+
+        private CombatCommandResult TryPrimaryAttack()
+        {
+            if (!_combat.ActiveParticipant.Equals(_participant))
+                return CombatCommandResult.Reject("The local player is not the active combatant.");
+
+            CombatParticipant actor = null;
+            for (int i = 0; i < _combat.ActiveParticipants.Count; i++)
+            {
+                CombatParticipant candidate = _combat.ActiveParticipants[i];
+                if (candidate.Id.Equals(_participant))
+                {
+                    actor = candidate;
+                    break;
+                }
+            }
+            if (actor == null || !_combat.IsAlive(actor.Id))
+                return CombatCommandResult.Reject("The local combat participant is absent or defeated.");
+
+            for (int i = 0; i < _combat.ActiveParticipants.Count; i++)
+            {
+                CombatParticipant candidate = _combat.ActiveParticipants[i];
+                if (candidate.Team == actor.Team || !_combat.IsAlive(candidate.Id)) continue;
+                return _combat.TryExecute(new AttackCombatantCommand(actor.Id, candidate.Id));
+            }
+
+            return CombatCommandResult.Reject("No living opposing target exists.");
         }
     }
 }

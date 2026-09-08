@@ -2,6 +2,7 @@ using System;
 using Game.Characters.Api;
 using Game.Combat.Api;
 using Game.Combat.Runtime;
+using Game.Input.Api;
 using Game.Vitality.Api;
 using Game.Vitality.Runtime;
 using NUnit.Framework;
@@ -60,6 +61,64 @@ namespace Game.Combat.Tests
         }
 
         [Test]
+        public void PrimaryInput_ExecutesActivePlayerAttackThroughCombatAuthority()
+        {
+            var playerId = Id("input-player");
+            var enemyId = Id("input-enemy");
+            var vitality = new VitalityRegistry();
+            vitality.Register(VitalitySnapshot.Alive(playerId, 6));
+            vitality.Register(VitalitySnapshot.Alive(enemyId, 2));
+
+            var player = CombatParticipant.FromCharacter(playerId, CombatTeam.Player);
+            var enemy = CombatParticipant.FromCharacter(enemyId, CombatTeam.Enemy);
+            var combat = new CombatService(vitality);
+            combat.BeginCombat(new CombatEncounterRequest("input-primary", new[] { player, enemy }));
+            var controller = new CombatInputController(
+                combat,
+                new FixedInputReader(new PlayerInputSnapshot(0f, 0f, 0f, 0f, true, false, false, false)),
+                new LocalPlayerId(0),
+                player.Id);
+
+            CombatCommandResult result = controller.Tick(0.016f);
+
+            Assert.That(result.Succeeded, Is.True);
+            Assert.That(combat.ActionCount, Is.EqualTo(1));
+            Assert.That(combat.IsActive, Is.False);
+            Assert.That(combat.WinningTeam, Is.EqualTo(CombatTeam.Player));
+            Assert.That(vitality.TryGet(enemyId, out VitalitySnapshot defeated), Is.True);
+            Assert.That(defeated.IsDefeated, Is.True);
+        }
+
+        [Test]
+        public void PrimaryInput_DoesNotSubstitutePlayerAttackDuringEnemyTurn()
+        {
+            var playerId = Id("input-turn-player");
+            var enemyId = Id("input-turn-enemy");
+            var vitality = new VitalityRegistry();
+            vitality.Register(VitalitySnapshot.Alive(playerId, 6));
+            vitality.Register(VitalitySnapshot.Alive(enemyId, 6));
+
+            var player = CombatParticipant.FromCharacter(playerId, CombatTeam.Player);
+            var enemy = CombatParticipant.FromCharacter(enemyId, CombatTeam.Enemy);
+            var combat = new CombatService(vitality);
+            combat.BeginCombat(new CombatEncounterRequest("input-turn", new[] { player, enemy }));
+            Assert.That(combat.TryExecute(new AttackCombatantCommand(player.Id, enemy.Id)).Succeeded, Is.True);
+            Assert.That(combat.ActiveParticipant, Is.EqualTo(enemy.Id));
+
+            var controller = new CombatInputController(
+                combat,
+                new FixedInputReader(new PlayerInputSnapshot(0f, 0f, 0f, 0f, true, false, false, false)),
+                new LocalPlayerId(0),
+                player.Id);
+            CombatCommandResult result = controller.Tick(0.016f);
+
+            Assert.That(result.Succeeded, Is.False);
+            Assert.That(result.RejectReason, Does.Contain("not the active combatant"));
+            Assert.That(combat.ActionCount, Is.EqualTo(1));
+            Assert.That(combat.ActiveParticipant, Is.EqualTo(enemy.Id));
+        }
+
+        [Test]
         public void BeginCombat_RejectsLegacyOrUnregisteredParticipantsWithoutInventingLifeState()
         {
             var vitality = new VitalityRegistry();
@@ -85,6 +144,18 @@ namespace Game.Combat.Tests
             var references = typeof(CombatService).Assembly.GetReferencedAssemblies();
             Assert.That(Array.Exists(references, x => x.Name == "Game.Vitality.Api"), Is.True);
             Assert.That(Array.Exists(references, x => x.Name == "Game.Vitality.Runtime"), Is.False);
+        }
+
+        private sealed class FixedInputReader : IPlayerInputReader
+        {
+            private readonly PlayerInputSnapshot _snapshot;
+
+            public FixedInputReader(PlayerInputSnapshot snapshot)
+            {
+                _snapshot = snapshot;
+            }
+
+            public PlayerInputSnapshot Read(LocalPlayerId player) => _snapshot;
         }
     }
 }

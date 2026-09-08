@@ -77,7 +77,7 @@ namespace Game.Kentridge.PlayableSlice
         public void Dispose()
         {
             if (_root == null) return;
-            if (Application.isPlaying)
+            if (UnityEngine.Application.isPlaying)
                 UnityEngine.Object.Destroy(_root);
             else
                 UnityEngine.Object.DestroyImmediate(_root);
