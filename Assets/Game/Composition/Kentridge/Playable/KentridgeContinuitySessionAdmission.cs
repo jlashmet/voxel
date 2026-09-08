@@ -121,6 +121,10 @@ namespace Game.Composition.Kentridge.Playable
         {
             if (_disposed || _server == null || _continuity == null || connectionId == 0) return;
 
+            // A fresh authority may have restored durable Sessions state immediately before this
+            // packet. Refresh here so reconnect admission cannot race the first authority update tick.
+            RefreshRestoredRoster();
+
             if (KentridgeSessionAdmissionCodec.TryDecodeJoin(payload, out JoinRequest request) &&
                 _memberByApplicant.TryGetValue(request.ApplicantKey, out PartyMemberId prior) &&
                 _credentialByApplicant.TryGetValue(request.ApplicantKey, out ReconnectCredential credential) &&
