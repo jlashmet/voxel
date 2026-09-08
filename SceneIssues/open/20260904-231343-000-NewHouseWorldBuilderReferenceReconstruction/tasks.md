@@ -9,7 +9,7 @@ Recreate `Assets/Textures/Stylized/experiment1/house/10dddef5-de0a-4153-9c09-b1e
 - [x] Use WorldBuilder production authoring, material registry/texture layers, storage/meshing/rendering, and built-player replay.
 - [x] Keep reusable house geometry separate from reference site/camera/light composition.
 - [x] Keep module-local WorldBuilder validation and canonical standalone integration in the normal repo path.
-- [x] Keep meaningful visual iterations tied to exact feature SHA, request/run, artifact, and target/front-left/rear-right frames through iteration 18.
+- [x] Keep meaningful visual iterations tied to exact feature SHA, request/run, artifact, and target/front-left/rear-right frames through iteration 19.
 - [ ] Preserve the same exact evidence linkage for every subsequent product-changing iteration through final acceptance.
 
 ## 1. Production path / budgets / reuse
@@ -110,10 +110,16 @@ Recreate `Assets/Textures/Stylized/experiment1/house/10dddef5-de0a-4153-9c09-b1e
 - [x] Direct exact reference/target/front-left/rear-right inspection confirms the middle cage is gone and unrelated geometry survives; exact target remains **prototype/blockout quality**. Largest next demonstrated mismatch: the high-gable arched opening is crossed by a separate full-width 29-voxel timber belt, making it read as a flat cross/panel instead of a clean arched glazed opening.
 
 ### Iteration 19 — clear the high-gable arch
-- [ ] Keep compact upper arched panel/mullions, flower box, lower structural belt, braces/posts outside the opening, roof, middle facade, portal, ivy, site, camera/light, chimney, banner/sign, and rear shell fixed; remove or relocate only the full-width belt that crosses the upper arch.
-- [ ] Add one focused production-path regression proving the wide crossing belt is absent while the compact upper arch, contained mullion, flower box, and surrounding finish ordering remain.
-- [ ] Run the exact iteration-19 feature SHA through `ci-test/fixes/agent-5`, with transport differing only by `.github/test-request.json`, requiring focused non-zero execution + automatic module validation + standalone replay.
-- [ ] Inspect exact target/front-left/rear-right artifact; if still below production-quality, record only the next largest demonstrated mismatch before another product change.
+- [x] Keep compact upper arched panel/mullions, flower box, lower structural belt, braces/posts outside the opening, roof, middle facade, portal, ivy, site, camera/light, chimney, banner/sign, and rear shell fixed; remove or relocate only the full-width belt that crosses the upper arch.
+- [x] Add one focused production-path regression proving the wide crossing belt is absent while the compact upper arch, contained mullion, flower box, and surrounding finish ordering remain.
+- [x] Exact feature `e7748b3a2eb368fbc48cb33798b2343f2f2eda74`, request `ab5287a67bb7df3e2c19c26d8e95a3608c0c5376`, run `34219985590`, artifact `single-test-34219985590` / ID `10053840705`: focused FQN passed non-zero; all 11 repository-derived EditMode assemblies, every required player, WorldBuilder module-local player, SceneIssue 32s replay, and canonical `KentridgePlayableSlice` succeeded.
+- [x] Direct pinned-reference plus exact target/front-left/rear-right/`verification-final.png` inspection confirms the crossing belt is gone and published surface coverage remains complete (`missingVisible=0`, `completeCoverage=True`), but classifies the target **prototype/blockout quality**. Largest next demonstrated mismatch: the high and middle arched glazing still read as broad flat gray slabs with a cross because late `ArchedPanel` fills the full carve contour instead of nesting the pane inside substantial timber joinery.
+
+### Iteration 20 — inset arched glazing inside timber joinery
+- [ ] Keep opening dimensions, arch carve, contained mullions, exterior surrounds, shutters, flower boxes, roof/massing, portal, ivy, site, camera/light, chimney, banner/sign, and rear shell fixed; inset only the late high/middle glass rows one voxel from the arch contour and restore a continuous one-voxel inner timber frame.
+- [ ] Extend the same focused `AuthorHouse_HighGableArchKeepsMullionContained_WithoutCrossingStructuralBelt` regression to require the inset pane/inner frame and reject the former full-width glass row while retaining the no-crossing-belt invariant.
+- [ ] Run the exact iteration-20 feature SHA through `ci-test/fixes/agent-5`, with transport differing only by `.github/test-request.json`, requiring focused non-zero execution + automatic module validation + standalone replay.
+- [ ] Inspect exact pinned reference plus target/front-left/rear-right/final artifact; if still below production-quality, record only the next largest demonstrated mismatch before another product change.
 
 ## 8. Final visual acceptance — all required
 - [ ] Overall silhouette very close to reference.
