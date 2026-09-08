@@ -50,8 +50,8 @@ namespace Game.Kentridge.PlayableSlice
         private KentridgeCharacterHost _motor;
         private Camera _camera;
         private Type _targetType;
-        private FieldInfo _targetLabelField;
-        private FieldInfo _targetFocusDmField;
+        private PropertyInfo _targetLabelProperty;
+        private PropertyInfo _targetFocusDmProperty;
         private int _lastTargetIndex = -1;
         private bool _lastCloseSettlement;
         private string _activeLabel;
@@ -128,8 +128,8 @@ namespace Game.Kentridge.PlayableSlice
             }
 
             object target = targets.GetValue(targetIndex);
-            EnsureTargetFields(target);
-            string label = _targetLabelField.GetValue(target) as string;
+            EnsureTargetProperties(target);
+            string label = _targetLabelProperty.GetValue(target) as string;
             bool closeSettlement = IsCloseSettlement(label);
             if (targetIndex != _lastTargetIndex)
             {
@@ -138,7 +138,7 @@ namespace Game.Kentridge.PlayableSlice
                 _activeLabel = closeSettlement ? label : null;
                 if (closeSettlement)
                 {
-                    Int2 focusDm = (Int2)_targetFocusDmField.GetValue(target);
+                    Int2 focusDm = (Int2)_targetFocusDmProperty.GetValue(target);
                     BuildCloseSurveyPose(focusDm, out _closeSurveyPosition, out _closeSurveyFocus);
                     Debug.Log(
                         $"MACROEVIDENCE close-survey target={label} position={Format(_closeSurveyPosition)} " +
@@ -155,21 +155,28 @@ namespace Game.Kentridge.PlayableSlice
             _motor.Velocity = Vector3.zero;
         }
 
-        private void EnsureTargetFields(object target)
+        private void EnsureTargetProperties(object target)
         {
             if (target == null) throw new InvalidOperationException("Macro evidence target is null.");
             Type targetType = target.GetType();
             if (_targetType == targetType) return;
-            _targetType = targetType;
-            _targetLabelField = targetType.GetField(
-                "Label",
-                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-            _targetFocusDmField = targetType.GetField(
-                "FocusDm",
-                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-            if (_targetLabelField == null || _targetFocusDmField == null)
+
+            const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+            PropertyInfo labelProperty = targetType.GetProperty("Label", flags);
+            PropertyInfo focusDmProperty = targetType.GetProperty("FocusDm", flags);
+            if (labelProperty == null
+                || labelProperty.PropertyType != typeof(string)
+                || focusDmProperty == null
+                || focusDmProperty.PropertyType != typeof(Int2))
                 throw new InvalidOperationException(
-                    "Close settlement survey composition cannot resolve evidence target label/focus state.");
+                    "Close settlement survey composition cannot resolve evidence target Label/FocusDm properties.");
+
+            // Commit the cache only after both members have been validated. This prevents a failed
+            // metadata probe from caching the type alongside null accessors and turning the next
+            // frame into an unrelated NullReferenceException.
+            _targetLabelProperty = labelProperty;
+            _targetFocusDmProperty = focusDmProperty;
+            _targetType = targetType;
         }
 
         internal static KentridgeMacroWorldEvidenceDriver FindActiveEvidenceDriverForValidation()
