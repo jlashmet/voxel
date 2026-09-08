@@ -9,34 +9,27 @@ using Game.Composition.Kentridge.Runtime;
 using Game.Encounters.Api;
 using Game.Encounters.Runtime;
 using Game.Input.Api;
-using Game.Input.Runtime;
 using Game.SessionOrchestration.Api;
 using Game.SessionOrchestration.Runtime;
 using Game.Vitality.Api;
 using Game.Vitality.Runtime;
 using MountingForce.WorldGen;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
 namespace Game.Composition.Kentridge.Playable
 {
     /// <summary>
     /// Kentridge-specific presentation/composition adapter for the forest Encounter/Combat slice.
-    /// Its authoritative Encounter/Input/Vitality/Combat runtimes are created only when the production
-    /// session graph composes this extension, and authored placement comes from the WorldBuilder encounter
-    /// realization bridge. Scene-specific proximity and participant/team mapping remain here rather than
-    /// leaking into SessionOrchestration.
+    /// Its authoritative Encounter/Vitality/Combat runtimes are created only when the production
+    /// session graph composes this extension. Physical input/context lifetime is supplied explicitly
+    /// by the Application-owned Kentridge composition root.
     /// </summary>
     [DefaultExecutionOrder(-10000)]
     public sealed class KentridgeForestBanditEncounter : MonoBehaviour,
         IKentridgeSessionRuntimeExtensionFactory,
         IKentridgeSessionRuntimeExtension
     {
-        private const string KentridgeSceneName = "KentridgePlayableSlice";
-        private const string PlayerCameraName = "Kentridge Player Camera";
         private const string MaleCharacterResource = "Characters/placeholder_male";
-        private const int AutonomousBattleSeed = 20260829;
-        private const int InitialCombatVitality = 6;
         private const float BattleActionIntervalSeconds = 0.10f;
         private static readonly LocalPlayerId LocalPlayer = new LocalPlayerId(0);
         private static readonly CombatParticipantId PlayerParticipant = new CombatParticipantId("kentridge-player");
@@ -50,8 +43,10 @@ namespace Game.Composition.Kentridge.Playable
         private readonly CharacterId[] _banditCharacterIds = new CharacterId[3];
         private ICharacterRegistry _characters;
         private EncounterRegistry _encounters;
-        private InputContextService _inputContexts;
-        private UnityPlayerInputReader _inputReader;
+        private IInputContextService _inputContexts;
+        private IPlayerInputReader _inputReader;
+        private IInputContextService _boundInputContexts;
+        private IPlayerInputReader _boundInputReader;
         private VitalityRegistry _vitality;
         private CombatService _combat;
         private CombatInputController _combatInput;
@@ -84,12 +79,12 @@ namespace Game.Composition.Kentridge.Playable
         public CombatTeam? WinningTeam => _combat == null ? null : _combat.WinningTeam;
         public int CombatActionCount => _combat == null ? 0 : _combat.ActionCount;
         public int CombatTurnNumber => _combat == null ? 0 : _combat.TurnNumber;
-        public int BattleSeed => AutonomousBattleSeed;
+        public int BattleSeed => KentridgeForestCombatTuning.BattleSeed;
         public bool HasPendingCombatWork =>
             (_combat != null && _combat.HasPendingBattleWork) ||
             (_battleDriver != null && _battleDriver.HasPendingAction);
         public string BattleDiagnostic => _battleDriver == null
-            ? "seed=" + AutonomousBattleSeed + " state=" + (_combat == null ? CombatLifecycleState.Idle : _combat.State)
+            ? "seed=" + KentridgeForestCombatTuning.BattleSeed + " state=" + (_combat == null ? CombatLifecycleState.Idle : _combat.State)
             : _battleDriver.Diagnostic("Kentridge forest battle");
         public InputContextId ActiveInputContext =>
             _inputContexts == null ? InputContextId.Exploration : _inputContexts.ActiveContext;
@@ -97,6 +92,7 @@ namespace Game.Composition.Kentridge.Playable
         public IVitalityQuery VitalityQuery => _vitality;
         public IEncounterQuery EncounterQuery => _encounters;
         public IInputContextService InputContexts => _inputContexts;
+        public bool ProductionInputBound => _boundInputContexts != null && _boundInputReader != null;
 
         public bool GameplayBindingsReady =>
             _composed
@@ -113,31 +109,17 @@ namespace Game.Composition.Kentridge.Playable
         public IReadOnlyList<ISessionUpdateStep> UpdateSteps =>
             _steps ?? Array.Empty<ISessionUpdateStep>();
 
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-        private static void RegisterSceneInstaller()
+        public void BindProductionInput(
+            IInputContextService inputContexts,
+            IPlayerInputReader inputReader)
         {
-            SceneManager.sceneLoaded -= InstallIntoPlayableSlice;
-            SceneManager.sceneLoaded += InstallIntoPlayableSlice;
-        }
-
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-        private static void InstallInitialScene()
-        {
-            InstallIntoPlayableSlice(SceneManager.GetActiveScene(), LoadSceneMode.Single);
-        }
-
-        private static void InstallIntoPlayableSlice(Scene scene, LoadSceneMode mode)
-        {
-            if (!scene.IsValid() || scene.name != KentridgeSceneName) return;
-            GameObject[] roots = scene.GetRootGameObjects();
-            for (int i = 0; i < roots.Length; i++)
-            {
-                GameObject root = roots[i];
-                if (!string.Equals(root.name, PlayerCameraName, StringComparison.Ordinal)) continue;
-                if (root.GetComponent<KentridgeForestBanditEncounter>() == null)
-                    root.AddComponent<KentridgeForestBanditEncounter>();
-                return;
-            }
+            if (_composed && !_disposed)
+                throw new InvalidOperationException(
+                    "Kentridge forest input cannot be rebound while a session is composed.");
+            _boundInputContexts = inputContexts
+                ?? throw new ArgumentNullException(nameof(inputContexts));
+            _boundInputReader = inputReader
+                ?? throw new ArgumentNullException(nameof(inputReader));
         }
 
         public IKentridgeSessionRuntimeExtension Compose(
@@ -151,17 +133,20 @@ namespace Game.Composition.Kentridge.Playable
             if (!(actors is KentridgeCharacterHost characterHost))
                 throw new InvalidOperationException(
                     "Kentridge forest session extension requires the production KentridgeCharacterHost.");
+            if (_boundInputContexts == null || _boundInputReader == null)
+                throw new InvalidOperationException(
+                    "Kentridge forest session extension requires Application-owned production input binding.");
 
             _disposed = false;
             _commandsEnabled = false;
             _characters = characterHost.Characters
                 ?? throw new InvalidOperationException("Kentridge character authority is unavailable.");
-            _inputContexts = new InputContextService();
-            _inputReader = new UnityPlayerInputReader(_inputContexts);
+            _inputContexts = _boundInputContexts;
+            _inputReader = _boundInputReader;
             _vitality = new VitalityRegistry();
             _combat = new CombatService(_vitality);
             _encounters = new EncounterRegistry(_characters);
-            EnsureVitalityRegistered(characterHost.PlayerCharacterId);
+            EnsureVitalityRegistered(characterHost.PlayerCharacterId, CombatTeam.Player);
 
             for (int i = 0; i < _banditCharacterIds.Length; i++)
             {
@@ -276,11 +261,7 @@ namespace Game.Composition.Kentridge.Playable
             ResolveBanditGroundNearPlayer();
             SyncBanditCharacters();
 
-            if (_combat.IsActive)
-            {
-                _inputReader.SuppressLegacyReadersForCurrentFrame();
-                return;
-            }
+            if (_combat.IsActive) return;
             if (CombatResolved) return;
 
             float triggerSquared = _triggerRadiusMetres * _triggerRadiusMetres;
@@ -292,7 +273,6 @@ namespace Game.Composition.Kentridge.Playable
                 FacePlayer(bandit.transform, player);
                 if (PlanarDistanceSquared(player, bandit.transform.position) > triggerSquared) continue;
                 ReportProximityActivation();
-                _inputReader.SuppressLegacyReadersForCurrentFrame();
                 break;
             }
         }
@@ -303,15 +283,36 @@ namespace Game.Composition.Kentridge.Playable
 
             float dt = Mathf.Max(0f, elapsedMilliseconds * 0.001f);
             _combatInput?.Tick(dt);
+            if (!_combat.IsActive)
+            {
+                SettleCompletedCombat();
+                return;
+            }
+
             _battleActionAccumulator += dt;
-            if (_battleDriver != null && _battleActionAccumulator >= BattleActionIntervalSeconds)
+            if (_battleDriver != null &&
+                _battleActionAccumulator >= BattleActionIntervalSeconds &&
+                IsEnemyTurn())
             {
                 _battleActionAccumulator -= BattleActionIntervalSeconds;
                 _battleDriver.Step();
                 if (!_combat.IsActive)
                     SettleCompletedCombat();
             }
-            _inputReader.SuppressLegacyReadersForCurrentFrame();
+        }
+
+        private bool IsEnemyTurn()
+        {
+            if (_combat == null || !_combat.IsActive) return false;
+            for (int i = 0; i < _combat.ActiveParticipants.Count; i++)
+            {
+                CombatParticipant participant = _combat.ActiveParticipants[i];
+                if (!participant.Id.Equals(_combat.ActiveParticipant)) continue;
+                return participant.Team == CombatTeam.Enemy;
+            }
+
+            throw new InvalidOperationException(
+                "Kentridge combat active participant is absent from the authoritative Combat participant list.");
         }
 
         private void SpawnBandits()
@@ -448,8 +449,8 @@ namespace Game.Composition.Kentridge.Playable
                 if (!_characters.TryGet(member.CharacterId, out _))
                     throw new InvalidOperationException(
                         "Encounter Combat member no longer exists: " + member.CharacterId + ".");
-                EnsureVitalityRegistered(member.CharacterId);
                 CombatTeam team = member.Role == "player" ? CombatTeam.Player : CombatTeam.Enemy;
+                EnsureVitalityRegistered(member.CharacterId, team);
                 CombatParticipant participant = CombatParticipant.FromCharacter(member.CharacterId, team);
                 participants[next++] = participant;
                 if (team == CombatTeam.Player)
@@ -462,14 +463,15 @@ namespace Game.Composition.Kentridge.Playable
             _combat.BeginCombat(new CombatEncounterRequest(request.EncounterId.Value, participants));
             _combatContext = _inputContexts.Push(InputContextId.Combat);
             _combatInput = new CombatInputController(_combat, _inputReader, LocalPlayer, playerCombatId);
-            _battleDriver = new CombatAiBattleDriver(_combat, AutonomousBattleSeed);
+            _battleDriver = new CombatAiBattleDriver(_combat, KentridgeForestCombatTuning.BattleSeed);
             _battleActionAccumulator = 0f;
         }
 
-        private void EnsureVitalityRegistered(CharacterId characterId)
+        private void EnsureVitalityRegistered(CharacterId characterId, CombatTeam team)
         {
             if (_vitality.TryGet(characterId, out _)) return;
-            if (!_vitality.Register(VitalitySnapshot.Alive(characterId, InitialCombatVitality)))
+            if (!_vitality.Register(
+                    VitalitySnapshot.Alive(characterId, KentridgeForestCombatTuning.InitialVitality(team))))
                 throw new InvalidOperationException(
                     "Failed to register combat vitality for character '" + characterId + "'.");
         }
@@ -520,7 +522,7 @@ namespace Game.Composition.Kentridge.Playable
             _combatInput = null;
             ReleaseCombatContext();
             Debug.Log(
-                "[KentridgeCombat] battle-complete seed=" + AutonomousBattleSeed +
+                "[KentridgeCombat] battle-complete seed=" + KentridgeForestCombatTuning.BattleSeed +
                 " winner=" + _combat.WinningTeam.Value +
                 " actions=" + _combat.ActionCount +
                 " turns=" + _combat.TurnNumber +
@@ -602,106 +604,22 @@ namespace Game.Composition.Kentridge.Playable
         private static GameObject CreateBandit(int index, Vector3 groundPosition)
         {
             GameObject prefab = Resources.Load<GameObject>(MaleCharacterResource);
-            GameObject root;
-            if (prefab != null)
-            {
-                root = Instantiate(prefab);
-                root.name = "Forest Bandit " + (index + 1);
-                root.transform.position = groundPosition;
-                root.transform.rotation = Quaternion.identity;
-                root.SetActive(true);
-            }
-            else
-            {
-                root = new GameObject("Forest Bandit " + (index + 1));
-                root.transform.position = groundPosition;
-                AddPrimitive(
-                    root.transform,
-                    PrimitiveType.Capsule,
-                    "Emergency Body",
-                    new Vector3(0f, 0.95f, 0f),
-                    new Vector3(0.68f, 0.82f, 0.54f),
-                    new Color(0.20f, 0.15f, 0.12f));
-            }
+            if (prefab == null)
+                throw new InvalidOperationException(
+                    "Kentridge forest bandit prefab is missing at Resources/" + MaleCharacterResource + ".");
+
+            GameObject root = Instantiate(prefab);
+            root.name = "Forest Bandit " + (index + 1);
+            root.transform.position = groundPosition;
+            root.transform.rotation = Quaternion.identity;
+            root.SetActive(true);
 
             CapsuleCollider rootCollider = root.GetComponent<CapsuleCollider>();
             if (rootCollider == null) rootCollider = root.AddComponent<CapsuleCollider>();
             rootCollider.center = new Vector3(0f, 0.95f, 0f);
             rootCollider.radius = 0.42f;
             rootCollider.height = 1.9f;
-
-            Color coat = index == 0
-                ? new Color(0.24f, 0.12f, 0.09f)
-                : index == 1
-                    ? new Color(0.13f, 0.20f, 0.12f)
-                    : new Color(0.16f, 0.15f, 0.18f);
-            Color leather = new Color(0.11f, 0.07f, 0.04f);
-
-            AddPrimitive(
-                root.transform,
-                PrimitiveType.Sphere,
-                "Hood",
-                new Vector3(0f, 1.70f, 0.01f),
-                new Vector3(0.50f, 0.42f, 0.48f),
-                coat * 0.72f);
-            AddPrimitive(
-                root.transform,
-                PrimitiveType.Cube,
-                "Belt",
-                new Vector3(0f, 0.91f, 0f),
-                new Vector3(0.70f, 0.09f, 0.30f),
-                leather);
-            AddPrimitive(
-                    root.transform,
-                    PrimitiveType.Cube,
-                    "Shoulder Strap",
-                    new Vector3(-0.12f, 1.18f, 0.15f),
-                    new Vector3(0.10f, 0.78f, 0.07f),
-                    leather)
-                .transform.localRotation = Quaternion.Euler(0f, 0f, -22f);
-            AddPrimitive(
-                root.transform,
-                PrimitiveType.Cube,
-                "Pouch",
-                new Vector3(-0.31f, 0.79f, 0.12f),
-                new Vector3(0.20f, 0.24f, 0.12f),
-                leather);
-            GameObject sword = AddPrimitive(
-                root.transform,
-                PrimitiveType.Cube,
-                "Sword",
-                new Vector3(0.48f, 0.82f, 0.11f),
-                new Vector3(0.07f, 0.86f, 0.09f),
-                new Color(0.55f, 0.58f, 0.60f));
-            sword.transform.localRotation = Quaternion.Euler(0f, 0f, -16f);
-            AddPrimitive(
-                sword.transform,
-                PrimitiveType.Cube,
-                "Guard",
-                new Vector3(0f, 0.36f, 0f),
-                new Vector3(0.30f, 0.06f, 0.12f),
-                leather);
             return root;
-        }
-
-        private static GameObject AddPrimitive(
-            Transform parent,
-            PrimitiveType type,
-            string name,
-            Vector3 localPosition,
-            Vector3 localScale,
-            Color color)
-        {
-            GameObject part = GameObject.CreatePrimitive(type);
-            part.name = name;
-            part.transform.SetParent(parent, false);
-            part.transform.localPosition = localPosition;
-            part.transform.localScale = localScale;
-            Collider collider = part.GetComponent<Collider>();
-            if (collider != null) Destroy(collider);
-            Renderer renderer = part.GetComponent<Renderer>();
-            if (renderer != null) renderer.material.color = color;
-            return part;
         }
 
         private static void FacePlayer(Transform bandit, Vector3 player)

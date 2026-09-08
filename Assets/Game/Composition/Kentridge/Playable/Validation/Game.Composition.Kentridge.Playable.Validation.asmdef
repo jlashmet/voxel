@@ -3,9 +3,14 @@
   "rootNamespace": "Game.Composition.Kentridge.Playable.Validation",
   "references": [
     "Game.Characters.Api",
+    "Game.Combat.Api",
+    "Game.Combat.Runtime",
     "Game.Composition.EncounterRealization",
     "Game.Composition.Kentridge.Playable",
     "Game.Encounters.Api",
+    "Game.Input.Api",
+    "Game.Vitality.Api",
+    "Game.Vitality.Runtime",
     "Game.WorldBuilder.Api"
   ],
   "includePlatforms": [],

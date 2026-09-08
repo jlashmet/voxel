@@ -30,6 +30,21 @@ namespace Game.Composition.Kentridge.Playable
             anchor.Characters = characters;
         }
 
+        public static void ReplacePlayerSessionRegistry(
+            ICharacterRegistry expectedCurrent,
+            ICharacterRegistry replacement)
+        {
+            if (expectedCurrent == null) throw new ArgumentNullException(nameof(expectedCurrent));
+            if (replacement == null) throw new ArgumentNullException(nameof(replacement));
+
+            KentridgeCharacterRegistryAnchor anchor = FindOrCreatePlayerAnchor();
+            if (anchor == null) return;
+            if (!ReferenceEquals(anchor.Characters, expectedCurrent))
+                throw new InvalidOperationException(
+                    "Kentridge player root character authority changed outside the composed session lifetime.");
+            anchor.Characters = replacement;
+        }
+
         public static void AttachSessionRuntimeExtensionFactory(
             IKentridgeSessionRuntimeExtensionFactory extensionFactory)
         {
