@@ -234,6 +234,10 @@ namespace Game.Application.Runtime
             }
             else if (_lifecycle == ApplicationLifecycle.InGame)
             {
+                GameSessionOperationResult tick = _session.Tick(elapsedMilliseconds);
+                if (!tick.Succeeded)
+                    return FailStartup(ApplicationFailure.SessionUpdateFailed, tick.Diagnostic);
+
                 GameOutcomeSnapshot outcome = _outcomes.Snapshot();
                 if (outcome.Lifecycle == GameOutcomeLifecycle.Resolved)
                 {
