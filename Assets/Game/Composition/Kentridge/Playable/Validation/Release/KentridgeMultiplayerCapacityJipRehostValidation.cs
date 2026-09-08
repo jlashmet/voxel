@@ -381,12 +381,18 @@ namespace Game.Composition.Kentridge.Playable.Validation.Release
         private void TrySendMutationInput()
         {
             if (_mutationInputSent) return;
-            ClientNetworkRuntime network = _client?.UtpFormation.ActiveClient;
-            if (network == null || !network.IsConnected) return;
+            ClientNetworkRuntime network = _client.UtpFormation.ActiveClient;
+            ushort networkPlayerId = _client.UtpFormation.ActiveNetworkPlayerId;
+            if (network == null || !network.IsConnected || networkPlayerId == 0) return;
 
-            uint tick = (uint)Mathf.Max(1, Time.frameCount);
+            // C_PlayerInput.tick is in the authority fixed-tick clock domain. Sample the replicated
+            // owner state so the separate client process sends the production authoritative tick.
+            if (!network.TrySampleRemotePlayer(networkPlayerId, 1f, out RemotePlayerSample authoritativeSample) ||
+                authoritativeSample.ServerTick == 0)
+                return;
+
             var input = new C_PlayerInput(
-                tick,
+                authoritativeSample.ServerTick,
                 1,
                 float2.zero,
                 new float3(0f, 0f, 1f),
