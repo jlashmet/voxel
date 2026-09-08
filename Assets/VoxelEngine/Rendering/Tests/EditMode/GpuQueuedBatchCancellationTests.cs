@@ -562,7 +562,7 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             Assert.That(GpuSurfaceMirrorCoordinator.TryDispatchCountBatch(_first, 0, _first.Extractor,
                 _first.Tables, request, Time.frameCount), Is.True);
             object lane = FirstLane();
-            bool sawSubmission = false, completed = false, edited = false;
+            bool sawSubmission = false, finalSubmissionWindowStarted = false, completed = false, edited = false;
             int frame = Time.frameCount;
             double deadline = Time.realtimeSinceStartupAsDouble + 5.0;
             while (Time.realtimeSinceStartupAsDouble < deadline)
@@ -581,6 +581,15 @@ namespace VoxelEngine.Rendering.Tests.EditMode
                     .SetValue(null, -1);
                 lane.GetType().GetField("_lastSummaryFrame", Fields).SetValue(lane, -1);
                 GpuSurfaceMirrorCoordinator.PrepareFrame(storage.Reads, storage.Changes, ++frame, 1.0);
+                if (!finalSubmissionWindowStarted && (bool)Get(lane, "Submitted"))
+                {
+                    // SealCountBatch marks Submitted only after the full compute chain is issued.
+                    // Cold Metal kernel compilation is synchronous inside that call, before async
+                    // publication exists, so preserve the same five-second liveness bound from the
+                    // first real final submission rather than charging compilation against it.
+                    finalSubmissionWindowStarted = true;
+                    deadline = Time.realtimeSinceStartupAsDouble + 5.0;
+                }
                 if ((bool)Get(lane, "SummarySubmitted"))
                 {
                     sawSubmission = true;
