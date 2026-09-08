@@ -1,22 +1,25 @@
 # Plan
 
 ## Closure override
-Repository owner explicitly directed closure on 2026-09-06 despite the remaining rendered near-surface corruption because that defect is owned by the separate GPU renderer restoration SceneIssue, not by Mountain Dragon composition/gameplay.
+Repository owner explicitly directed closure on 2026-09-06 despite the remaining rendered near-surface corruption because that defect is owned by separate shared-renderer work, not Mountain Dragon composition/gameplay.
 
 ## Accepted Mountain Dragon evidence
-Exact request `981f9f36683aad2b3e0d5e73cd100ec21da7fa9c` / run `34024289067` validated source `f10ce63f128931173947d44b5a7d925a8cec1f15`: repository-derived module validation passed, standalone replay completed all 92/92 waypoints grounded, summit proximity fired, exact dialogue `Hello, I'm Mr. Dragon.` was captured, and matching startup payload/manifest export was proven. The semantic-far slab/error-magenta defect was fixed.
+Exact request `981f9f36683aad2b3e0d5e73cd100ec21da7fa9c` / run `34024289067` validated source `f10ce63f128931173947d44b5a7d925a8cec1f15`: repository-derived module validation passed, standalone replay completed all 92/92 waypoints grounded, summit proximity fired, exact dialogue `Hello, I'm Mr. Dragon.` was captured, and matching startup payload/manifest export was proven.
 
 ## Renderer ownership
-Human review still observed torn/floating near-surface strips/holes. Same-camera isolation and runtime diagnostics attribute that remaining presentation defect to the shared voxel near-surface renderer. It is intentionally not fixed in agent-4 and remains owned by the GPU renderer correctness/restoration work.
+Human review still observed torn/floating near-surface strips/holes. Same-camera isolation attributed that remaining presentation defect to the shared voxel near-surface renderer. It remains outside agent-4 ownership under the explicit repository-owner waiver.
 
-## 2026-09-07 master reconciliation
-`fixes/agent-4` accumulated unrelated branch history after the accepted Mountain Dragon implementation, so that history must not be promoted wholesale. Rebuild the feature directly on current `origin/master`, carrying only the still-missing Mountain Dragon production code, reusable WorldBuilder/Cutscenes capabilities, focused regressions, module-local player validation, startup-bake provenance, and durable evidence route. Preserve all newer master implementations on overlapping files and exclude Kentridge/GameSystem work, renderer experiments, CI-planner experiments, and every other SceneIssue.
+## Master reconciliation
+The prior branch accumulated unrelated history and must not be promoted wholesale. Rebuild directly on current `origin/master`, carrying only still-missing Mountain Dragon production code, reusable WorldBuilder/Cutscenes capabilities, focused regressions, module-local player validation, startup-bake provenance, and durable evidence. Preserve newer master implementations and exclude Kentridge/GameSystem work, renderer experiments, CI-planner experiments, and every other SceneIssue.
 
-The reconciliation also repairs Unity asset identity defects that were safe only on the polluted branch: reused `.meta` GUIDs are replaced with unique GUIDs, missing `.meta` files are tracked, and the durable evidence-route regression points at the authoritative `SceneIssues/closed/...` path rather than legacy `open/...`.
+Reconciliation repairs reused/missing Unity `.meta` identities and updates the durable evidence-route regression to the authoritative `SceneIssues/closed/...` path. The late planner change `a67758fa610c2b99782b338809f3cc25a0f9726d` remains excluded because private implementation changes in an API assembly can alter behavior observed by unchanged dependents; suppressing dependent validation would weaken the fail-closed gate.
 
-The late branch CI-planner change `a67758fa610c2b99782b338809f3cc25a0f9726d` and its focused tests are intentionally excluded. Its classifier assumes that a modified API file whose diff hunks are private-only cannot affect unchanged dependent assemblies. That is not a sound dependency contract: an existing public method can call a changed private helper, so a private implementation change can alter observable behavior without changing the public declaration. `WorldRoadNetwork` is exactly such an implementation-sensitive API. Keeping current-master fail-closed dependent expansion preserves the repository validation contract rather than weakening CI to fit this assignment's runtime budget.
+## Obsolete-source compile discriminator
+Old request `8c4cee6db71f50ca5e87e200308b079b2b2aa421` / run `34175607847` finally ran against obsolete polluted source `f1c1f975d6282858d0f104e42a075017d29d3ead` and failed compilation in `WorldBuilderMountainLandmarkMaterialCatalogue.cs`. That legacy catalogue referenced removed `MountainLandmarkSpec.PathTier`, `PathHeadroomVoxels`, `PathClearanceWidthVoxels`, and `MountainPath*Geometry` contracts. The accepted Mountain Dragon implementation no longer consumes that catalogue; it uses `MountainLandformSurface` plus `WorldBuilderMountainLandformCatalogue` and the shared road path. Remove the superseded catalogue and its `.meta` rather than resurrecting obsolete contracts.
 
-Revalidate the reconciled exact feature SHA through the assigned `ci-test/fixes/agent-4` transport only after any already queued/running request on that transport reaches a terminal state. Do not replace or cancel existing CI. After green exact-SHA validation and current startup-payload confirmation, refresh closure evidence as needed and promote only through PR + auto-merge.
+Corrected source commit: `d3463335b2ecf95d21f94b7b9da0b95b8e3f4928`.
+
+Next gate: exact-SHA targeted CI from the corrected feature source, then consume the exact generated startup bake/manifest via `tools/binary_transport`, revalidate the payload-bearing source, and promote only through a new PR + auto-merge.
 
 ## Final disposition
-Closed by explicit repository-owner waiver. Preserve the remaining renderer defect as an external tracked defect rather than misrepresenting it as fixed here.
+Closed by explicit repository-owner waiver. Preserve the remaining renderer defect as external tracked work rather than misrepresenting it as fixed here.
