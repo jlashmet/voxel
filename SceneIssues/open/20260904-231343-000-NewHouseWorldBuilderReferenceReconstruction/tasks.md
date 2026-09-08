@@ -77,8 +77,8 @@ Recreate `Assets/Textures/Stylized/experiment1/house/10dddef5-de0a-4153-9c09-b1e
 
 ### Iteration 13 — compact middle facade opening/framing
 - [x] Isolate the dominant iteration-12 mismatch as authored middle-opening/framing scale rather than camera/FOV; front-left evidence shows the geometry itself is oversized.
-- [ ] Refill the oversized middle opening/framing region late in production and rebuild one compact central arched window with narrower blue shutters and restrained timber hierarchy while holding roof/chimney/camera/material/site/lower openings/rear shell fixed.
-- [ ] Add/extend a focused behavioral regression proving the compact final middle opening is authored after the destructive refill and does not erase unrelated facade/roof corrections.
+- [x] Refill the oversized middle opening/framing region late in production and rebuild one compact central arched window with narrower blue shutters and restrained timber hierarchy while holding roof/chimney/camera/material/site/lower openings/rear shell fixed.
+- [x] Add a focused behavioral regression proving the compact final middle opening is authored after the destructive refill and remains shallow of the rear audit shell.
 - [ ] Run the resulting exact feature SHA through `ci-test/fixes/agent-5` with only `.github/test-request.json` on the transport.
 - [ ] Inspect exact target/front-left/rear-right artifact; if still below production-quality, record only the next largest demonstrated mismatch before another production change.
 
