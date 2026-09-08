@@ -45,8 +45,8 @@ namespace Game.WorldBuilder.Voxel
 
             a.Box(new int3(centre - 20, portraitEave + 4, front - 4),
                 new int3(41, 2, TimberDepth), p.Timber);
-            a.Box(new int3(centre - 14, portraitEave + 27, front - 4),
-                new int3(29, 2, TimberDepth), p.Timber);
+            // Keep structural timber outside the compact high arch. A former 29-voxel belt at
+            // portraitEave + 27 crossed the glazing and turned the reference arch into a flat cross.
             a.Box(new int3(centre - 1, portraitEave + 4, front - 4),
                 new int3(2, 6, TimberDepth), p.Timber);
             a.Box(new int3(centre - 1, eave + 31, front - 4),
