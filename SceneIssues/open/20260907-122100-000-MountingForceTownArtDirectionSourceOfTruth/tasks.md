@@ -1,0 +1,38 @@
+# Tasks
+
+## Source inventory and roster
+- [ ] Pin original and secondary Mounting Force source commits and record all authoritative reference paths used.
+- [ ] Inventory every town/location represented by original scene/map/story references; distinguish towns from wilderness, dungeons, castles, junctions, and encounter-only locations.
+- [ ] Search connected reference material for Cambridge and any additional town names not obvious from source filenames.
+- [ ] Resolve competing source claims and record disconfirming evidence; do not silently merge conflicts.
+- [ ] Freeze and document the complete canonical town roster before town concept generation.
+
+## Game-wide art direction
+- [ ] Define the shared Project North Star environment language: shape grammar, architectural abstraction, materials, palette/lighting principles, readable detail hierarchy, stylization, terrain integration, and interior/exterior continuity.
+- [ ] Define explicit anti-drift rules preventing generic-town convergence and preventing current voxel placeholders from becoming canon.
+- [ ] Create a game-wide town comparison/index covering identity, palette, materials, silhouette, culture/economy, terrain, infrastructure, motifs, and signature landmarks.
+
+## Per-town pre-concept inventory and briefs
+- [ ] For every frozen-roster town, lock the exact named/specific buildings, landmarks, public spaces, infrastructure, and source provenance **before** generating that town's concepts.
+- [ ] For every town, clearly separate historical/source-backed facts from newly derived Project North Star art direction.
+- [ ] For every town, author the required brief: identity/theme, architecture language, materials, palette, culture/economy, terrain/environment integration, signature motifs/landmarks, infrastructure, and provenance.
+
+## Concept-art deliverables
+- [ ] For every town, commit at least one production-quality overall/elevated town concept.
+- [ ] For every town, commit at least two production-quality exterior building concepts tied to its locked inventory.
+- [ ] For every town, commit at least two production-quality interior building concepts tied to its locked inventory.
+- [ ] For every town, commit at least one production-quality street/plaza/public-space concept showing appropriate infrastructure.
+- [ ] Verify every concept is environment-focused, original, coherent with Project North Star, visually distinct from other towns, and strong enough for downstream implementation reference.
+- [ ] Add a concept catalog/caption matrix mapping each image to town, required category, depicted named places/infrastructure, and brief requirements.
+
+## Evidence and regression
+- [ ] Audit the final diff to prove no production runtime/gameplay/scene implementation changed; if that ceases to be true, add the required behavioral regression and built-scene evidence.
+- [ ] Record why built-scene evidence is not applicable for a docs/art-only source-of-truth deliverable whose existing scene visuals are explicitly non-authoritative.
+- [ ] Audit every `expected` acceptance clause in `issue.json` against a concrete committed artifact.
+
+## Exact-SHA CI, closure, promotion
+- [ ] Submit the intended feature head through `ci-test/fixes/agent-2` using the documented exact-SHA request workflow; do not replace a queued/running request.
+- [ ] Verify exact source SHA, inspect the targeted-CI result/evidence, and record request/run/artifact details.
+- [ ] Complete every task/checklist item before closure.
+- [ ] Atomically move the SceneIssue from `open` to `closed`, set `status=fixed`, resolution, and `resolvedUtc`; never use `pending`.
+- [ ] Open/update the PR from `fixes/agent-2` to `master`, enable auto-merge, and allow repository-required PR checks to promote it; do not push the exact branch head directly to `master`.
