@@ -9,7 +9,7 @@ Recreate `Assets/Textures/Stylized/experiment1/house/10dddef5-de0a-4153-9c09-b1e
 - [x] Use WorldBuilder production authoring, material registry/texture layers, storage/meshing/rendering, and built-player replay.
 - [x] Keep reusable house geometry separate from reference site/camera/light composition.
 - [x] Keep module-local WorldBuilder validation and canonical standalone integration in the normal repo path.
-- [x] Keep meaningful visual iterations tied to exact feature SHA, request/run, artifact, and target/front-left/rear-right frames through iteration 16.
+- [x] Keep meaningful visual iterations tied to exact feature SHA, request/run, artifact, and target/front-left/rear-right frames through iteration 17.
 - [ ] Preserve the same exact evidence linkage for every subsequent product-changing iteration through final acceptance.
 
 ## 1. Production path / budgets / reuse
@@ -98,9 +98,15 @@ Recreate `Assets/Textures/Stylized/experiment1/house/10dddef5-de0a-4153-9c09-b1e
 - [x] Inspect exact pinned reference plus target/front-left/rear-right and `verification-final.png`. Needle-spire and rear triangle are corrected while portal/openings/chimney/crest/shell survive, but classify exact target **prototype/blockout quality** because both facade ivy masses read as tall segmented green columns rather than irregular wall-hugging growth.
 
 ### Iteration 17 — sparse natural facade ivy
-- [ ] Keep roof, portal, windows, materials, flowers, site, camera/light, chimney, banner/sign, and shell fixed; change both production ivy emitters only to deterministic sparse wall-hugging clusters with smaller depth/height, irregular lateral drift/branching, and visible vertical gaps.
-- [ ] Add one focused final-path behavioral regression that rejects tall/deep column primitives and proves each side ivy mass spans multiple lateral positions with gaps while retaining semantic `p.Foliage` and translation invariance.
-- [ ] Run the exact iteration-17 feature SHA through `ci-test/fixes/agent-5`, with transport differing only by `.github/test-request.json`, requiring focused non-zero execution + automatic module validation + standalone replay.
+- [x] Keep roof, portal, windows, materials, flowers, site, camera/light, chimney, banner/sign, and shell fixed; change both production ivy emitters only to deterministic sparse wall-hugging clusters with smaller depth/height, irregular lateral drift/branching, and visible vertical gaps.
+- [x] Add one focused final-path behavioral regression that rejects tall/deep column primitives and proves each side ivy mass spans multiple lateral positions with gaps while retaining semantic `p.Foliage` and translation invariance.
+- [x] Exact feature `58b3cae158c0ded3d41cb648fc062bcdf47006a1`, request `955c061feff237e9895e9cdecbb805ad84248d24`, run `34206000148`, artifact `single-test-34206000148` / ID `10051474910`: focused FQN executed non-zero (`8.81s`); automatic module tests/players, WorldBuilder module-local player, SceneIssue 32s replay, and canonical `KentridgePlayableSlice` succeeded.
+- [x] Direct pinned-reference/target/front-left/rear-right inspection confirms the tall ivy columns are gone and shell/roof/portal/chimney survive; exact target remains **prototype/blockout quality**. Largest next demonstrated mismatch: the late middle facade is dominated by a giant rectangular timber cage around the compact arch, unlike the reference's plaster field/horizontal belts.
+
+### Iteration 18 — remove oversized middle-facade timber cage
+- [ ] Keep plaster repair, compact 13x19 arched glass opening, shutters, flower box, roof, portal, ivy, site, camera/light, chimney, banner/sign, and shell fixed; remove only the oversized outer 39x31 timber cage/25-voxel side posts/diagonals.
+- [ ] Add one focused production-path regression proving the final middle facade contains no tall outer timber cage while the compact arch/shutters/refill still occur in correct late order.
+- [ ] Run the exact iteration-18 feature SHA through `ci-test/fixes/agent-5`, with transport differing only by `.github/test-request.json`, requiring focused non-zero execution + automatic module validation + standalone replay.
 - [ ] Inspect exact target/front-left/rear-right artifact; if still below production-quality, record only the next largest demonstrated mismatch before another product change.
 
 ## 8. Final visual acceptance — all required
