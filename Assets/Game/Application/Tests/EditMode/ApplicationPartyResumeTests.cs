@@ -31,9 +31,40 @@ namespace Game.Application.Tests
             Assert.That(fixture.PartyIntents.Calls, Is.EqualTo(1));
             Assert.That(fixture.PartyIntents.Last.Kind, Is.EqualTo(SessionPresentationIntentKind.Start));
             Assert.That(fixture.Session.PrepareCalls, Is.EqualTo(1));
+            Assert.That(fixture.Session.EnterCalls, Is.EqualTo(1));
             Assert.That(fixture.Session.LastRequest.Kind, Is.EqualTo(GameSessionStartKind.Resume));
             Assert.That(fixture.Session.LastRequest.RestoreSourceId, Is.EqualTo("rehost-save"));
             Assert.That(fixture.Session.LastRequest.Identity.SessionId, Is.EqualTo("rehost-session"));
+            Assert.That(fixture.App.Snapshot.Lifecycle, Is.EqualTo(ApplicationLifecycle.InGame));
+        }
+
+        [Test]
+        public void FormedHostCanPrepareRestoreBeforeRemoteReconnectThenEnterOncePartyStarts()
+        {
+            var fixture = new Fixture(MakeSave("rehost-save", "rehost-session"));
+            Assert.That(fixture.App.CompleteBoot().Succeeded, Is.True);
+            Assert.That(fixture.App.RequestHost(new HostSessionRequest(
+                new GameSessionId("rehost-session"),
+                new SessionStartupConfiguration(5, "protocol", "content", true),
+                "host")).Succeeded, Is.True);
+
+            ApplicationOperationResult prepare = fixture.App.PreparePartyResume("rehost-save");
+
+            Assert.That(prepare.Succeeded, Is.True);
+            Assert.That(fixture.Session.PrepareCalls, Is.EqualTo(1));
+            Assert.That(fixture.Session.EnterCalls, Is.Zero);
+            Assert.That(fixture.PartyIntents.Calls, Is.Zero);
+            Assert.That(fixture.Session.LastRequest.Kind, Is.EqualTo(GameSessionStartKind.Resume));
+            Assert.That(fixture.Session.LastRequest.RestoreSourceId, Is.EqualTo("rehost-save"));
+            Assert.That(fixture.App.Snapshot.Lifecycle, Is.EqualTo(ApplicationLifecycle.FrontEnd));
+
+            ApplicationOperationResult start = fixture.App.RequestPartyResume("rehost-save");
+
+            Assert.That(start.Succeeded, Is.True);
+            Assert.That(fixture.Session.PrepareCalls, Is.EqualTo(1), "Prepared resume must not compose/restore twice.");
+            Assert.That(fixture.Session.EnterCalls, Is.EqualTo(1));
+            Assert.That(fixture.PartyIntents.Calls, Is.EqualTo(1));
+            Assert.That(fixture.PartyIntents.Last.Kind, Is.EqualTo(SessionPresentationIntentKind.Start));
             Assert.That(fixture.App.Snapshot.Lifecycle, Is.EqualTo(ApplicationLifecycle.InGame));
         }
 
@@ -100,6 +131,7 @@ namespace Game.Application.Tests
                 GameSessionLifecycle.Uninitialized, false, null, GameSessionFailure.None, string.Empty);
 
             public int PrepareCalls { get; private set; }
+            public int EnterCalls { get; private set; }
             public GameSessionStartRequest LastRequest { get; private set; }
             public OrchestrationSnapshot Snapshot => _snapshot;
 
@@ -114,6 +146,7 @@ namespace Game.Application.Tests
 
             public GameSessionOperationResult EnterRunning()
             {
+                EnterCalls++;
                 _snapshot = new OrchestrationSnapshot(
                     GameSessionLifecycle.Running, true, null, GameSessionFailure.None, string.Empty);
                 return GameSessionOperationResult.Success();
