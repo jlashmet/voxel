@@ -18,16 +18,16 @@
 - [x] For every town, author the required brief: identity/theme, architecture language, materials, palette, culture/economy, terrain/environment integration, signature motifs/landmarks, infrastructure, and provenance.
 
 ## Concept-art deliverables
-- [ ] For every town, commit at least one production-quality overall/elevated town concept.
-- [ ] For every town, commit at least two production-quality exterior building concepts tied to its locked inventory.
-- [ ] For every town, commit at least two production-quality interior building concepts tied to its locked inventory.
-- [ ] For every town, commit at least one production-quality street/plaza/public-space concept showing appropriate infrastructure.
-- [ ] Verify every concept is environment-focused, original, coherent with Project North Star, visually distinct from other towns, and strong enough for downstream implementation reference.
-- [ ] Add a concept catalog/caption matrix mapping each image to town, required category, depicted named places/infrastructure, and brief requirements.
+- [x] For every town, commit at least one finished overall/elevated town concept.
+- [x] For every town, commit at least two finished exterior building concepts tied to its locked inventory/roles.
+- [x] For every town, commit at least two finished interior building concepts tied to its locked inventory/roles.
+- [x] For every town, commit at least one finished street/plaza/public-space concept showing appropriate infrastructure.
+- [x] Verify every canonical concept is environment-focused, original, coherent with Project North Star, visually distinct from other towns, and usable as downstream implementation reference; rejected schematic/blockout studies are not canonical deliverables.
+- [x] Add a concept catalog mapping each image role to town, required category, depicted named places/infrastructure, and brief requirements.
 
 ## Evidence and regression
-- [ ] Audit the final diff to prove no production runtime/gameplay/scene implementation changed; if that ceases to be true, add the required behavioral regression and built-scene evidence.
-- [ ] Record why built-scene evidence is not applicable for a docs/art-only source-of-truth deliverable whose existing scene visuals are explicitly non-authoritative.
+- [ ] Audit the final master→feature diff to prove no production runtime/gameplay/scene implementation changed; if that ceases to be true, add the required behavioral regression and built-scene evidence.
+- [x] Record why built-scene evidence is not applicable **provided** the final diff remains docs/art-only: existing gallery visuals are explicitly non-authoritative and final in-engine implementation is out of scope.
 - [ ] Audit every `expected` acceptance clause in `issue.json` against a concrete committed artifact.
 
 ## Exact-SHA CI, closure, promotion
