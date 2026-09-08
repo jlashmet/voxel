@@ -77,6 +77,46 @@ namespace Game.Composition.Kentridge.Playable
             _session.Changed += OnSessionChanged;
         }
 
+        /// <summary>
+        /// Rebuilds Continuity's transient reconnect credentials from a just-restored durable Sessions
+        /// roster. Credentials are intentionally minted fresh in the new authority process. Members
+        /// restored without a live connection begin in the ordinary interrupted state so a new UTP
+        /// connection must authenticate and pass current-state recovery before becoming ready.
+        /// </summary>
+        public void RefreshRestoredRoster()
+        {
+            if (_disposed) throw new ObjectDisposedException(nameof(KentridgeContinuitySessionAdmission));
+            if (_continuity == null) throw new InvalidOperationException("Authority must be bound before restoring continuity.");
+
+            PartySessionStateCapture state = _session.CaptureState();
+            var validApplicants = new HashSet<string>(StringComparer.Ordinal);
+            var validMembers = new HashSet<PartyMemberId>();
+            for (int i = 0; i < state.Members.Count; i++)
+            {
+                PartyMemberStateCapture member = state.Members[i];
+                validApplicants.Add(member.ApplicantKey);
+                validMembers.Add(member.MemberId);
+                _memberByApplicant[member.ApplicantKey] = member.MemberId;
+                _applicantByMember[member.MemberId] = member.ApplicantKey;
+                if (!_credentialByApplicant.ContainsKey(member.ApplicantKey))
+                {
+                    _credentialByApplicant[member.ApplicantKey] = _continuity.IssueCredential(
+                        member.MemberId,
+                        Guid.NewGuid().ToString("N"));
+                }
+
+                if (_session.TryGetMember(member.MemberId, out PartyMemberSnapshot current) &&
+                    current.Presence == PartyPresenceState.Disconnected &&
+                    _continuity.TryGetRecovery(member.MemberId, out RecoverySnapshot recovery) &&
+                    recovery.State == RecoveryState.Connected)
+                {
+                    _continuity.ObserveUnexpectedLoss(member.MemberId, _nowSeconds());
+                }
+            }
+
+            RemoveStaleApplicants(validApplicants, validMembers);
+        }
+
         public void HandleSessionAdmission(uint connectionId, ReadOnlySpan<byte> payload)
         {
             if (_disposed || _server == null || _continuity == null || connectionId == 0) return;
@@ -144,6 +184,24 @@ namespace Game.Composition.Kentridge.Playable
             _credentialByApplicant[applicant] = _continuity.IssueCredential(
                 memberId,
                 Guid.NewGuid().ToString("N"));
+        }
+
+        private void RemoveStaleApplicants(HashSet<string> validApplicants, HashSet<PartyMemberId> validMembers)
+        {
+            var applicants = new List<string>(_memberByApplicant.Keys);
+            for (int i = 0; i < applicants.Count; i++)
+            {
+                string applicant = applicants[i];
+                if (validApplicants.Contains(applicant)) continue;
+                _memberByApplicant.Remove(applicant);
+                _credentialByApplicant.Remove(applicant);
+            }
+
+            var members = new List<PartyMemberId>(_applicantByMember.Keys);
+            for (int i = 0; i < members.Count; i++)
+            {
+                if (!validMembers.Contains(members[i])) _applicantByMember.Remove(members[i]);
+            }
         }
 
         private void OnConnectionClosed(uint connectionId)
