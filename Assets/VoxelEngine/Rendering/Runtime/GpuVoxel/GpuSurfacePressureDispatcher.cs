@@ -55,7 +55,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         // Bounds are a resident GPU table, two float4s per handle (center, extent).
         // Caller must serialize dispatch/readback and acknowledge identities before reusing Outcomes.
-        internal void Dispatch(ComputeBuffer bounds, Plane[] planes, Vector3 camera, int wanted, int frame, int sourceStep = 0, int shardIndex = 0, int shardCount = 1)
+        internal void Dispatch(ComputeBuffer bounds, Plane[] planes, Vector3 camera, int wanted,
+            int frame, int sourceStep = 0, int shardIndex = 0, int shardCount = 1,
+            bool includeStale = false)
         {
             if (_disposed) throw new ObjectDisposedException(nameof(GpuSurfacePressureDispatcher));
             if (bounds == null || bounds.count != _arena.HandleCapacity || bounds.stride != 32)
@@ -67,6 +69,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _shader.SetInt("_FilterStep", sourceStep);
             _shader.SetInt("_FilterShard", shardIndex);
             _shader.SetInt("_FilterShardCount", shardCount);
+            _shader.SetInt("_IncludeStale", includeStale ? 1 : 0);
             _arena.FlushHandleCommands(frame);
             for (int i = 0; i < 6; i++) _planes[i] = new Vector4(
                 planes[i].normal.x, planes[i].normal.y, planes[i].normal.z, planes[i].distance);
@@ -79,10 +82,17 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _shader.Dispatch(_retire, 1, 1, 1);
         }
 
-        internal void Request(Plane[] planes, Vector3 camera, int wanted, int frame, int sourceStep = 0, int shardIndex = 0, int shardCount = 1)
+        internal void Request(Plane[] planes, Vector3 camera, int wanted, int frame,
+            int sourceStep = 0, int shardIndex = 0, int shardCount = 1)
         {
             if (Busy) throw new InvalidOperationException("Pressure acknowledgment is still outstanding.");
-            Dispatch(_arena.ResidentBounds, planes, camera, wanted, frame, sourceStep, shardIndex, shardCount);
+            // Source step zero is the coordinator's unfiltered allocation-pressure path. A real
+            // worker always has a positive LOD step, so filtered capacity pressure preserves the
+            // ordinary current-generation/off-screen policy while allocation pressure may also
+            // reclaim obsolete live generations that are pinning their own replacements.
+            bool includeStale = sourceStep == 0;
+            Dispatch(_arena.ResidentBounds, planes, camera, wanted, frame,
+                sourceStep, shardIndex, shardCount, includeStale);
             Readback();
         }
 
