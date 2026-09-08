@@ -6,6 +6,8 @@ using UnityEngine;
 using VoxelEngine.Composition;
 using VoxelEngine.Rendering.Runtime;
 using VoxelEngine.Storage.Api;
+using VoxelEngine.Structures.Api;
+using VoxelEngine.Structures.Runtime;
 
 namespace VoxelEngine.Rendering.Validation
 {
